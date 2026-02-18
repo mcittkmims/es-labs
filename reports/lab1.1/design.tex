@@ -35,15 +35,7 @@ The software follows a layered architecture that separates concerns:
 \label{fig:layered_architecture}
 \end{figure}
 
-The layers and their responsibilities are:
-
-\begin{itemize}
-    \item \textbf{Application Layer (APP):} Contains \texttt{lab1\_1\_main}, which orchestrates the main control loop --- prompting for input, reading commands, invoking the parser, executing LED actions, and displaying feedback.
-    \item \textbf{Service Layer (SRV):} Contains \texttt{CommandParser}, which provides command interpretation as a reusable service. It trims whitespace, normalizes case, and matches input strings against known commands.
-    \item \textbf{ECU Abstraction Layer (ECAL):} Contains \texttt{StdioSerial}, which abstracts the UART hardware into C standard I/O streams. This layer creates a bridge between the portable STDIO API and the Arduino Serial hardware.
-    \item \textbf{Microcontroller Abstraction Layer (MCAL):} Contains the \texttt{Led} driver, which provides a clean object-oriented API for GPIO-based LED control, hiding direct \texttt{pinMode()}/\texttt{digitalWrite()} calls from upper layers.
-    \item \textbf{Hardware (HW):} The physical ATmega2560 MCU with its UART0 peripheral (connected to USB) and digital GPIO pin 7 (connected to the LED circuit).
-\end{itemize}
+The software follows a layered architecture that separates concerns as illustrated in \citeimg{fig:layered_architecture}. The Application Layer (APP) contains \texttt{lab1\_1\_main}, which orchestrates the main control loop by prompting for input, reading commands, invoking the parser, executing LED actions, and displaying feedback. The Service Layer (SRV) contains \texttt{CommandParser}, which provides command interpretation as a reusable service that trims whitespace, normalizes case, and matches input strings against known commands. The ECU Abstraction Layer (ECAL) contains \texttt{StdioSerial}, which abstracts the UART hardware into C standard I/O streams by creating a bridge between the portable STDIO API and the Arduino Serial hardware. The Microcontroller Abstraction Layer (MCAL) contains the \texttt{Led} driver, which provides a clean object-oriented API for GPIO-based LED control, hiding direct \texttt{pinMode()}/\texttt{digitalWrite()} calls from upper layers. Finally, the Hardware (HW) layer consists of the physical ATmega2560 MCU with its UART0 peripheral (connected to USB) and digital GPIO pin 7 (connected to the LED circuit).
 
 \subsection{Block Diagrams}
 
@@ -84,21 +76,11 @@ The circuit is straightforward: a single red LED is connected in series with a 2
 
 \subsubsection{Component Specification}
 
-\begin{itemize}
-    \item \textbf{Arduino Mega 2560:} Microcontroller board (ATmega2560, 5V logic, 16 MHz). Provides the digital GPIO output (pin 7) and UART0 serial interface (via USB).
-    \item \textbf{Red LED (5mm):} Light-emitting diode, forward voltage $V_f \approx 2.0\,V$, max forward current 20 mA.
-    \item \textbf{Resistor (220~$\Omega$, 1/4W):} Current-limiting resistor. Limits LED current to approximately 13.6 mA at 5V supply.
-\end{itemize}
+The circuit consists of three main components. The Arduino Mega 2560 is a microcontroller board based on the ATmega2560 with 5V logic and a 16 MHz clock. It provides the digital GPIO output (pin 7) used to control the LED and the UART0 serial interface (connected via USB). A red LED with a 5mm diameter serves as the output indicator, with a forward voltage of approximately 2.0\,V and a maximum forward current rating of 20 mA. A 220~$\Omega$ resistor acts as the current-limiting component, reducing the LED current to approximately 13.6 mA at the 5V supply voltage.
 
 \subsubsection{Circuit Connections}
 
-\begin{itemize}
-    \item \textbf{Arduino Pin 7} $\rightarrow$ \textbf{Resistor (220~$\Omega$) terminal 1}: GPIO output drives current through the resistor.
-    \item \textbf{Resistor terminal 2} $\rightarrow$ \textbf{LED Anode (+)}: Current flows from resistor into the LED.
-    \item \textbf{LED Cathode ($-$)} $\rightarrow$ \textbf{Arduino GND}: Completes the circuit to ground.
-\end{itemize}
-
-When pin 7 outputs HIGH (5V), current $I = (5V - 2V) / 220\,\Omega \approx 13.6\,mA$ flows through the LED, illuminating it. When pin 7 outputs LOW (0V), no current flows and the LED is off.
+The circuit forms a simple series path for current flow. Arduino Pin 7 connects to the first terminal of the 220~$\Omega$ resistor, with the GPIO output driving current through the resistor. The second resistor terminal connects to the LED anode (positive terminal), allowing current to flow from the resistor into the LED. The LED cathode (negative terminal) connects back to the Arduino ground, completing the circuit. When pin 7 outputs HIGH (5V), current $I = (5V - 2V) / 220\,\Omega \approx 13.6\,mA$ flows through the LED, illuminating it. When pin 7 outputs LOW (0V), no current flows and the LED is off.
 
 \subsubsection{Hardware Configuration}
 

@@ -4,14 +4,7 @@
 
 The objective of this laboratory work is to familiarize students with the use of the C Standard I/O (STDIO) library for serial communication in embedded systems. The primary goal is to design and implement a simple application on an Arduino Mega 2560 microcontroller that controls an LED through text commands transmitted from a serial terminal.
 
-The key learning objectives include:
-
-\begin{itemize}
-    \item Understanding the fundamental principles of serial communication (UART protocol).
-    \item Using the STDIO library functions (\texttt{printf}, \texttt{fgets}) for text-based data exchange over a serial interface.
-    \item Designing an application that interprets commands received through the serial port.
-    \item Developing a modular software solution, with separate reusable components for each peripheral device.
-\end{itemize}
+The key learning objectives include understanding the fundamental principles of serial communication (UART protocol), using the STDIO library functions (\texttt{printf}, \texttt{fgets}) for text-based data exchange over a serial interface, designing an application that interprets commands received through the serial port, and developing a modular software solution with separate reusable components for each peripheral device.
 
 \subsection{Problem Definition}
 
@@ -35,14 +28,7 @@ The task requires the development of a microcontroller-based application with th
 
 UART (Universal Asynchronous Receiver-Transmitter) is a hardware communication protocol that enables asynchronous serial data exchange between two devices. In this laboratory, UART is used to establish communication between the Arduino Mega 2560 and a host PC running a serial terminal application.
 
-Key characteristics of UART communication:
-
-\begin{itemize}
-    \item \textbf{Asynchronous:} No shared clock signal between transmitter and receiver. Both sides must agree on a common baud rate (in this lab: 9600 baud).
-    \item \textbf{Full-duplex:} Data can be transmitted and received simultaneously over two separate lines (TX and RX).
-    \item \textbf{Frame format:} Each data frame consists of a start bit, 8 data bits, an optional parity bit, and one or more stop bits.
-    \item \textbf{Point-to-point:} UART connects exactly two devices directly.
-\end{itemize}
+UART communication is asynchronous, meaning there is no shared clock signal between transmitter and receiver; both sides must agree on a common baud rate (9600 in this lab). It operates in full-duplex mode, allowing data to be transmitted and received simultaneously over two separate lines (TX and RX). The frame format consists of a start bit, 8 data bits, an optional parity bit, and one or more stop bits. UART is also a point-to-point protocol, connecting exactly two devices directly.
 
 Asynchronous data transmission occurs at the frame level, each having a specific structure as shown in \citeimg{fig:uart_frame}. At the protocol level, UART defines several key communication parameters: baud rate (transfer speed), data bits (typically 8 bits per frame), parity (for error detection), and stop bits (to mark frame boundaries). A commonly encountered standard configuration is 9600 baud, 8 data bits, no parity, and 1 stop bit (abbreviated as 9600 8N1).
 
@@ -59,12 +45,7 @@ On the Arduino Mega 2560, UART0 is connected to the USB-to-Serial converter chip
 
 The C Standard I/O library (\texttt{<stdio.h>}) provides portable, high-level functions for formatted text input and output. In desktop environments, these functions interact with console I/O; in embedded systems, they can be redirected to any I/O peripheral.
 
-The key STDIO functions used in this lab are:
-
-\begin{itemize}
-    \item \texttt{printf()} --- formatted text output to \texttt{stdout}. Used to display prompts, confirmation messages, and error messages.
-    \item \texttt{fgets()} --- reads a line of text from \texttt{stdin}. Used to capture user commands from the serial terminal.
-\end{itemize}
+The key STDIO functions used in this lab are \texttt{printf()}, which provides formatted text output to \texttt{stdout} for displaying prompts, confirmation messages, and error messages, and \texttt{fgets()}, which reads a line of text from \texttt{stdin} to capture user commands from the serial terminal.
 
 On AVR microcontrollers with the Arduino framework, STDIO streams (\texttt{stdout}, \texttt{stdin}) are not connected to any device by default. The AVR libc library provides the \texttt{fdev\_setup\_stream()} function to create custom FILE streams backed by user-defined read/write functions. By assigning a custom stream to \texttt{stdout} and \texttt{stdin}, all subsequent calls to \texttt{printf()} and \texttt{fgets()} are transparently redirected to the serial port.
 
@@ -147,14 +128,7 @@ A solderless breadboard provides a convenient prototyping platform for connectin
 
 \subsubsection{Visual Studio Code with PlatformIO}
 
-Visual Studio Code (VS Code) is a lightweight but powerful source code editor. The PlatformIO IDE extension transforms it into a full-featured embedded development environment with support for:
-
-\begin{itemize}
-    \item Project initialization and configuration via \texttt{platformio.ini}
-    \item Automatic toolchain and library management
-    \item Code compilation, firmware upload, and serial monitor
-    \item IntelliSense code completion for Arduino/AVR libraries
-\end{itemize}
+Visual Studio Code (VS Code) is a lightweight but powerful source code editor. The PlatformIO IDE extension transforms it into a full-featured embedded development environment by providing project initialization and configuration via \texttt{platformio.ini}, automatic toolchain and library management, code compilation, firmware upload, and serial monitor capabilities, as well as IntelliSense code completion for Arduino/AVR libraries.
 
 \begin{figure}[H]
 \centering
@@ -175,27 +149,12 @@ PlatformIO's built-in serial monitor provides a terminal interface for sending a
 
 \subsection{System Architecture and Justification}
 
-The system follows a layered architecture that organizes functionality into distinct levels, each with specific responsibilities. This structure separates concerns and enables modular development. The architecture consists of the following layers:
-
-\begin{itemize}
-    \item \textbf{APP (Application Layer)} --- implements command processing logic and high-level functionalities.
-    \item \textbf{SRV (Service Layer)} --- provides common services such as command parsing and data formatting.
-    \item \textbf{ECAL (ECU Abstraction Layer)} --- abstracts platform-specific hardware details, including STDIO-to-UART redirection.
-    \item \textbf{MCAL (Microcontroller Abstraction Layer)} --- interfaces with microcontroller peripherals (LED GPIO control).
-    \item \textbf{HW (Hardware)} --- represents the physical ATmega2560 microcontroller and its hardware peripherals.
-\end{itemize}
+The system follows a layered architecture that organizes functionality into distinct levels, each with specific responsibilities. This structure separates concerns and enables modular development. The APP (Application Layer) implements command processing logic and high-level functionalities. The SRV (Service Layer) provides common services such as command parsing and data formatting. The ECAL (ECU Abstraction Layer) abstracts platform-specific hardware details, including STDIO-to-UART redirection. The MCAL (Microcontroller Abstraction Layer) interfaces with microcontroller peripherals such as LED GPIO control. Finally, the HW (Hardware) layer represents the physical ATmega2560 microcontroller and its hardware peripherals.
 
 This layered organization enables independent testing of components and allows modifications or extensions without affecting other system parts. The hardware-software interface operates across multiple abstraction layers, facilitating clear separation between application logic and hardware control.
 
 \subsection{Case Study: Serial Command Interfaces in Embedded Systems}
 
-Serial command-line interfaces (CLIs) are widely used in embedded systems for diagnostics, configuration, and debugging. Many industrial and consumer devices provide a serial console for:
-
-\begin{itemize}
-    \item \textbf{Network equipment:} Routers and switches (Cisco IOS, OpenWrt) use serial consoles for initial configuration and troubleshooting.
-    \item \textbf{Industrial PLCs:} Programmable Logic Controllers often accept serial commands for parameter tuning and status queries.
-    \item \textbf{IoT gateways:} Edge devices provide serial debug interfaces for firmware updates and log inspection.
-    \item \textbf{3D printers:} Use G-code commands over serial (typically UART) to control motion, temperature, and extrusion.
-\end{itemize}
+Serial command-line interfaces (CLIs) are widely used in embedded systems for diagnostics, configuration, and debugging. Network equipment such as routers and switches (e.g., Cisco IOS, OpenWrt) use serial consoles for initial configuration and troubleshooting. Industrial PLCs (Programmable Logic Controllers) often accept serial commands for parameter tuning and status queries. IoT gateways typically provide serial debug interfaces for firmware updates and log inspection. Consumer devices like 3D printers use G-code commands over serial (typically UART) to control motion, temperature, and extrusion.
 
 The STDIO-based approach demonstrated in this lab mirrors these real-world implementations, where a standardized text protocol enables human-machine interaction through a simple terminal connection. The modular architecture (separating I/O abstraction from application logic) is a fundamental pattern in professional embedded firmware development.

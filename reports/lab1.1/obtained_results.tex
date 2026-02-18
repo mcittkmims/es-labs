@@ -148,13 +148,9 @@ The \texttt{trimStr()} function strips leading and trailing whitespace before ma
 
 \subsection{System Observations}
 
-\begin{itemize}
-    \item \textbf{Response time:} The LED state changes immediately upon pressing Enter (no perceptible delay). The confirmation message appears within milliseconds.
-    \item \textbf{Blocking I/O:} The \texttt{fgets()} call blocks the main loop while waiting for input. This is acceptable for this simple application but would need to be replaced with non-blocking I/O in a multi-tasking system.
-    \item \textbf{Echo behavior:} Characters typed in the terminal are echoed back by the MCU (implemented in \texttt{serialGetChar()}), providing visual feedback to the user.
-    \item \textbf{Memory usage:} The application uses minimal RAM. The input buffer is 64 bytes, and the parser uses small stack-allocated buffers for processing.
-    \item \textbf{Simulation fidelity:} The Wokwi simulation accurately reproduces the serial communication and LED control behavior observed on physical hardware.
-\end{itemize}
+The system demonstrates several important characteristics during operation. The LED state changes immediately upon pressing Enter with no perceptible delay, and the confirmation message appears within milliseconds, indicating responsive real-time behavior. The \texttt{fgets()} call blocks the main loop while waiting for input, which is acceptable for this simple application but would need to be replaced with non-blocking I/O in a multi-tasking system requiring concurrent operations.
+
+Characters typed in the terminal are echoed back by the MCU (implemented in \texttt{serialGetChar()}), providing visual feedback to the user. The application uses minimal RAM, with the input buffer occupying 64 bytes and the parser using small stack-allocated buffers for processing. Finally, the Wokwi simulation accurately reproduces the serial communication and LED control behavior observed on physical hardware, validating the correctness of the implementation.
 
 \subsection{Verification Summary}
 
