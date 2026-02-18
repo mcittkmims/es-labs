@@ -1,0 +1,52 @@
+# PlatformIO
+.pio/
+.pioenvs/
+.piolibdeps/
+.vscode/
+.vscode-diy/
+.devcontainer/
+*.o
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+*.out
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+__pycache__/
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+*.sublime-project
+*.sublime-workspace
+
+# LaTeX build artifacts
+template/builds/
+*.aux
+*.fdb_latexmk
+*.fls
+*.log
+*.out
+*.pdf
+*.synctex.gz
+*.toc
+*.blg
+*.bbl
+
+# Dependencies
+.venv/
+venv/
+env/
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
