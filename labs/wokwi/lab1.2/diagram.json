@@ -14,7 +14,7 @@
       "type": "wokwi-lcd1602",
       "id": "lcd",
       "top": -280,
-      "left": 100,
+      "left": -150,
       "attrs": {
         "pins": "i2c"
       }
@@ -23,9 +23,9 @@
       "type": "wokwi-membrane-keypad",
       "id": "keypad",
       "top": -380,
-      "left": -250,
+      "left": 350,
       "attrs": {
-        "keys": ["123A", "456B", "789C", "*0#D"]
+        "keys": "123A456B789C*0#D"
       }
     },
     {

@@ -6,13 +6,12 @@ The project was compiled using PlatformIO with the \texttt{lab1\_2} environment 
 
 Resource utilization remains modest: the firmware occupies approximately 11.2~KB of Flash (4.4\% of 248~KB) and 1.85~KB of RAM (22.6\% of 8~KB). The RAM usage increase compared to Lab~1.1 is primarily due to the LCD library's internal buffer and the FSM's password and display buffers.
 
-% Placeholder for build result screenshot
-% \begin{figure}[H]
-% \centering
-% \includegraphics[width=0.85\textwidth]{resources/ObtainedResults/build_results.png}
-% \caption{Successful PlatformIO build output for Lab 1.2}
-% \label{fig:build_results}
-% \end{figure}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{resources/ObtainedResults/build_results.png}
+\caption{Successful PlatformIO build output for Lab 1.2}
+\label{fig:build_results}
+\end{figure}
 
 Both lab environments (\texttt{lab1\_1} and \texttt{lab1\_2}) build successfully in parallel, confirming that lab isolation is maintained. The preprocessor-based lab selection mechanism (\texttt{-DLAB1\_1}, \texttt{-DLAB1\_2}) allows each environment to compile independently without code conflicts.
 
@@ -35,13 +34,12 @@ Commands (via keypad):
 Default password: 1234
 \end{lstlisting}
 
-% Placeholder for simulation start screenshot
-% \begin{figure}[H]
-% \centering
-% \includegraphics[width=0.75\textwidth]{resources/ObtainedResults/simulation_start.png}
-% \caption{Initial simulation state --- LCD shows welcome, red LED on}
-% \label{fig:simulation_start}
-% \end{figure}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.75\textwidth]{resources/ObtainedResults/simulation_start.png}
+\caption{Initial simulation state --- LCD shows welcome, red LED on}
+\label{fig:simulation_start}
+\end{figure}
 
 \subsection{Command Interface Validation}
 
@@ -54,13 +52,12 @@ Pressing the \texttt{*} key transitions from IDLE to MENU state. The LCD updates
 [FSM] -> state 1
 \end{lstlisting}
 
-% Placeholder for menu screenshot
-% \begin{figure}[H]
-% \centering
-% \includegraphics[width=0.65\textwidth]{resources/ObtainedResults/test_menu.png}
-% \caption{Menu display after pressing * key}
-% \label{fig:test_menu}
-% \end{figure}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.65\textwidth]{resources/ObtainedResults/test_menu.png}
+\caption{Menu display after pressing * key}
+\label{fig:test_menu}
+\end{figure}
 
 \subsubsection{Test: Lock Command (*0\#)}
 
@@ -74,13 +71,12 @@ From the menu, pressing \texttt{0} shows the lock confirmation screen (``CMD: Lo
 [FSM] Result: Lock Activated | Door is LOCKED
 \end{lstlisting}
 
-% Placeholder for lock result screenshot
-% \begin{figure}[H]
-% \centering
-% \includegraphics[width=0.65\textwidth]{resources/ObtainedResults/test_lock.png}
-% \caption{Lock command execution --- LCD confirmation and red LED}
-% \label{fig:test_lock}
-% \end{figure}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.65\textwidth]{resources/ObtainedResults/test_lock.png}
+\caption{Lock command execution --- LCD confirmation and red LED}
+\label{fig:test_lock}
+\end{figure}
 
 \subsubsection{Test: Unlock with Correct Password (*1*1234\#)}
 
@@ -103,13 +99,12 @@ The unlock sequence demonstrates the full command flow: \texttt{*} enters the me
 [LED] Red OFF, Green ON (UNLOCKED)
 \end{lstlisting}
 
-% Placeholder for unlock success screenshot
-% \begin{figure}[H]
-% \centering
-% \includegraphics[width=0.65\textwidth]{resources/ObtainedResults/test_unlock_success.png}
-% \caption{Successful unlock --- green LED on, LCD shows ``Access Granted!''}
-% \label{fig:test_unlock_success}
-% \end{figure}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.65\textwidth]{resources/ObtainedResults/test_unlock_success.png}
+\caption{Successful unlock --- green LED on, LCD shows ``Access Granted!''}
+\label{fig:test_unlock_success}
+\end{figure}
 
 \subsubsection{Test: Unlock with Wrong Password (*1*9999\#)}
 
@@ -121,13 +116,12 @@ Entering an incorrect password (\texttt{9999}) triggers the error response. The 
 [FSM] Result: Wrong Password! | Access Denied
 \end{lstlisting}
 
-% Placeholder for unlock fail screenshot
-% \begin{figure}[H]
-% \centering
-% \includegraphics[width=0.65\textwidth]{resources/ObtainedResults/test_unlock_fail.png}
-% \caption{Failed unlock attempt --- ``Wrong Password!'' message}
-% \label{fig:test_unlock_fail}
-% \end{figure}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.65\textwidth]{resources/ObtainedResults/test_unlock_fail.png}
+\caption{Failed unlock attempt --- ``Wrong Password!'' message}
+\label{fig:test_unlock_fail}
+\end{figure}
 
 \subsubsection{Test: Change Password (*2*1234*5678\#)}
 
@@ -155,13 +149,12 @@ The password change command requires three delimited fields: old password and ne
 [FSM] Result: Pwd Changed! | Successfully
 \end{lstlisting}
 
-% Placeholder for password change screenshot
-% \begin{figure}[H]
-% \centering
-% \includegraphics[width=0.65\textwidth]{resources/ObtainedResults/test_change_pwd.png}
-% \caption{Password change confirmation}
-% \label{fig:test_change_pwd}
-% \end{figure}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.65\textwidth]{resources/ObtainedResults/test_change_pwd.png}
+\caption{Password change confirmation}
+\label{fig:test_change_pwd}
+\end{figure}
 
 \subsubsection{Test: Status Query (*3\#)}
 
