@@ -27,6 +27,7 @@ __pycache__/
 .DS_Store
 *.sublime-project
 *.sublime-workspace
+.github/copilot-instructions.md
 
 # LaTeX build artifacts
 template/builds/
