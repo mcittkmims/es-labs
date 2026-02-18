@@ -45,19 +45,6 @@ The protocol operates in a master-slave configuration where the master device (A
 
 Key advantages of I2C for this application include minimal wiring (only two signal lines plus power and ground), built-in addressing (enabling multiple devices on the same bus), and widespread library support in the Arduino ecosystem through the Wire library.
 
-\subsubsection{Matrix Keypad Scanning}
-
-A 4x4 matrix keypad arranges 16 individual push-button switches in a grid of 4 rows and 4 columns, requiring only 8 GPIO pins instead of 16 individual pins. The scanning algorithm sequentially drives each row LOW while reading the column pins. When a button is pressed, it creates an electrical connection between its row and column, pulling the corresponding column pin LOW and identifying the pressed key's position.
-
-\begin{figure}[H]
-\centering
-\includegraphics[width=0.65\textwidth]{resources/DomainAnalysis/HardwareComponents/keypad_matrix.png}
-\caption{4x4 membrane keypad matrix layout and scanning principle}
-\label{fig:keypad_matrix}
-\end{figure}
-
-Software debouncing is essential for reliable keypad operation. Mechanical switch contacts bounce (make and break connection rapidly) for several milliseconds after being pressed or released. The Keypad library implements a state machine that tracks key press and release transitions, with a configurable debounce interval (set to 20ms in this lab) during which rapid state changes are filtered out.
-
 \subsubsection{Finite State Machines in Embedded Systems}
 
 A Finite State Machine (FSM) is a computational model consisting of a finite number of states, transitions between those states triggered by events (inputs), and actions performed during transitions or within states. FSMs are fundamental to embedded systems design because they provide a structured, deterministic approach to managing complex interactive behavior.
@@ -143,15 +130,18 @@ Display specifications:
 
 The 4x4 membrane keypad provides 16 tactile buttons arranged in a 4-row by 4-column matrix. The standard layout includes digits 0--9, the asterisk (\texttt{*}), hash (\texttt{\#}), and letters A--D. For this lock system, \texttt{*} and \texttt{\#} serve as command delimiters and execution triggers respectively, while digits 0--9 are used for command selection and password entry.
 
-% Placeholder: the user should add an image of the keypad
-% \begin{figure}[H]
-% \centering
-% \includegraphics[width=0.35\textwidth]{resources/DomainAnalysis/HardwareComponents/membrane_keypad_4x4.png}
-% \caption{4x4 membrane matrix keypad}
-% \label{fig:keypad_component}
-% \end{figure}
+The keypad operates using matrix scanning: the scanning algorithm sequentially drives each row LOW while reading the column pins. When a button is pressed, it creates an electrical connection between its row and column, pulling the corresponding column pin LOW and identifying the pressed key's position. This design requires only 8 GPIO pins (4 rows + 4 columns) instead of 16 individual pins.
 
-Keypad layout and specifications:
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.65\textwidth]{resources/DomainAnalysis/HardwareComponents/keypad_matrix.png}
+\caption{4x4 membrane keypad matrix layout and scanning principle}
+\label{fig:keypad_matrix}
+\end{figure}
+
+Software debouncing is essential for reliable keypad operation. Mechanical switch contacts bounce (make and break connection rapidly) for several milliseconds after being pressed or released. The Keypad library implements a state machine that tracks key press and release transitions, with a configurable debounce interval (set to 20ms in this lab) during which rapid state changes are filtered out.
+
+Keypad specifications:
 \begin{itemize}
     \item \textbf{Keys:} 16 (digits 0--9, *, \#, A--D)
     \item \textbf{Interface:} 8 pins (4 rows + 4 columns)
