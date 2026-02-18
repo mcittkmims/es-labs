@@ -34,6 +34,13 @@ The task requires the development of an advanced menu-based interface for an ele
 
 I2C (Inter-Integrated Circuit) is a synchronous, multi-master, multi-slave serial communication bus widely used in embedded systems for connecting low-speed peripherals to microcontrollers. Developed by Philips Semiconductor (now NXP), I2C uses only two bidirectional lines: SDA (Serial Data) for data transfer and SCL (Serial Clock) for clock synchronization.
 
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.75\textwidth]{resources/DomainAnalysis/UsedTechnologies/i2c_protocol.png}
+\caption{I2C serial communication protocol timing and frame structure}
+\label{fig:i2c_protocol}
+\end{figure}
+
 The protocol operates in a master-slave configuration where the master device (Arduino Mega 2560 in this lab) initiates all communication by generating the clock signal and addressing specific slave devices. Each slave on the bus has a unique 7-bit address; the LCD module used in this lab responds to address \texttt{0x27}. Communication begins with a START condition (SDA transitions low while SCL is high), followed by the 7-bit slave address, a read/write bit, and then data bytes, each acknowledged by the receiver. The transaction ends with a STOP condition (SDA transitions high while SCL is high).
 
 Key advantages of I2C for this application include minimal wiring (only two signal lines plus power and ground), built-in addressing (enabling multiple devices on the same bus), and widespread library support in the Arduino ecosystem through the Wire library.
@@ -41,6 +48,13 @@ Key advantages of I2C for this application include minimal wiring (only two sign
 \subsubsection{Matrix Keypad Scanning}
 
 A 4x4 matrix keypad arranges 16 individual push-button switches in a grid of 4 rows and 4 columns, requiring only 8 GPIO pins instead of 16 individual pins. The scanning algorithm sequentially drives each row LOW while reading the column pins. When a button is pressed, it creates an electrical connection between its row and column, pulling the corresponding column pin LOW and identifying the pressed key's position.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.65\textwidth]{resources/DomainAnalysis/HardwareComponents/keypad_matrix.png}
+\caption{4x4 membrane keypad matrix layout and scanning principle}
+\label{fig:keypad_matrix}
+\end{figure}
 
 Software debouncing is essential for reliable keypad operation. Mechanical switch contacts bounce (make and break connection rapidly) for several milliseconds after being pressed or released. The Keypad library implements a state machine that tracks key press and release transitions, with a configurable debounce interval (set to 20ms in this lab) during which rapid state changes are filtered out.
 
@@ -58,11 +72,42 @@ The LiquidCrystal\_I2C library provides a high-level API for controlling HD44780
 
 The Keypad library by Mark Stanley and Alexander Brevig provides a complete solution for reading matrix keypads on Arduino platforms. It handles the scanning algorithm (sequentially testing row-column combinations), software debouncing (using a configurable debounce time), and key state tracking (IDLE, PRESSED, HOLD, RELEASED). The \texttt{getKey()} method performs a non-blocking scan and returns the character of the pressed key, or null (\texttt{0}) if no key is currently active.
 
+\subsubsection{PlatformIO Build System}
+
+PlatformIO is a professional open-source ecosystem for embedded development. It provides project management, library dependency resolution, multi-board support, and integrated build/upload/monitor tools. In this lab, PlatformIO is used within VS Code to compile, upload, and monitor the application on the Arduino Mega 2560.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.6\textwidth]{resources/DomainAnalysis/SoftwareComponents/platformio.png}
+\caption{PlatformIO development environment integrated with VS Code}
+\label{fig:platformio}
+\end{figure}
+
+\subsubsection{Wokwi Simulator}
+
+Wokwi is an online and VS Code-integrated simulator for embedded systems. It supports Arduino, ESP32, and other popular platforms. Wokwi allows testing of the application in a virtual environment before deploying to physical hardware.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.6\textwidth]{resources/DomainAnalysis/SoftwareComponents/wokwi.png}
+\caption{Wokwi simulator for testing embedded systems and circuits}
+\label{fig:wokwi}
+\end{figure}
+
+In this laboratory, Wokwi is integrated with PlatformIO through a configuration file (\texttt{wokwi.toml}), allowing the compiled firmware to be tested in the simulator without physical hardware.
+
 \subsection{Hardware Components}
 
 \subsubsection{Arduino Mega 2560}
 
 The Arduino Mega 2560, based on the ATmega2560 AVR microcontroller, serves as the central processing unit. Its extensive pin count (54 digital I/O) is essential for this lab: 8 pins for the keypad matrix (4 rows + 4 columns), 2 pins for the I2C LCD (SDA + SCL), and 2 pins for the LED indicators, totaling 12 GPIO pins. The Mega's dedicated I2C hardware (on pins 20/SDA and 21/SCL) with internal pull-up resistors simplifies LCD integration.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.65\textwidth]{resources/DomainAnalysis/HardwareComponents/arduino_mega_2560.png}
+\caption{Arduino Mega 2560 development board with pin assignments}
+\label{fig:arduino_mega}
+\end{figure}
 
 Key specifications:
 \begin{itemize}
@@ -78,13 +123,12 @@ Key specifications:
 
 The LCD 1602 is a character display module with 2 rows of 16 characters each, based on the HD44780 controller. The I2C backpack (typically using a PCF8574 I/O expander) reduces the parallel interface from 16 pins to just 4 (VCC, GND, SDA, SCL). The display supports ASCII characters and a set of custom characters, with an integrated backlight controlled via software.
 
-% Placeholder: the user should add an image of the LCD module
-% \begin{figure}[H]
-% \centering
-% \includegraphics[width=0.5\textwidth]{resources/DomainAnalysis/HardwareComponents/lcd1602_i2c.png}
-% \caption{LCD 1602 display module with I2C backpack}
-% \label{fig:lcd_component}
-% \end{figure}
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.5\textwidth]{resources/DomainAnalysis/HardwareComponents/lcd_1602_i2c.png}
+\caption{LCD 1602 display module with I2C backpack (PCF8574)}
+\label{fig:lcd_component}
+\end{figure}
 
 Display specifications:
 \begin{itemize}
