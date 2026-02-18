@@ -1,0 +1,42 @@
+flowchart TD
+    A([processKey]) --> B{Current State?}
+
+    B -->|IDLE| C{key == '*'?}
+    C -->|Yes| D[→ MENU]
+    C -->|No| E[Ignore]
+
+    B -->|MENU| F{key value?}
+    F -->|0| G[→ LOCK_CONFIRM]
+    F -->|1| H[→ UNLOCK_WAIT_STAR]
+    F -->|2| I[→ CHANGE_WAIT_STAR]
+    F -->|3| J[→ STATUS_CONFIRM]
+    F -->|other| K[Show error result]
+
+    B -->|LOCK_CONFIRM| L{key == '#'?}
+    L -->|Yes| M["Set locked=true<br/>Show 'Lock Activated'"]
+    L -->|No| L2{key == '*'?}
+    L2 -->|Yes| L3[→ MENU]
+
+    B -->|UNLOCK_PWD| N{key type?}
+    N -->|Digit| O[Append to buffer<br/>Update mask display]
+    N -->|#| P{Password<br/>matches?}
+    P -->|Yes| Q["locked=false<br/>Show 'Access Granted'"]
+    P -->|No| R["Show 'Wrong Password'"]
+    N -->|*| S[Clear input buffer]
+
+    B -->|CHANGE_OLD_PWD| T{key type?}
+    T -->|Digit| U[Append to buffer]
+    T -->|*| V["Save old pwd<br/>→ CHANGE_NEW_PWD"]
+
+    B -->|CHANGE_NEW_PWD| W{key type?}
+    W -->|Digit| X[Append to buffer]
+    W -->|#| Y{Old pwd<br/>correct?}
+    Y -->|Yes| Z["Update password<br/>Show 'Pwd Changed'"]
+    Y -->|No| AA["Show 'Wrong Old Pwd'"]
+
+    B -->|STATUS_CONFIRM| BB{key == '#'?}
+    BB -->|Yes| CC["Show lock status"]
+
+    B -->|SHOW_RESULT| DD{key == '*'?}
+    DD -->|Yes| EE[→ MENU]
+    DD -->|No| FF[→ IDLE]

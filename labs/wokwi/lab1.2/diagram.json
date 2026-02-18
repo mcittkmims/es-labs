@@ -1,0 +1,92 @@
+{
+  "version": 1,
+  "author": "Vremere Adrian",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "wokwi-arduino-mega",
+      "id": "mega",
+      "top": 0,
+      "left": 0,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-lcd1602",
+      "id": "lcd",
+      "top": -280,
+      "left": 100,
+      "attrs": {
+        "pins": "i2c"
+      }
+    },
+    {
+      "type": "wokwi-membrane-keypad",
+      "id": "keypad",
+      "top": -380,
+      "left": -250,
+      "attrs": {
+        "keys": ["123A", "456B", "789C", "*0#D"]
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r1",
+      "top": -50,
+      "left": 210,
+      "rotate": 90,
+      "attrs": {
+        "resistance": "220"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led_red",
+      "top": -120,
+      "left": 200,
+      "attrs": {
+        "color": "red",
+        "label": "LOCKED"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r2",
+      "top": -50,
+      "left": 250,
+      "rotate": 90,
+      "attrs": {
+        "resistance": "220"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led_green",
+      "top": -120,
+      "left": 240,
+      "attrs": {
+        "color": "green",
+        "label": "UNLOCKED"
+      }
+    }
+  ],
+  "connections": [
+    ["mega:7", "r1:1", "red", ["v0"]],
+    ["r1:2", "led_red:A", "red", ["v0"]],
+    ["led_red:C", "mega:GND.1", "black", ["v0"]],
+    ["mega:6", "r2:1", "green", ["v0"]],
+    ["r2:2", "led_green:A", "green", ["v0"]],
+    ["led_green:C", "mega:GND.1", "black", ["v0"]],
+    ["lcd:GND", "mega:GND.2", "black", ["v0"]],
+    ["lcd:VCC", "mega:5V", "red", ["v0"]],
+    ["lcd:SDA", "mega:20", "blue", ["v0"]],
+    ["lcd:SCL", "mega:21", "purple", ["v0"]],
+    ["keypad:R1", "mega:22", "orange", ["v0"]],
+    ["keypad:R2", "mega:23", "orange", ["v0"]],
+    ["keypad:R3", "mega:24", "orange", ["v0"]],
+    ["keypad:R4", "mega:25", "orange", ["v0"]],
+    ["keypad:C1", "mega:26", "yellow", ["v0"]],
+    ["keypad:C2", "mega:27", "yellow", ["v0"]],
+    ["keypad:C3", "mega:28", "yellow", ["v0"]],
+    ["keypad:C4", "mega:29", "yellow", ["v0"]]
+  ]
+}

@@ -1,0 +1,5 @@
+flowchart TD
+    A([getKey]) --> B["Scan keypad matrix"]
+    B --> C{Key detected?}
+    C -->|Yes| D["Return key character"]
+    C -->|No| E["Return 0"]

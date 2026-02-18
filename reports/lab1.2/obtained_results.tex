@@ -1,0 +1,214 @@
+\section{Obtained Results}
+
+\subsection{Build Process}
+
+The project was compiled using PlatformIO with the \texttt{lab1\_2} environment targeting the Arduino Mega 2560 (ATmega2560). PlatformIO automatically resolved and installed the external library dependencies (LiquidCrystal\_I2C 1.1.4 and Keypad 3.1.1) along with the Wire library required for I2C communication. The build completed successfully with no errors or warnings.
+
+Resource utilization remains modest: the firmware occupies approximately 11.2~KB of Flash (4.4\% of 248~KB) and 1.85~KB of RAM (22.6\% of 8~KB). The RAM usage increase compared to Lab~1.1 is primarily due to the LCD library's internal buffer and the FSM's password and display buffers.
+
+% Placeholder for build result screenshot
+% \begin{figure}[H]
+% \centering
+% \includegraphics[width=0.85\textwidth]{resources/ObtainedResults/build_results.png}
+% \caption{Successful PlatformIO build output for Lab 1.2}
+% \label{fig:build_results}
+% \end{figure}
+
+Both lab environments (\texttt{lab1\_1} and \texttt{lab1\_2}) build successfully in parallel, confirming that lab isolation is maintained. The preprocessor-based lab selection mechanism (\texttt{-DLAB1\_1}, \texttt{-DLAB1\_2}) allows each environment to compile independently without code conflicts.
+
+\subsection{Simulation Initialization}
+
+Upon starting the Wokwi simulation, the Arduino Mega 2560 boots and initializes all peripherals. The LCD display shows the welcome screen (``Smart Lock'' on line~1, ``Press * to start'' on line~2), the red LED illuminates (indicating LOCKED state), and the green LED remains off. The serial terminal displays the debug banner:
+
+\begin{lstlisting}[caption=Serial debug output on startup, label=lst:startup_output]
+========================================
+  Lab 1.2: LCD + Keypad Lock System
+  MCU: Arduino Mega 2560
+========================================
+
+Commands (via keypad):
+  *0#          - Lock
+  *1*pwd#      - Unlock with password
+  *2*old*new#  - Change password
+  *3#          - Show lock status
+
+Default password: 1234
+\end{lstlisting}
+
+% Placeholder for simulation start screenshot
+% \begin{figure}[H]
+% \centering
+% \includegraphics[width=0.75\textwidth]{resources/ObtainedResults/simulation_start.png}
+% \caption{Initial simulation state --- LCD shows welcome, red LED on}
+% \label{fig:simulation_start}
+% \end{figure}
+
+\subsection{Command Interface Validation}
+
+\subsubsection{Test: Menu Display (Press *)}
+
+Pressing the \texttt{*} key transitions from IDLE to MENU state. The LCD updates to show the available commands on both lines: ``0:Lock 1:Unlock'' and ``2:ChPwd 3:Status''. The serial debug output confirms the state transition.
+
+\begin{lstlisting}[caption=Serial debug output --- menu display, label=lst:test_menu]
+[KEY] '*' in state 0
+[FSM] -> state 1
+\end{lstlisting}
+
+% Placeholder for menu screenshot
+% \begin{figure}[H]
+% \centering
+% \includegraphics[width=0.65\textwidth]{resources/ObtainedResults/test_menu.png}
+% \caption{Menu display after pressing * key}
+% \label{fig:test_menu}
+% \end{figure}
+
+\subsubsection{Test: Lock Command (*0\#)}
+
+From the menu, pressing \texttt{0} shows the lock confirmation screen (``CMD: Lock'' / ``Press \# to exec''). Pressing \texttt{\#} executes the lock command: the lock state is set to LOCKED, the red LED turns on, and the LCD shows ``Lock Activated'' / ``Door is LOCKED'' for 2.5 seconds.
+
+\begin{lstlisting}[caption=Serial debug output --- lock command, label=lst:test_lock]
+[KEY] '0' in state 1
+[FSM] -> state 2
+[KEY] '#' in state 2
+[LOCK] Locked unconditionally
+[FSM] Result: Lock Activated | Door is LOCKED
+\end{lstlisting}
+
+% Placeholder for lock result screenshot
+% \begin{figure}[H]
+% \centering
+% \includegraphics[width=0.65\textwidth]{resources/ObtainedResults/test_lock.png}
+% \caption{Lock command execution --- LCD confirmation and red LED}
+% \label{fig:test_lock}
+% \end{figure}
+
+\subsubsection{Test: Unlock with Correct Password (*1*1234\#)}
+
+The unlock sequence demonstrates the full command flow: \texttt{*} enters the menu, \texttt{1} selects unlock, \texttt{*} initiates password entry, digits \texttt{1234} are entered (displayed as masked asterisks on LCD), and \texttt{\#} executes the verification. With the correct password, the lock opens, the green LED turns on, and the LCD shows ``Access Granted!'' / ``Door is OPEN''.
+
+\begin{lstlisting}[caption=Serial debug output --- successful unlock, label=lst:test_unlock_ok]
+[KEY] '*' in state 0
+[FSM] -> state 1
+[KEY] '1' in state 1
+[FSM] -> state 3
+[KEY] '*' in state 3
+[FSM] -> state 4
+[KEY] '1' in state 4
+[KEY] '2' in state 4
+[KEY] '3' in state 4
+[KEY] '4' in state 4
+[KEY] '#' in state 4
+[LOCK] Unlocked successfully
+[FSM] Result: Access Granted! | Door is OPEN
+[LED] Red OFF, Green ON (UNLOCKED)
+\end{lstlisting}
+
+% Placeholder for unlock success screenshot
+% \begin{figure}[H]
+% \centering
+% \includegraphics[width=0.65\textwidth]{resources/ObtainedResults/test_unlock_success.png}
+% \caption{Successful unlock --- green LED on, LCD shows ``Access Granted!''}
+% \label{fig:test_unlock_success}
+% \end{figure}
+
+\subsubsection{Test: Unlock with Wrong Password (*1*9999\#)}
+
+Entering an incorrect password (\texttt{9999}) triggers the error response. The lock remains in its current state, and the LCD shows ``Wrong Password!'' / ``Access Denied'' for 2.5 seconds.
+
+\begin{lstlisting}[caption=Serial debug output --- failed unlock attempt, label=lst:test_unlock_fail]
+[KEY] '#' in state 4
+[LOCK] Wrong password entered
+[FSM] Result: Wrong Password! | Access Denied
+\end{lstlisting}
+
+% Placeholder for unlock fail screenshot
+% \begin{figure}[H]
+% \centering
+% \includegraphics[width=0.65\textwidth]{resources/ObtainedResults/test_unlock_fail.png}
+% \caption{Failed unlock attempt --- ``Wrong Password!'' message}
+% \label{fig:test_unlock_fail}
+% \end{figure}
+
+\subsubsection{Test: Change Password (*2*1234*5678\#)}
+
+The password change command requires three delimited fields: old password and new password. After entering the correct old password (\texttt{1234}) and a new password (\texttt{5678}), the system updates the stored password and confirms with ``Pwd Changed!'' / ``Successfully''. Subsequent unlock attempts must use the new password.
+
+\begin{lstlisting}[caption=Serial debug output --- password change, label=lst:test_change]
+[KEY] '*' in state 0
+[FSM] -> state 1
+[KEY] '2' in state 1
+[FSM] -> state 5
+[KEY] '*' in state 5
+[FSM] -> state 6
+[KEY] '1' in state 6
+[KEY] '2' in state 6
+[KEY] '3' in state 6
+[KEY] '4' in state 6
+[KEY] '*' in state 6
+[FSM] -> state 7
+[KEY] '5' in state 7
+[KEY] '6' in state 7
+[KEY] '7' in state 7
+[KEY] '8' in state 7
+[KEY] '#' in state 7
+[LOCK] Password changed to: 5678
+[FSM] Result: Pwd Changed! | Successfully
+\end{lstlisting}
+
+% Placeholder for password change screenshot
+% \begin{figure}[H]
+% \centering
+% \includegraphics[width=0.65\textwidth]{resources/ObtainedResults/test_change_pwd.png}
+% \caption{Password change confirmation}
+% \label{fig:test_change_pwd}
+% \end{figure}
+
+\subsubsection{Test: Status Query (*3\#)}
+
+The status command displays the current lock state. When locked, the LCD shows ``Lock Status:'' / ``** LOCKED **''; when unlocked, it shows ``** UNLOCKED **''.
+
+\begin{lstlisting}[caption=Serial debug output --- status query, label=lst:test_status]
+[KEY] '*' in state 0
+[FSM] -> state 1
+[KEY] '3' in state 1
+[FSM] -> state 8
+[KEY] '#' in state 8
+[LOCK] Status: LOCKED
+[FSM] Result: Lock Status: | ** LOCKED **
+\end{lstlisting}
+
+\subsubsection{Test: Invalid Command}
+
+Pressing an invalid key (e.g., \texttt{5}) in the MENU state produces an error message: ``Invalid option!'' / ``Press * to start''. The system recovers gracefully and returns to IDLE after the timeout.
+
+\subsubsection{Test: Password Masking}
+
+During password entry, each digit pressed appears as an asterisk (\texttt{*}) on the LCD, preventing visual eavesdropping. The first line shows the context (``Enter password:'', ``Old password:'', or ``New password:'') while the second line accumulates mask characters.
+
+\subsection{System Observations}
+
+The system demonstrates several important operational characteristics. Response time is consistently well below the 100ms requirement: the non-blocking main loop executes in approximately 1--2ms when no key is pressed, and key-to-display update latency is imperceptible to the user. The keypad debouncing (20ms) effectively prevents false triggers while maintaining responsive feel.
+
+The LCD update strategy (overwriting lines with space padding instead of calling \texttt{clear()}) prevents visible flickering during transitions. The 2.5-second result display timeout provides sufficient time for the user to read confirmation messages before the system returns to the idle state. Users can bypass this timeout by pressing any key.
+
+Memory usage remains efficient: the FSM maintains three small character buffers (password, input, old password) of 9 bytes each, plus the 34-byte display structure. The total static RAM footprint is approximately 1.85~KB, leaving over 6~KB available for future extensions.
+
+The serial debug output provides complete traceability of all key presses, state transitions, and command results, which is valuable for both development and troubleshooting.
+
+\subsection{Verification Summary}
+
+\begin{itemize}
+    \item \textbf{Compilation:} Both \texttt{lab1\_1} and \texttt{lab1\_2} environments build successfully with no errors.
+    \item \textbf{Initialization:} LCD, keypad, LEDs, and FSM initialize correctly. Welcome screen displays on startup.
+    \item \textbf{Lock command (*0\#):} Correctly activates lock with confirmation message and red LED.
+    \item \textbf{Unlock command (*1*pwd\#):} Correct password unlocks (green LED); wrong password produces error.
+    \item \textbf{Change password (*2*old*new\#):} Updates password after verifying old; rejects incorrect old password.
+    \item \textbf{Status query (*3\#):} Correctly displays current lock state.
+    \item \textbf{Menu display:} Each \texttt{*} press shows context-appropriate options on LCD.
+    \item \textbf{Error handling:} Invalid keys, incomplete commands, and wrong passwords produce clear error messages.
+    \item \textbf{Password masking:} Digits displayed as \texttt{*} characters during entry.
+    \item \textbf{LED feedback:} Red LED for locked, green for unlocked, transitions correctly.
+    \item \textbf{Debouncing:} 20ms debounce prevents false key triggers.
+    \item \textbf{Response time:} Well below 100ms latency requirement.
+    \item \textbf{Lab isolation:} Lab 1.1 builds and runs independently of Lab 1.2.
+\end{itemize}

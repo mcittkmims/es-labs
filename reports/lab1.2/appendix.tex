@@ -1,0 +1,692 @@
+\section{Appendix}
+
+The complete source code for Laboratory Work 1.2 is organized below by architectural layer. The full project is available in the GitHub repository: \url{https://github.com/mcittkmims/es-labs}.
+
+\subsection{Application Layer}
+
+\subsubsection{Entry Point: main.cpp}
+
+\begin{lstlisting}[language=C++, caption=src/main.cpp --- Application entry point (preprocessor lab selector), label=lst:appendix_main]
+/**
+ * @file main.cpp
+ * @brief Application Entry Point - Lab Selector
+ *
+ * The active lab is selected via preprocessor defines set in
+ * platformio.ini (-DLAB1_1, -DLAB1_2). Each PlatformIO environment
+ * builds and runs exactly one lab without code changes.
+ */
+
+#include <Arduino.h>
+
+#if defined(LAB1_1)
+    #include "lab1_1_main.h"
+#elif defined(LAB1_2)
+    #include "lab1_2_main.h"
+#else
+    #error "No lab selected! Add -DLABx_y to build_flags."
+#endif
+
+void setup() {
+#if defined(LAB1_1)
+    lab1_1Setup();
+#elif defined(LAB1_2)
+    lab1_2Setup();
+#endif
+}
+
+void loop() {
+#if defined(LAB1_1)
+    lab1_1Loop();
+#elif defined(LAB1_2)
+    lab1_2Loop();
+#endif
+}
+\end{lstlisting}
+
+\subsubsection{Lab 1.2 Main Module}
+
+\begin{lstlisting}[language=C++, caption=lab/lab1\_2/lab1\_2\_main.h --- Lab 1.2 interface, label=lst:appendix_lab1_2_h]
+#ifndef LAB1_2_MAIN_H
+#define LAB1_2_MAIN_H
+
+void lab1_2Setup();
+void lab1_2Loop();
+
+#endif // LAB1_2_MAIN_H
+\end{lstlisting}
+
+\begin{lstlisting}[language=C++, caption=lab/lab1\_2/lab1\_2\_main.cpp --- Lab 1.2 implementation, label=lst:appendix_lab1_2_cpp]
+#include "lab1_2_main.h"
+#include <Arduino.h>
+#include <stdio.h>
+#include "Led.h"
+#include "LcdDisplay.h"
+#include "KeypadInput.h"
+#include "LockFSM.h"
+#include "StdioSerial.h"
+
+// Pin Configuration
+static const uint8_t RED_LED_PIN   = 7;
+static const uint8_t GREEN_LED_PIN = 6;
+static const uint8_t LCD_I2C_ADDR  = 0x27;
+static const uint8_t LCD_COLS      = 16;
+static const uint8_t LCD_ROWS      = 2;
+static const unsigned long BAUD_RATE = 9600;
+static byte rowPins[4] = {22, 23, 24, 25};
+static byte colPins[4] = {26, 27, 28, 29};
+
+// Module instances
+static Led redLed(RED_LED_PIN);
+static Led greenLed(GREEN_LED_PIN);
+static LcdDisplay lcd(LCD_I2C_ADDR, LCD_COLS, LCD_ROWS);
+static KeypadInput keypad(rowPins, colPins);
+static LockFSM lockFSM;
+static bool prevLocked = true;
+
+void lab1_2Setup() {
+    stdioSerialInit(BAUD_RATE);
+    lcd.init();
+    keypad.init();
+    redLed.init();
+    greenLed.init();
+    lockFSM.init();
+    redLed.turnOn();
+    greenLed.turnOff();
+    prevLocked = true;
+
+    const LockDisplay& disp = lockFSM.getDisplay();
+    lcd.showTwoLines(disp.line1, disp.line2);
+    lockFSM.clearDisplayChanged();
+
+    printf("\r\n");
+    printf("========================================\r\n");
+    printf("  Lab 1.2: LCD + Keypad Lock System\r\n");
+    printf("  MCU: Arduino Mega 2560\r\n");
+    printf("========================================\r\n");
+    printf("\r\n");
+    printf("Commands (via keypad):\r\n");
+    printf("  *0#          - Lock\r\n");
+    printf("  *1*pwd#      - Unlock with password\r\n");
+    printf("  *2*old*new#  - Change password\r\n");
+    printf("  *3#          - Show lock status\r\n");
+    printf("\r\n");
+    printf("Default password: 1234\r\n");
+    printf("\r\n");
+}
+
+void lab1_2Loop() {
+    char key = keypad.getKey();
+    if (key) {
+        lockFSM.processKey(key);
+    }
+
+    lockFSM.update();
+
+    if (lockFSM.displayChanged()) {
+        const LockDisplay& disp = lockFSM.getDisplay();
+        lcd.showTwoLines(disp.line1, disp.line2);
+        lockFSM.clearDisplayChanged();
+    }
+
+    bool currentLocked = lockFSM.isLocked();
+    if (currentLocked != prevLocked) {
+        if (currentLocked) {
+            redLed.turnOn();
+            greenLed.turnOff();
+            printf("[LED] Red ON, Green OFF (LOCKED)\r\n");
+        } else {
+            redLed.turnOff();
+            greenLed.turnOn();
+            printf("[LED] Red OFF, Green ON (UNLOCKED)\r\n");
+        }
+        prevLocked = currentLocked;
+    }
+}
+\end{lstlisting}
+
+\subsection{Service Layer}
+
+\subsubsection{LockFSM Module}
+
+\begin{lstlisting}[language=C++, caption=lib/LockFSM/LockFSM.h --- Lock FSM interface, label=lst:appendix_lockfsm_h]
+#ifndef LOCK_FSM_H
+#define LOCK_FSM_H
+#include <Arduino.h>
+
+static const uint8_t MAX_PWD_LEN = 8;
+static const unsigned long RESULT_DISPLAY_MS = 2500;
+
+enum LockFSMState {
+    STATE_IDLE,
+    STATE_MENU,
+    STATE_LOCK_CONFIRM,
+    STATE_UNLOCK_WAIT_STAR,
+    STATE_UNLOCK_PWD,
+    STATE_CHANGE_WAIT_STAR,
+    STATE_CHANGE_OLD_PWD,
+    STATE_CHANGE_NEW_PWD,
+    STATE_STATUS_CONFIRM,
+    STATE_SHOW_RESULT
+};
+
+struct LockDisplay {
+    char line1[17];
+    char line2[17];
+};
+
+class LockFSM {
+public:
+    LockFSM();
+    void init();
+    void processKey(char key);
+    void update();
+    LockFSMState getState() const;
+    bool isLocked() const;
+    const LockDisplay& getDisplay() const;
+    bool displayChanged() const;
+    void clearDisplayChanged();
+private:
+    LockFSMState _state;
+    bool _locked;
+    char _password[MAX_PWD_LEN + 1];
+    char _inputBuffer[MAX_PWD_LEN + 1];
+    char _oldPwdBuffer[MAX_PWD_LEN + 1];
+    uint8_t _inputLen;
+    LockDisplay _display;
+    bool _displayChanged;
+    unsigned long _resultStartTime;
+    void setState(LockFSMState newState);
+    void updateDisplay();
+    void setResult(const char *line1, const char *line2);
+    void clearInput();
+    void appendDigit(char digit);
+};
+#endif
+\end{lstlisting}
+
+\begin{lstlisting}[language=C++, caption=lib/LockFSM/LockFSM.cpp --- Lock FSM implementation, label=lst:appendix_lockfsm_cpp]
+#include "LockFSM.h"
+#include <string.h>
+#include <stdio.h>
+
+static const char DEFAULT_PASSWORD[] = "1234";
+
+LockFSM::LockFSM()
+    : _state(STATE_IDLE), _locked(true), _inputLen(0),
+      _displayChanged(true), _resultStartTime(0) {
+    strncpy(_password, DEFAULT_PASSWORD, MAX_PWD_LEN);
+    _password[MAX_PWD_LEN] = '\0';
+    _inputBuffer[0] = '\0';
+    _oldPwdBuffer[0] = '\0';
+    memset(&_display, 0, sizeof(_display));
+}
+
+void LockFSM::init() {
+    _state = STATE_IDLE;
+    _locked = true;
+    strncpy(_password, DEFAULT_PASSWORD, MAX_PWD_LEN);
+    _password[MAX_PWD_LEN] = '\0';
+    clearInput();
+    _oldPwdBuffer[0] = '\0';
+    updateDisplay();
+    printf("[FSM] Initialized. Default password: %s\r\n",
+           DEFAULT_PASSWORD);
+}
+
+void LockFSM::processKey(char key) {
+    if (key == 0) return;
+    printf("[KEY] '%c' in state %d\r\n", key, (int)_state);
+
+    switch (_state) {
+        case STATE_IDLE:
+            if (key == '*') setState(STATE_MENU);
+            break;
+
+        case STATE_MENU:
+            if (key == '0') setState(STATE_LOCK_CONFIRM);
+            else if (key == '1') setState(STATE_UNLOCK_WAIT_STAR);
+            else if (key == '2') setState(STATE_CHANGE_WAIT_STAR);
+            else if (key == '3') setState(STATE_STATUS_CONFIRM);
+            else if (key == '*') updateDisplay();
+            else setResult("Invalid option!", "Press * to start");
+            break;
+
+        case STATE_LOCK_CONFIRM:
+            if (key == '#') {
+                _locked = true;
+                printf("[LOCK] Locked unconditionally\r\n");
+                setResult("Lock Activated", "Door is LOCKED");
+            } else if (key == '*') setState(STATE_MENU);
+            break;
+
+        case STATE_UNLOCK_WAIT_STAR:
+            if (key == '*') {
+                clearInput();
+                setState(STATE_UNLOCK_PWD);
+            } else if (key == '#')
+                setResult("Error: need pwd", "Use *1*pwd#");
+            break;
+
+        case STATE_UNLOCK_PWD:
+            if (key >= '0' && key <= '9') {
+                appendDigit(key);
+                updateDisplay();
+            } else if (key == '#') {
+                if (strcmp(_inputBuffer, _password) == 0) {
+                    _locked = false;
+                    printf("[LOCK] Unlocked successfully\r\n");
+                    setResult("Access Granted!", "Door is OPEN");
+                } else {
+                    printf("[LOCK] Wrong password entered\r\n");
+                    setResult("Wrong Password!", "Access Denied");
+                }
+                clearInput();
+            } else if (key == '*') {
+                clearInput();
+                updateDisplay();
+            }
+            break;
+
+        case STATE_CHANGE_WAIT_STAR:
+            if (key == '*') {
+                clearInput();
+                setState(STATE_CHANGE_OLD_PWD);
+            } else if (key == '#')
+                setResult("Error: need pwd", "Use *2*old*new#");
+            break;
+
+        case STATE_CHANGE_OLD_PWD:
+            if (key >= '0' && key <= '9') {
+                appendDigit(key);
+                updateDisplay();
+            } else if (key == '*') {
+                strncpy(_oldPwdBuffer, _inputBuffer, MAX_PWD_LEN);
+                _oldPwdBuffer[MAX_PWD_LEN] = '\0';
+                clearInput();
+                setState(STATE_CHANGE_NEW_PWD);
+            } else if (key == '#')
+                setResult("Error: need new", "Use *2*old*new#");
+            break;
+
+        case STATE_CHANGE_NEW_PWD:
+            if (key >= '0' && key <= '9') {
+                appendDigit(key);
+                updateDisplay();
+            } else if (key == '#') {
+                if (strcmp(_oldPwdBuffer, _password) == 0) {
+                    if (_inputLen > 0) {
+                        strncpy(_password, _inputBuffer,
+                                MAX_PWD_LEN);
+                        _password[MAX_PWD_LEN] = '\0';
+                        printf("[LOCK] Password changed to: %s\r\n",
+                               _password);
+                        setResult("Pwd Changed!", "Successfully");
+                    } else {
+                        setResult("Error: empty pw", "Try again");
+                    }
+                } else {
+                    printf("[LOCK] Wrong old password\r\n");
+                    setResult("Wrong Old Pwd!", "Change Denied");
+                }
+                clearInput();
+                _oldPwdBuffer[0] = '\0';
+            } else if (key == '*') {
+                clearInput();
+                updateDisplay();
+            }
+            break;
+
+        case STATE_STATUS_CONFIRM:
+            if (key == '#') {
+                if (_locked) {
+                    printf("[LOCK] Status: LOCKED\r\n");
+                    setResult("Lock Status:", "** LOCKED **");
+                } else {
+                    printf("[LOCK] Status: UNLOCKED\r\n");
+                    setResult("Lock Status:", "** UNLOCKED **");
+                }
+            } else if (key == '*') setState(STATE_MENU);
+            break;
+
+        case STATE_SHOW_RESULT:
+            if (key == '*') setState(STATE_MENU);
+            else setState(STATE_IDLE);
+            break;
+    }
+}
+
+void LockFSM::update() {
+    if (_state == STATE_SHOW_RESULT) {
+        if (millis() - _resultStartTime >= RESULT_DISPLAY_MS) {
+            setState(STATE_IDLE);
+        }
+    }
+}
+
+LockFSMState LockFSM::getState() const { return _state; }
+bool LockFSM::isLocked() const { return _locked; }
+const LockDisplay& LockFSM::getDisplay() const {
+    return _display;
+}
+bool LockFSM::displayChanged() const {
+    return _displayChanged;
+}
+void LockFSM::clearDisplayChanged() {
+    _displayChanged = false;
+}
+
+void LockFSM::setState(LockFSMState newState) {
+    _state = newState;
+    printf("[FSM] -> state %d\r\n", (int)_state);
+    updateDisplay();
+}
+
+void LockFSM::updateDisplay() {
+    _displayChanged = true;
+    switch (_state) {
+        case STATE_IDLE:
+            strncpy(_display.line1, "  Smart Lock    ", 17);
+            strncpy(_display.line2, "Press * to start", 17);
+            break;
+        case STATE_MENU:
+            strncpy(_display.line1, "0:Lock 1:Unlock ", 17);
+            strncpy(_display.line2, "2:ChPwd 3:Status", 17);
+            break;
+        case STATE_LOCK_CONFIRM:
+            strncpy(_display.line1, "CMD: Lock       ", 17);
+            strncpy(_display.line2, "Press # to exec ", 17);
+            break;
+        case STATE_UNLOCK_WAIT_STAR:
+            strncpy(_display.line1, "CMD: Unlock     ", 17);
+            strncpy(_display.line2, "Press * for pwd ", 17);
+            break;
+        case STATE_UNLOCK_PWD:
+        case STATE_CHANGE_OLD_PWD:
+        case STATE_CHANGE_NEW_PWD: {
+            if (_state == STATE_UNLOCK_PWD)
+                strncpy(_display.line1, "Enter password: ", 17);
+            else if (_state == STATE_CHANGE_OLD_PWD)
+                strncpy(_display.line1, "Old password:   ", 17);
+            else
+                strncpy(_display.line1, "New password:   ", 17);
+            char mask[17];
+            uint8_t i;
+            for (i = 0; i < _inputLen && i < 16; i++)
+                mask[i] = '*';
+            for (; i < 16; i++)
+                mask[i] = ' ';
+            mask[16] = '\0';
+            strncpy(_display.line2, mask, 17);
+            break;
+        }
+        case STATE_CHANGE_WAIT_STAR:
+            strncpy(_display.line1, "CMD: Change Pwd ", 17);
+            strncpy(_display.line2, "Press * for pwd ", 17);
+            break;
+        case STATE_STATUS_CONFIRM:
+            strncpy(_display.line1, "CMD: Status     ", 17);
+            strncpy(_display.line2, "Press # to exec ", 17);
+            break;
+        case STATE_SHOW_RESULT:
+            break; // Already set by setResult()
+    }
+}
+
+void LockFSM::setResult(const char *line1, const char *line2) {
+    _state = STATE_SHOW_RESULT;
+    _resultStartTime = millis();
+    strncpy(_display.line1, line1, 16);
+    _display.line1[16] = '\0';
+    strncpy(_display.line2, line2, 16);
+    _display.line2[16] = '\0';
+    _displayChanged = true;
+    printf("[FSM] Result: %s | %s\r\n",
+           _display.line1, _display.line2);
+}
+
+void LockFSM::clearInput() {
+    _inputBuffer[0] = '\0';
+    _inputLen = 0;
+}
+
+void LockFSM::appendDigit(char digit) {
+    if (_inputLen < MAX_PWD_LEN) {
+        _inputBuffer[_inputLen] = digit;
+        _inputLen++;
+        _inputBuffer[_inputLen] = '\0';
+    }
+}
+\end{lstlisting}
+
+\subsection{ECU Abstraction Layer}
+
+\subsubsection{LcdDisplay Module}
+
+\begin{lstlisting}[language=C++, caption=lib/LcdDisplay/LcdDisplay.h --- LCD driver interface, label=lst:appendix_lcd_h]
+#ifndef LCD_DISPLAY_H
+#define LCD_DISPLAY_H
+#include <Arduino.h>
+#include <LiquidCrystal_I2C.h>
+
+class LcdDisplay {
+public:
+    LcdDisplay(uint8_t i2cAddress, uint8_t cols, uint8_t rows);
+    void init();
+    void clear();
+    void setCursor(uint8_t col, uint8_t row);
+    void print(const char *text);
+    void printLine(uint8_t row, const char *text);
+    void showTwoLines(const char *line1, const char *line2);
+    void backlight(bool on);
+private:
+    LiquidCrystal_I2C _lcd;
+    uint8_t _cols;
+    uint8_t _rows;
+};
+#endif
+\end{lstlisting}
+
+\begin{lstlisting}[language=C++, caption=lib/LcdDisplay/LcdDisplay.cpp --- LCD driver implementation, label=lst:appendix_lcd_cpp]
+#include "LcdDisplay.h"
+#include <string.h>
+
+LcdDisplay::LcdDisplay(uint8_t i2cAddress, uint8_t cols,
+                       uint8_t rows)
+    : _lcd(i2cAddress, cols, rows),
+      _cols(cols), _rows(rows) {}
+
+void LcdDisplay::init() {
+    _lcd.init();
+    _lcd.backlight();
+    _lcd.clear();
+}
+
+void LcdDisplay::clear() { _lcd.clear(); }
+
+void LcdDisplay::setCursor(uint8_t col, uint8_t row) {
+    _lcd.setCursor(col, row);
+}
+
+void LcdDisplay::print(const char *text) { _lcd.print(text); }
+
+void LcdDisplay::printLine(uint8_t row, const char *text) {
+    _lcd.setCursor(0, row);
+    uint8_t len = strlen(text);
+    if (len > _cols) len = _cols;
+    for (uint8_t i = 0; i < len; i++) _lcd.write(text[i]);
+    for (uint8_t i = len; i < _cols; i++) _lcd.write(' ');
+}
+
+void LcdDisplay::showTwoLines(const char *line1,
+                              const char *line2) {
+    printLine(0, line1);
+    printLine(1, line2);
+}
+
+void LcdDisplay::backlight(bool on) {
+    if (on) _lcd.backlight();
+    else _lcd.noBacklight();
+}
+\end{lstlisting}
+
+\subsubsection{KeypadInput Module}
+
+\begin{lstlisting}[language=C++, caption=lib/KeypadInput/KeypadInput.h --- Keypad driver interface, label=lst:appendix_keypad_h]
+#ifndef KEYPAD_INPUT_H
+#define KEYPAD_INPUT_H
+#include <Arduino.h>
+#include <Keypad.h>
+
+static const byte KEYPAD_ROWS = 4;
+static const byte KEYPAD_COLS = 4;
+
+class KeypadInput {
+public:
+    KeypadInput(byte *rowPins, byte *colPins);
+    void init();
+    char getKey();
+private:
+    Keypad _keypad;
+};
+#endif
+\end{lstlisting}
+
+\begin{lstlisting}[language=C++, caption=lib/KeypadInput/KeypadInput.cpp --- Keypad driver implementation, label=lst:appendix_keypad_cpp]
+#include "KeypadInput.h"
+
+static char keymap[KEYPAD_ROWS][KEYPAD_COLS] = {
+    {'1', '2', '3', 'A'},
+    {'4', '5', '6', 'B'},
+    {'7', '8', '9', 'C'},
+    {'*', '0', '#', 'D'}
+};
+
+KeypadInput::KeypadInput(byte *rowPins, byte *colPins)
+    : _keypad(makeKeymap(keymap), rowPins, colPins,
+              KEYPAD_ROWS, KEYPAD_COLS) {}
+
+void KeypadInput::init() { _keypad.setDebounceTime(20); }
+
+char KeypadInput::getKey() { return _keypad.getKey(); }
+\end{lstlisting}
+
+\subsubsection{StdioSerial Module (Reused from Lab 1.1)}
+
+\begin{lstlisting}[language=C++, caption=lib/StdioSerial/StdioSerial.h --- STDIO redirection interface, label=lst:appendix_stdio_h]
+#ifndef STDIO_SERIAL_H
+#define STDIO_SERIAL_H
+#include <Arduino.h>
+#include <stdio.h>
+
+void stdioSerialInit(unsigned long baudRate);
+#endif
+\end{lstlisting}
+
+\begin{lstlisting}[language=C++, caption=lib/StdioSerial/StdioSerial.cpp --- STDIO redirection implementation, label=lst:appendix_stdio_cpp]
+#include "StdioSerial.h"
+
+static int serialPutChar(char c, FILE *stream) {
+    Serial.write(c);
+    return 0;
+}
+
+static int serialGetChar(FILE *stream) {
+    while (!Serial.available()) { }
+    char c = Serial.read();
+    if (c == '\r') {
+        Serial.write('\r');
+        Serial.write('\n');
+        return '\n';
+    }
+    if (c == '\b' || c == 127) {
+        Serial.write('\b');
+        Serial.write(' ');
+        Serial.write('\b');
+        return c;
+    }
+    Serial.write(c);
+    return c;
+}
+
+static FILE serialStream;
+
+void stdioSerialInit(unsigned long baudRate) {
+    Serial.begin(baudRate);
+    while (!Serial) { ; }
+    fdev_setup_stream(&serialStream,
+        serialPutChar, serialGetChar, _FDEV_SETUP_RW);
+    stdout = &serialStream;
+    stdin  = &serialStream;
+}
+\end{lstlisting}
+
+\subsection{Microcontroller Abstraction Layer}
+
+\subsubsection{Led Driver Module (Reused from Lab 1.1)}
+
+\begin{lstlisting}[language=C++, caption=lib/Led/Led.h --- LED driver interface, label=lst:appendix_led_h]
+#ifndef LED_H
+#define LED_H
+#include <Arduino.h>
+
+class Led {
+public:
+    Led(uint8_t pin);
+    void init();
+    void turnOn();
+    void turnOff();
+    void toggle();
+    bool isOn() const;
+private:
+    uint8_t ledPin;
+    bool state;
+};
+#endif
+\end{lstlisting}
+
+\begin{lstlisting}[language=C++, caption=lib/Led/Led.cpp --- LED driver implementation, label=lst:appendix_led_cpp]
+#include "Led.h"
+
+Led::Led(uint8_t pin) : ledPin(pin), state(false) {}
+
+void Led::init() {
+    pinMode(ledPin, OUTPUT);
+    digitalWrite(ledPin, LOW);
+    state = false;
+}
+
+void Led::turnOn()  { digitalWrite(ledPin, HIGH); state = true;  }
+void Led::turnOff() { digitalWrite(ledPin, LOW);  state = false; }
+
+void Led::toggle() {
+    if (state) turnOff();
+    else turnOn();
+}
+
+bool Led::isOn() const { return state; }
+\end{lstlisting}
+
+\subsection{Configuration Files}
+
+\begin{lstlisting}[caption=platformio.ini --- PlatformIO project configuration, label=lst:appendix_platformio]
+; Lab 1.1
+[env:lab1_1]
+platform = atmelavr
+board = megaatmega2560
+framework = arduino
+monitor_speed = 9600
+build_src_filter = +<*> +<../lab/lab1_1/*>
+build_flags = -I lab/lab1_1 -DLAB1_1
+
+; Lab 1.2
+[env:lab1_2]
+platform = atmelavr
+board = megaatmega2560
+framework = arduino
+monitor_speed = 9600
+build_src_filter = +<*> +<../lab/lab1_2/*>
+build_flags = -I lab/lab1_2 -DLAB1_2
+lib_deps =
+    marcoschwartz/LiquidCrystal_I2C@^1.1.4
+    chris--a/Keypad@^3.1.1
+\end{lstlisting}

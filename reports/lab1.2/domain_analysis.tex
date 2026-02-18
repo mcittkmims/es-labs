@@ -1,0 +1,142 @@
+\section{Domain Analysis}
+
+\subsection{Objective of the Laboratory Work}
+
+The objective of this laboratory work is to design and implement an interactive embedded system that uses a 4x4 matrix keypad for user input and a 16x2 LCD display (connected via I2C) for visual feedback. The system implements an electronic lock with a menu-driven interface controlled entirely through the keypad, where the asterisk character (\texttt{*}) serves as a delimiter between command operands and the hash character (\texttt{\#}) finalizes and executes commands.
+
+The key learning objectives include understanding I2C serial communication for display interfacing, implementing matrix keypad scanning with software debouncing, designing a finite state machine (FSM) to manage complex user interaction flows, and building a modular software architecture that cleanly separates hardware drivers from application logic. This laboratory extends the concepts from Lab~1.1 (STDIO serial interface) by introducing physical user interface components (keypad and LCD) that interact with the user directly, rather than through a serial terminal.
+
+\subsection{Problem Definition}
+
+The task requires the development of an advanced menu-based interface for an electronic lock system with the following functional requirements:
+
+\begin{enumerate}
+    \item Use the asterisk (\texttt{*}) character as a delimiter between operands in command sequences.
+    \item Use the hash (\texttt{\#}) character to finalize and execute the current command.
+    \item Implement four commands accessible through the keypad:
+    \begin{itemize}
+        \item \texttt{*0\#} --- Unconditional lock activation.
+        \item \texttt{*1*1234\#} --- Unlock with password verification (where \texttt{1234} is an example valid code).
+        \item \texttt{*2*1234*5678\#} --- Change password (from \texttt{1234} to \texttt{5678}).
+        \item \texttt{*3\#} --- Display the current lock state.
+    \end{itemize}
+    \item At each press of the \texttt{*} character, the LCD must display the available options for the current command context.
+    \item Upon pressing \texttt{\#}, the system must execute the command and display a confirmation message.
+    \item The interface must provide clear visual feedback through LEDs (red for locked, green for unlocked) and descriptive messages on the LCD.
+    \item The application must be structured modularly, with the FSM logic separated from hardware drivers.
+    \item Software debouncing must be implemented for the keypad to prevent false transitions.
+    \item The system must respond to input changes with latency below 100ms.
+\end{enumerate}
+
+\subsection{Used Technologies}
+
+\subsubsection{I2C Serial Communication Protocol}
+
+I2C (Inter-Integrated Circuit) is a synchronous, multi-master, multi-slave serial communication bus widely used in embedded systems for connecting low-speed peripherals to microcontrollers. Developed by Philips Semiconductor (now NXP), I2C uses only two bidirectional lines: SDA (Serial Data) for data transfer and SCL (Serial Clock) for clock synchronization.
+
+The protocol operates in a master-slave configuration where the master device (Arduino Mega 2560 in this lab) initiates all communication by generating the clock signal and addressing specific slave devices. Each slave on the bus has a unique 7-bit address; the LCD module used in this lab responds to address \texttt{0x27}. Communication begins with a START condition (SDA transitions low while SCL is high), followed by the 7-bit slave address, a read/write bit, and then data bytes, each acknowledged by the receiver. The transaction ends with a STOP condition (SDA transitions high while SCL is high).
+
+Key advantages of I2C for this application include minimal wiring (only two signal lines plus power and ground), built-in addressing (enabling multiple devices on the same bus), and widespread library support in the Arduino ecosystem through the Wire library.
+
+\subsubsection{Matrix Keypad Scanning}
+
+A 4x4 matrix keypad arranges 16 individual push-button switches in a grid of 4 rows and 4 columns, requiring only 8 GPIO pins instead of 16 individual pins. The scanning algorithm sequentially drives each row LOW while reading the column pins. When a button is pressed, it creates an electrical connection between its row and column, pulling the corresponding column pin LOW and identifying the pressed key's position.
+
+Software debouncing is essential for reliable keypad operation. Mechanical switch contacts bounce (make and break connection rapidly) for several milliseconds after being pressed or released. The Keypad library implements a state machine that tracks key press and release transitions, with a configurable debounce interval (set to 20ms in this lab) during which rapid state changes are filtered out.
+
+\subsubsection{Finite State Machines in Embedded Systems}
+
+A Finite State Machine (FSM) is a computational model consisting of a finite number of states, transitions between those states triggered by events (inputs), and actions performed during transitions or within states. FSMs are fundamental to embedded systems design because they provide a structured, deterministic approach to managing complex interactive behavior.
+
+In this laboratory, the FSM manages the electronic lock's operational logic. The machine processes one keypad event at a time, transitioning between states that represent different phases of user interaction (idle, menu display, password entry, result display). Each state defines which keys are valid, what actions they trigger, and how the display content is updated. This approach ensures predictable behavior, simplifies testing (each state transition can be verified independently), and produces maintainable code.
+
+\subsubsection{LiquidCrystal\_I2C Library}
+
+The LiquidCrystal\_I2C library provides a high-level API for controlling HD44780-compatible LCD displays through an I2C backpack module. It abstracts the low-level I2C communication and LCD controller commands behind intuitive methods such as \texttt{init()}, \texttt{setCursor()}, \texttt{print()}, \texttt{clear()}, \texttt{backlight()}, and \texttt{noBacklight()}. The library depends on the Arduino Wire library for I2C bus communication.
+
+\subsubsection{Keypad Library}
+
+The Keypad library by Mark Stanley and Alexander Brevig provides a complete solution for reading matrix keypads on Arduino platforms. It handles the scanning algorithm (sequentially testing row-column combinations), software debouncing (using a configurable debounce time), and key state tracking (IDLE, PRESSED, HOLD, RELEASED). The \texttt{getKey()} method performs a non-blocking scan and returns the character of the pressed key, or null (\texttt{0}) if no key is currently active.
+
+\subsection{Hardware Components}
+
+\subsubsection{Arduino Mega 2560}
+
+The Arduino Mega 2560, based on the ATmega2560 AVR microcontroller, serves as the central processing unit. Its extensive pin count (54 digital I/O) is essential for this lab: 8 pins for the keypad matrix (4 rows + 4 columns), 2 pins for the I2C LCD (SDA + SCL), and 2 pins for the LED indicators, totaling 12 GPIO pins. The Mega's dedicated I2C hardware (on pins 20/SDA and 21/SCL) with internal pull-up resistors simplifies LCD integration.
+
+Key specifications:
+\begin{itemize}
+    \item \textbf{Microcontroller:} ATmega2560 (8-bit AVR, 16~MHz)
+    \item \textbf{Flash memory:} 256~KB (8~KB used by bootloader)
+    \item \textbf{SRAM:} 8~KB
+    \item \textbf{Digital I/O pins:} 54 (12 used in this lab)
+    \item \textbf{I2C:} Hardware TWI on pins 20 (SDA) and 21 (SCL)
+    \item \textbf{Operating voltage:} 5V
+\end{itemize}
+
+\subsubsection{LCD 1602 with I2C Backpack}
+
+The LCD 1602 is a character display module with 2 rows of 16 characters each, based on the HD44780 controller. The I2C backpack (typically using a PCF8574 I/O expander) reduces the parallel interface from 16 pins to just 4 (VCC, GND, SDA, SCL). The display supports ASCII characters and a set of custom characters, with an integrated backlight controlled via software.
+
+% Placeholder: the user should add an image of the LCD module
+% \begin{figure}[H]
+% \centering
+% \includegraphics[width=0.5\textwidth]{resources/DomainAnalysis/HardwareComponents/lcd1602_i2c.png}
+% \caption{LCD 1602 display module with I2C backpack}
+% \label{fig:lcd_component}
+% \end{figure}
+
+Display specifications:
+\begin{itemize}
+    \item \textbf{Display type:} 16 characters $\times$ 2 rows
+    \item \textbf{Controller:} HD44780-compatible
+    \item \textbf{Interface:} I2C via PCF8574 (address \texttt{0x27})
+    \item \textbf{Operating voltage:} 5V
+    \item \textbf{Backlight:} LED, software-controllable
+\end{itemize}
+
+\subsubsection{4x4 Membrane Keypad}
+
+The 4x4 membrane keypad provides 16 tactile buttons arranged in a 4-row by 4-column matrix. The standard layout includes digits 0--9, the asterisk (\texttt{*}), hash (\texttt{\#}), and letters A--D. For this lock system, \texttt{*} and \texttt{\#} serve as command delimiters and execution triggers respectively, while digits 0--9 are used for command selection and password entry.
+
+% Placeholder: the user should add an image of the keypad
+% \begin{figure}[H]
+% \centering
+% \includegraphics[width=0.35\textwidth]{resources/DomainAnalysis/HardwareComponents/membrane_keypad_4x4.png}
+% \caption{4x4 membrane matrix keypad}
+% \label{fig:keypad_component}
+% \end{figure}
+
+Keypad layout and specifications:
+\begin{itemize}
+    \item \textbf{Keys:} 16 (digits 0--9, *, \#, A--D)
+    \item \textbf{Interface:} 8 pins (4 rows + 4 columns)
+    \item \textbf{Technology:} Membrane (non-mechanical)
+    \item \textbf{Bounce time:} approximately 5--20ms
+\end{itemize}
+
+\subsubsection{LEDs and Current-Limiting Resistors}
+
+Two LEDs provide visual indication of the lock state: a red LED (connected to pin~7) indicates the LOCKED state, and a green LED (connected to pin~6) indicates the UNLOCKED state. Each LED is connected in series with a 220~$\Omega$ resistor to limit current to approximately 13.6~mA, calculated as $I = (5V - 2V) / 220\,\Omega \approx 13.6\,mA$ for a typical LED forward voltage of 2V.
+
+\subsection{Software Components}
+
+\subsubsection{Visual Studio Code with PlatformIO}
+
+Visual Studio Code with the PlatformIO IDE extension serves as the primary development environment. PlatformIO manages the build configuration through \texttt{platformio.ini}, where separate environments (\texttt{env:lab1\_1}, \texttt{env:lab1\_2}) allow independent compilation of each lab's code. PlatformIO also handles automatic installation of external library dependencies (LiquidCrystal\_I2C, Keypad) specified in \texttt{lib\_deps}.
+
+\subsubsection{Wokwi VS Code Extension}
+
+The Wokwi simulator provides a virtual Arduino Mega 2560 with connected LCD, keypad, and LEDs. It reads the circuit definition from \texttt{diagram.json} and the compiled firmware path from \texttt{wokwi.toml}. The simulation supports I2C communication, keypad matrix scanning, and LED visualization, enabling full system testing without physical hardware.
+
+\subsection{System Architecture and Justification}
+
+The system follows a layered architecture that separates concerns across five levels. The Application Layer (APP) contains \texttt{lab1\_2\_main}, which orchestrates peripheral initialization and the main loop --- reading keypad input, feeding it to the FSM, updating the LCD, and controlling LEDs. The Service Layer (SRV) contains \texttt{LockFSM}, which implements all command processing logic, password management, and state transitions as a self-contained finite state machine that is independent of hardware specifics. The ECU Abstraction Layer (ECAL) contains three modules: \texttt{LcdDisplay} (wrapping the LiquidCrystal\_I2C library for line-based LCD operations), \texttt{KeypadInput} (wrapping the Keypad library for debounced key reading), and \texttt{StdioSerial} (redirecting C standard I/O to UART for debug logging). The Microcontroller Abstraction Layer (MCAL) contains the \texttt{Led} driver, reused from Lab~1.1, providing GPIO-based LED control. Finally, the Hardware (HW) layer represents the physical ATmega2560 MCU with its I2C, GPIO, and UART peripherals.
+
+This architecture was chosen because the FSM is the most complex component and benefits from complete isolation from hardware details. The FSM receives key characters as input and produces display content as output, making it testable independently of any peripheral. The LCD and keypad drivers are thin wrappers that adapt external libraries to the project's coding conventions, while the existing Led and StdioSerial modules are reused without modification from Lab~1.1.
+
+\subsection{Case Study: Keypad-Based Access Control Systems}
+
+Keypad-based access control is one of the most pervasive applications of embedded systems in everyday life. Residential door locks, such as Yale and Schlage smart locks, use membrane keypads combined with LCD or LED feedback to allow homeowners to set and enter PIN codes for entry. Commercial buildings employ keypad access panels (often from manufacturers like Honeywell or Bosch) at restricted entry points, where employees enter personal identification numbers to unlock doors, with the system logging each access event. Vehicle immobilizer systems in automotive security use keypad-based PIN entry as a secondary authentication method, while parking garage entry systems use keypads for ticket validation and automatic barrier control.
+
+The FSM-driven command interface demonstrated in this lab mirrors the operational patterns of these commercial systems. The use of a delimiter-based command protocol (\texttt{*} for field separation, \texttt{\#} for execution) is directly analogous to the interaction model used in alarm system keypads (e.g., DSC PowerSeries panels), where \texttt{*} accesses function menus and \texttt{\#} confirms operations. The password verification and change functionality implemented here represents the core security operations found in every access control system, demonstrating fundamental concepts that scale from simple lab prototypes to production security infrastructure.

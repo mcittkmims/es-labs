@@ -1,0 +1,5 @@
+flowchart TD
+    A([printLine]) --> B["Set cursor to<br/>column 0, target row"]
+    B --> C["Write text characters<br/>up to column limit"]
+    C --> D["Pad remaining columns<br/>with spaces"]
+    D --> E([Return])

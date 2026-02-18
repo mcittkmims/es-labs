@@ -1,0 +1,44 @@
+graph TB
+    subgraph APP ["APP — Application Layer"]
+        LAB12["lab1_2_main<br/>(Lab orchestration,<br/>peripheral wiring)"]
+    end
+
+    subgraph SRV ["SRV — Service Layer"]
+        FSM["LockFSM<br/>(State machine,<br/>command processing,<br/>password management)"]
+    end
+
+    subgraph ECAL ["ECAL — ECU Abstraction Layer"]
+        STDIO["StdioSerial<br/>(STDIO → UART<br/>redirection)"]
+        LCDD["LcdDisplay<br/>(I2C LCD<br/>abstraction)"]
+        KPD["KeypadInput<br/>(Matrix keypad<br/>abstraction)"]
+    end
+
+    subgraph MCAL ["MCAL — MCU Abstraction Layer"]
+        LED["Led<br/>(GPIO LED<br/>driver)"]
+    end
+
+    subgraph HW ["HW — Hardware"]
+        HW_UART["UART0"]
+        HW_I2C["I2C Bus"]
+        HW_GPIO_KP["GPIO 22-29"]
+        HW_GPIO_LED["GPIO 6, 7"]
+    end
+
+    LAB12 --> FSM
+    LAB12 --> LCDD
+    LAB12 --> KPD
+    LAB12 --> LED
+    LAB12 --> STDIO
+
+    FSM -.->|"display data"| LCDD
+
+    STDIO --> HW_UART
+    LCDD --> HW_I2C
+    KPD --> HW_GPIO_KP
+    LED --> HW_GPIO_LED
+
+    style APP fill:#e3f2fd
+    style SRV fill:#fff3e0
+    style ECAL fill:#f3e5f5
+    style MCAL fill:#e8f5e9
+    style HW fill:#fafafa

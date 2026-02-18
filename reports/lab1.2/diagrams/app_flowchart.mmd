@@ -1,0 +1,19 @@
+flowchart TD
+    A([Start]) --> B["Initialize STDIO Serial<br/>(9600 baud)"]
+    B --> C["Initialize LCD<br/>(I2C, backlight ON)"]
+    C --> D["Initialize Keypad<br/>(debounce 20ms)"]
+    D --> E["Initialize LEDs<br/>(Red ON, Green OFF)"]
+    E --> F["Initialize Lock FSM<br/>(LOCKED, pwd=1234)"]
+    F --> G["Display initial state<br/>on LCD"]
+    G --> H["Print debug banner<br/>to serial"]
+    H --> I{Key pressed?}
+    I -->|Yes| J["FSM.processKey(key)"]
+    J --> K
+    I -->|No| K["FSM.update()<br/>(check timeout)"]
+    K --> L{Display<br/>changed?}
+    L -->|Yes| M["Update LCD<br/>with new content"]
+    M --> N
+    L -->|No| N{Lock state<br/>changed?}
+    N -->|Yes| O["Update LEDs<br/>(Red/Green)"]
+    O --> I
+    N -->|No| I

@@ -1,0 +1,502 @@
+\section{Design}
+
+\subsection{System Architecture Diagrams}
+
+\subsubsection{Component-Level Architecture}
+
+The system consists of four main component groups: a host PC (for serial debug monitoring), the Arduino Mega 2560 microcontroller, the input peripherals (4x4 keypad), and the output peripherals (LCD display and LEDs). The keypad provides user input through matrix scanning on GPIO pins 22--29. The MCU processes input through the lock FSM and drives the LCD over the I2C bus (pins 20/21) and the LEDs through GPIO pins 6 and 7. Debug information is transmitted to the serial terminal over USB-UART.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth, height=0.5\textheight, keepaspectratio]{resources/Design/SystemArchitectureDiagrams/system_structural_diagram.png}
+\caption{System structural diagram showing PC, MCU, keypad, LCD, and LED circuits}
+\label{fig:system_structural_diagram}
+\end{figure}
+
+The data flow operates as follows: the user presses a key on the 4x4 membrane keypad, which is detected by the MCU through periodic matrix scanning on GPIO pins 22--29. The key character is fed into the Lock FSM, which processes it according to the current state and generates updated display content. The application layer writes the new content to the LCD over I2C and updates the LED indicators to reflect the lock state. Simultaneously, debug information (key presses, state transitions, command results) is transmitted via \texttt{printf()} over UART to the serial terminal.
+
+\subsubsection{Layered System Architecture}
+
+The software follows a five-layer architecture that cleanly separates application logic from hardware interaction:
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.75\textwidth, height=0.5\textheight, keepaspectratio]{resources/Design/SystemArchitectureDiagrams/layered_architecture.png}
+\caption{Layered software architecture of the lock system}
+\label{fig:layered_architecture}
+\end{figure}
+
+The Application Layer (APP) contains \texttt{lab1\_2\_main}, which serves as the lab's entry point. It initializes all peripherals, runs the main loop (keypad read $\rightarrow$ FSM process $\rightarrow$ LCD update $\rightarrow$ LED update), and coordinates communication between the FSM service and hardware drivers. The Service Layer (SRV) contains \texttt{LockFSM}, which encapsulates all lock logic: state management across 10 FSM states, password storage and verification, command parsing, and display content generation. The FSM is hardware-independent --- it accepts character inputs and produces display data, enabling independent testing. The ECU Abstraction Layer (ECAL) contains \texttt{LcdDisplay} (I2C LCD operations with line padding), \texttt{KeypadInput} (debounced 4x4 keypad scanning), and \texttt{StdioSerial} (STDIO-to-UART redirection from Lab~1.1). The Microcontroller Abstraction Layer (MCAL) contains the \texttt{Led} driver (GPIO-based LED control, reused from Lab~1.1). The Hardware (HW) layer represents the physical ATmega2560 with UART0, I2C bus, and GPIO pins.
+
+\subsection{Block Diagrams}
+
+\subsubsection{Application Flowchart}
+
+The application operates in two phases: initialization and the main event loop. During initialization, all peripherals are configured in a specific order (serial first to enable debug output, then LCD, keypad, LEDs, and finally the FSM). The main loop follows a non-blocking event-driven pattern: it checks for keypad input, processes it through the FSM, and updates outputs only when changes occur.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.65\textwidth, height=0.5\textheight, keepaspectratio]{resources/Design/BlockDiagrams/app_flowchart.png}
+\caption{Flowchart of the application initialization and main loop}
+\label{fig:app_flowchart}
+\end{figure}
+
+Unlike the blocking I/O approach used in Lab~1.1 (where \texttt{fgets()} halted the main loop), this lab uses a non-blocking architecture. The \texttt{keypad.getKey()} method returns immediately with either a key character or null (0), allowing the loop to service other tasks (FSM timeout checks, display updates, LED management) without delay. This design ensures the system responds to input within one loop iteration, well under the 100ms latency requirement.
+
+\subsubsection{FSM State Diagram}
+
+The lock system's behavior is governed by a finite state machine with 10 states. The FSM starts in the IDLE state and progresses through command selection, parameter entry, execution, and result display before returning to IDLE.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth, height=0.5\textheight, keepaspectratio]{resources/Design/BlockDiagrams/fsm_state_diagram.png}
+\caption{State diagram of the Lock FSM}
+\label{fig:fsm_state_diagram}
+\end{figure}
+
+The states and their roles are:
+
+\begin{itemize}
+    \item \textbf{IDLE}: Welcome screen. Waits for \texttt{*} to begin a command sequence.
+    \item \textbf{MENU}: Displays available commands (0--3). Transitions based on the digit pressed.
+    \item \textbf{LOCK\_CONFIRM}: Command 0 selected. Waits for \texttt{\#} to execute lock.
+    \item \textbf{UNLOCK\_WAIT\_STAR}: Command 1 selected. Waits for \texttt{*} to begin password entry.
+    \item \textbf{UNLOCK\_PWD}: Password entry for unlock. Accepts digits, executes on \texttt{\#}.
+    \item \textbf{CHANGE\_WAIT\_STAR}: Command 2 selected. Waits for \texttt{*} to begin old password entry.
+    \item \textbf{CHANGE\_OLD\_PWD}: Old password entry. Accepts digits, delimited by \texttt{*}.
+    \item \textbf{CHANGE\_NEW\_PWD}: New password entry. Accepts digits, executes on \texttt{\#}.
+    \item \textbf{STATUS\_CONFIRM}: Command 3 selected. Waits for \texttt{\#} to display status.
+    \item \textbf{SHOW\_RESULT}: Displays result message for 2.5 seconds, then auto-returns to IDLE.
+\end{itemize}
+
+\subsubsection{FSM Key Processing Flowchart}
+
+The \texttt{processKey()} method implements the FSM transition logic. For each incoming key, it evaluates the current state and the key value to determine the appropriate action (state transition, buffer modification, command execution, or error display).
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth, height=0.5\textheight, keepaspectratio]{resources/Design/BlockDiagrams/flowchart_process_key.png}
+\caption{Flowchart of the FSM processKey() function}
+\label{fig:flowchart_process_key}
+\end{figure}
+
+\subsection{Electrical Schematics}
+
+The circuit integrates five components connected to the Arduino Mega 2560: the I2C LCD display, the 4x4 membrane keypad, and two LED indicator circuits.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.65\textwidth, height=0.5\textheight, keepaspectratio]{resources/Design/ElectricalSchematics/electric_schema.png}
+\caption{Electrical schematic of the lock system}
+\label{fig:circuit_schematic}
+\end{figure}
+
+\subsubsection{Component Specification}
+
+The circuit consists of the following components. The Arduino Mega 2560 is the central microcontroller board (ATmega2560, 5V logic, 16~MHz). The LCD 1602 with I2C backpack is a 16$\times$2 character display at I2C address \texttt{0x27}, powered at 5V. The 4x4 membrane keypad has 16 keys arranged in a row-column matrix requiring 8 GPIO pins. Two LEDs (red and green, 5mm) serve as lock state indicators with forward voltage approximately 2V, connected through 220~$\Omega$ current-limiting resistors providing approximately 13.6~mA each.
+
+\subsubsection{Circuit Connections}
+
+The I2C LCD connects using 4 wires: VCC to 5V, GND to ground, SDA to pin 20, and SCL to pin 21. The Arduino Mega's internal pull-up resistors on the I2C lines eliminate the need for external pull-ups. The keypad connects using 8 wires: rows R1--R4 to pins 22--25, and columns C1--C4 to pins 26--29. The Keypad library configures internal pull-ups on column pins and drives row pins as outputs during scanning. The red LED connects from pin~7 through a 220~$\Omega$ resistor to ground. The green LED connects from pin~6 through a 220~$\Omega$ resistor to ground.
+
+\subsubsection{Hardware Configuration}
+
+The Wokwi simulation implements the circuit virtually. The following configuration defines the virtual components and their connections:
+
+\begin{lstlisting}[language=json, caption=Wokwi diagram.json --- Virtual circuit definition for Lab 1.2, label=lst:wokwi_diagram]
+{
+  "version": 1,
+  "author": "Vremere Adrian",
+  "editor": "wokwi",
+  "parts": [
+    {"type": "wokwi-arduino-mega", "id": "mega",
+     "top": 0, "left": 0, "attrs": {}},
+    {"type": "wokwi-lcd1602", "id": "lcd",
+     "top": -280, "left": 100,
+     "attrs": {"pins": "i2c"}},
+    {"type": "wokwi-membrane-keypad", "id": "keypad",
+     "top": -380, "left": -250,
+     "attrs": {"keys": ["123A","456B","789C","*0#D"]}},
+    {"type": "wokwi-resistor", "id": "r1",
+     "top": -50, "left": 210, "rotate": 90,
+     "attrs": {"resistance": "220"}},
+    {"type": "wokwi-led", "id": "led_red",
+     "top": -120, "left": 200,
+     "attrs": {"color": "red", "label": "LOCKED"}},
+    {"type": "wokwi-resistor", "id": "r2",
+     "top": -50, "left": 250, "rotate": 90,
+     "attrs": {"resistance": "220"}},
+    {"type": "wokwi-led", "id": "led_green",
+     "top": -120, "left": 240,
+     "attrs": {"color": "green", "label": "UNLOCKED"}}
+  ],
+  "connections": [
+    ["mega:7","r1:1","red",["v0"]],
+    ["r1:2","led_red:A","red",["v0"]],
+    ["led_red:C","mega:GND.1","black",["v0"]],
+    ["mega:6","r2:1","green",["v0"]],
+    ["r2:2","led_green:A","green",["v0"]],
+    ["led_green:C","mega:GND.1","black",["v0"]],
+    ["lcd:GND","mega:GND.2","black",["v0"]],
+    ["lcd:VCC","mega:5V","red",["v0"]],
+    ["lcd:SDA","mega:20","blue",["v0"]],
+    ["lcd:SCL","mega:21","purple",["v0"]],
+    ["keypad:R1","mega:22","orange",["v0"]],
+    ["keypad:R2","mega:23","orange",["v0"]],
+    ["keypad:R3","mega:24","orange",["v0"]],
+    ["keypad:R4","mega:25","orange",["v0"]],
+    ["keypad:C1","mega:26","yellow",["v0"]],
+    ["keypad:C2","mega:27","yellow",["v0"]],
+    ["keypad:C3","mega:28","yellow",["v0"]],
+    ["keypad:C4","mega:29","yellow",["v0"]]
+  ]
+}
+\end{lstlisting}
+
+% Placeholder for Wokwi circuit screenshot
+% \begin{figure}[H]
+% \centering
+% \includegraphics[width=0.75\textwidth, height=0.5\textheight, keepaspectratio]{resources/Design/ElectricalSchematics/wokwi_circuit.png}
+% \caption{Wokwi simulation circuit --- Arduino Mega with LCD, keypad, and LEDs}
+% \label{fig:wokwi_circuit}
+% \end{figure}
+
+\subsection{Project Structure}
+
+The project extends the Lab~1.1 structure by adding three new library modules and a second lab entry point, while preserving all existing code:
+
+\begin{lstlisting}[caption=Project directory structure for Lab 1.2, label=lst:project_structure]
+labs/
+|-- platformio.ini              # Build config (env:lab1_1, env:lab1_2)
+|-- src/
+|   |-- main.cpp                # Entry point (preprocessor lab selector)
+|-- lab/
+|   |-- lab1_1/
+|   |   |-- lab1_1_main.h       # Lab 1.1 interface (preserved)
+|   |   |-- lab1_1_main.cpp     # Lab 1.1 implementation (preserved)
+|   |-- lab1_2/
+|       |-- lab1_2_main.h       # Lab 1.2 interface
+|       |-- lab1_2_main.cpp     # Lab 1.2 implementation
+|-- lib/
+|   |-- Led/                    # MCAL: LED driver (reused from Lab 1.1)
+|   |   |-- Led.h
+|   |   |-- Led.cpp
+|   |-- StdioSerial/            # ECAL: STDIO redirection (reused)
+|   |   |-- StdioSerial.h
+|   |   |-- StdioSerial.cpp
+|   |-- CommandParser/          # SRV: Command parser (Lab 1.1 only)
+|   |   |-- CommandParser.h
+|   |   |-- CommandParser.cpp
+|   |-- LcdDisplay/             # ECAL: I2C LCD driver (new)
+|   |   |-- LcdDisplay.h
+|   |   |-- LcdDisplay.cpp
+|   |-- KeypadInput/            # ECAL: Matrix keypad driver (new)
+|   |   |-- KeypadInput.h
+|   |   |-- KeypadInput.cpp
+|   |-- LockFSM/                # SRV: Lock state machine (new)
+|       |-- LockFSM.h
+|       |-- LockFSM.cpp
+|-- wokwi/
+    |-- lab1.1/                 # Wokwi circuit for Lab 1.1 (preserved)
+    |   |-- diagram.json
+    |   |-- wokwi.toml
+    |-- lab1.2/                 # Wokwi circuit for Lab 1.2 (new)
+        |-- diagram.json
+        |-- wokwi.toml
+\end{lstlisting}
+
+Lab isolation is achieved through PlatformIO's \texttt{build\_src\_filter} and preprocessor defines (\texttt{-DLAB1\_1}, \texttt{-DLAB1\_2}). The \texttt{main.cpp} entry point uses conditional compilation to include and call the correct lab module, eliminating the need to manually comment/uncomment code when switching between labs.
+
+\subsection{Modular Implementation}
+
+\subsubsection{MCAL Layer: Led Driver (Reused from Lab 1.1)}
+
+The Led driver, implemented in Lab~1.1, is reused without modification. It provides GPIO-based LED control through an object-oriented interface: \texttt{init()}, \texttt{turnOn()}, \texttt{turnOff()}, \texttt{toggle()}, and \texttt{isOn()}. In Lab~1.2, two Led instances are created --- one for the red (locked) indicator on pin~7 and one for the green (unlocked) indicator on pin~6.
+
+\begin{lstlisting}[language=C++, caption=Led.h --- LED driver interface (reused from Lab 1.1), label=lst:led_h]
+#ifndef LED_H
+#define LED_H
+#include <Arduino.h>
+
+class Led {
+public:
+    Led(uint8_t pin);
+    void init();
+    void turnOn();
+    void turnOff();
+    void toggle();
+    bool isOn() const;
+private:
+    uint8_t ledPin;
+    bool state;
+};
+#endif
+\end{lstlisting}
+
+\subsubsection{ECAL Layer: LcdDisplay Driver}
+
+The LcdDisplay module wraps the LiquidCrystal\_I2C library behind a simplified interface focused on line-based text operations. The key design decision is the \texttt{printLine()} method, which writes text to a specific row and pads the remaining columns with spaces. This eliminates display artifacts from previous content without requiring a full \texttt{clear()} call (which causes visible flickering).
+
+\begin{lstlisting}[language=C++, caption=LcdDisplay.h --- LCD display driver interface, label=lst:lcd_h]
+#ifndef LCD_DISPLAY_H
+#define LCD_DISPLAY_H
+#include <Arduino.h>
+#include <LiquidCrystal_I2C.h>
+
+class LcdDisplay {
+public:
+    LcdDisplay(uint8_t i2cAddress, uint8_t cols, uint8_t rows);
+    void init();
+    void clear();
+    void setCursor(uint8_t col, uint8_t row);
+    void print(const char *text);
+    void printLine(uint8_t row, const char *text);
+    void showTwoLines(const char *line1, const char *line2);
+    void backlight(bool on);
+private:
+    LiquidCrystal_I2C _lcd;
+    uint8_t _cols;
+    uint8_t _rows;
+};
+#endif
+\end{lstlisting}
+
+\begin{lstlisting}[language=C++, caption=LcdDisplay.cpp --- LCD display implementation (key sections), label=lst:lcd_cpp]
+#include "LcdDisplay.h"
+#include <string.h>
+
+LcdDisplay::LcdDisplay(uint8_t i2cAddress, uint8_t cols, uint8_t rows)
+    : _lcd(i2cAddress, cols, rows), _cols(cols), _rows(rows) {}
+
+void LcdDisplay::init() {
+    _lcd.init();
+    _lcd.backlight();
+    _lcd.clear();
+}
+
+void LcdDisplay::printLine(uint8_t row, const char *text) {
+    _lcd.setCursor(0, row);
+    uint8_t len = strlen(text);
+    if (len > _cols) len = _cols;
+    for (uint8_t i = 0; i < len; i++) {
+        _lcd.write(text[i]);
+    }
+    // Pad with spaces to clear previous content
+    for (uint8_t i = len; i < _cols; i++) {
+        _lcd.write(' ');
+    }
+}
+
+void LcdDisplay::showTwoLines(const char *line1, const char *line2) {
+    printLine(0, line1);
+    printLine(1, line2);
+}
+\end{lstlisting}
+
+The \texttt{printLine()} function's approach of writing character-by-character and padding with spaces is more efficient than calling \texttt{lcd.clear()} (which takes approximately 2ms for the HD44780 to process) and prevents the visible flicker that occurs when the entire display is blanked before new content is written.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.2\textwidth, height=0.5\textheight, keepaspectratio]{resources/Design/ModularImplementation/flowchart_lcd_init.png}
+\caption{Flowchart: LCD initialization}
+\label{fig:flowchart_lcd_init}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.2\textwidth, height=0.5\textheight, keepaspectratio]{resources/Design/ModularImplementation/flowchart_lcd_printline.png}
+\caption{Flowchart: LCD printLine function}
+\label{fig:flowchart_lcd_printline}
+\end{figure}
+
+\subsubsection{ECAL Layer: KeypadInput Driver}
+
+The KeypadInput module wraps the Keypad library with a fixed 4x4 key layout and configurable pin assignments. The standard keypad layout (1-9, 0, *, \#, A-D) is defined as a static array in the implementation file, while the GPIO pin assignments are passed through the constructor from the application layer.
+
+\begin{lstlisting}[language=C++, caption=KeypadInput.h --- Keypad driver interface, label=lst:keypad_h]
+#ifndef KEYPAD_INPUT_H
+#define KEYPAD_INPUT_H
+#include <Arduino.h>
+#include <Keypad.h>
+
+static const byte KEYPAD_ROWS = 4;
+static const byte KEYPAD_COLS = 4;
+
+class KeypadInput {
+public:
+    KeypadInput(byte *rowPins, byte *colPins);
+    void init();
+    char getKey();
+private:
+    Keypad _keypad;
+};
+#endif
+\end{lstlisting}
+
+\begin{lstlisting}[language=C++, caption=KeypadInput.cpp --- Keypad driver implementation, label=lst:keypad_cpp]
+#include "KeypadInput.h"
+
+static char keymap[KEYPAD_ROWS][KEYPAD_COLS] = {
+    {'1', '2', '3', 'A'},
+    {'4', '5', '6', 'B'},
+    {'7', '8', '9', 'C'},
+    {'*', '0', '#', 'D'}
+};
+
+KeypadInput::KeypadInput(byte *rowPins, byte *colPins)
+    : _keypad(makeKeymap(keymap), rowPins, colPins,
+              KEYPAD_ROWS, KEYPAD_COLS) {}
+
+void KeypadInput::init() {
+    _keypad.setDebounceTime(20);
+}
+
+char KeypadInput::getKey() {
+    return _keypad.getKey();
+}
+\end{lstlisting}
+
+The debounce time of 20ms was chosen to balance reliability (filtering mechanical bounce) against responsiveness (staying well within the 100ms latency requirement). The Keypad library's internal state machine ensures that each physical key press produces exactly one \texttt{getKey()} event, regardless of contact bounce.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.2\textwidth, height=0.5\textheight, keepaspectratio]{resources/Design/ModularImplementation/flowchart_keypad_getkey.png}
+\caption{Flowchart: KeypadInput getKey function}
+\label{fig:flowchart_keypad_getkey}
+\end{figure}
+
+\subsubsection{SRV Layer: LockFSM}
+
+The LockFSM is the core service module that implements all lock system logic through a 10-state finite state machine. It is designed to be hardware-independent: the FSM receives key characters via \texttt{processKey()} and outputs display content through a \texttt{LockDisplay} structure containing two 16-character strings. It does not directly interact with any peripheral --- the application layer reads the display data and drives the LCD accordingly.
+
+\begin{lstlisting}[language=C++, caption=LockFSM.h --- Lock FSM interface (key sections), label=lst:lockfsm_h]
+#ifndef LOCK_FSM_H
+#define LOCK_FSM_H
+#include <Arduino.h>
+
+static const uint8_t MAX_PWD_LEN = 8;
+static const unsigned long RESULT_DISPLAY_MS = 2500;
+
+enum LockFSMState {
+    STATE_IDLE, STATE_MENU,
+    STATE_LOCK_CONFIRM,
+    STATE_UNLOCK_WAIT_STAR, STATE_UNLOCK_PWD,
+    STATE_CHANGE_WAIT_STAR, STATE_CHANGE_OLD_PWD,
+    STATE_CHANGE_NEW_PWD,
+    STATE_STATUS_CONFIRM,
+    STATE_SHOW_RESULT
+};
+
+struct LockDisplay {
+    char line1[17];  // 16 chars + null
+    char line2[17];
+};
+
+class LockFSM {
+public:
+    LockFSM();
+    void init();
+    void processKey(char key);
+    void update();
+    LockFSMState getState() const;
+    bool isLocked() const;
+    const LockDisplay& getDisplay() const;
+    bool displayChanged() const;
+    void clearDisplayChanged();
+private:
+    LockFSMState _state;
+    bool _locked;
+    char _password[MAX_PWD_LEN + 1];
+    char _inputBuffer[MAX_PWD_LEN + 1];
+    char _oldPwdBuffer[MAX_PWD_LEN + 1];
+    uint8_t _inputLen;
+    LockDisplay _display;
+    bool _displayChanged;
+    unsigned long _resultStartTime;
+    void setState(LockFSMState newState);
+    void updateDisplay();
+    void setResult(const char *line1, const char *line2);
+    void clearInput();
+    void appendDigit(char digit);
+};
+#endif
+\end{lstlisting}
+
+The implementation processes each key press through a switch-case on the current state. The critical operations are password verification (using \texttt{strcmp()} against the stored password), password update (replacing the stored password after verifying the old one), and display content generation (building masked password strings with \texttt{*} characters for security). The \texttt{setResult()} method transitions to \texttt{STATE\_SHOW\_RESULT} and records the timestamp; the \texttt{update()} method checks if the display timeout (2.5 seconds) has elapsed and automatically returns to \texttt{STATE\_IDLE}.
+
+\begin{lstlisting}[language=C++, caption=LockFSM.cpp --- processKey implementation (UNLOCK\_PWD state excerpt), label=lst:lockfsm_unlock]
+case STATE_UNLOCK_PWD:
+    if (key >= '0' && key <= '9') {
+        appendDigit(key);
+        updateDisplay();
+    } else if (key == '#') {
+        if (strcmp(_inputBuffer, _password) == 0) {
+            _locked = false;
+            setResult("Access Granted!", "Door is OPEN");
+        } else {
+            setResult("Wrong Password!", "Access Denied");
+        }
+        clearInput();
+    } else if (key == '*') {
+        clearInput();
+        updateDisplay();
+    }
+    break;
+\end{lstlisting}
+
+\subsubsection{APP Layer: Lab 1.2 Main}
+
+The application layer ties all modules together in a clean, readable structure. It defines the hardware pin mapping as static constants (single source of truth), creates instances of all drivers and the FSM, and implements the non-blocking main loop.
+
+\begin{lstlisting}[language=C++, caption=lab1\_2\_main.cpp --- Application layer (key sections), label=lst:lab1_2_main]
+#include "lab1_2_main.h"
+#include <Arduino.h>
+#include <stdio.h>
+#include "Led.h"
+#include "LcdDisplay.h"
+#include "KeypadInput.h"
+#include "LockFSM.h"
+#include "StdioSerial.h"
+
+// Pin Configuration (single source of truth)
+static const uint8_t RED_LED_PIN   = 7;
+static const uint8_t GREEN_LED_PIN = 6;
+static const uint8_t LCD_I2C_ADDR  = 0x27;
+static byte rowPins[4] = {22, 23, 24, 25};
+static byte colPins[4] = {26, 27, 28, 29};
+
+// Module instances
+static Led redLed(RED_LED_PIN);
+static Led greenLed(GREEN_LED_PIN);
+static LcdDisplay lcd(LCD_I2C_ADDR, 16, 2);
+static KeypadInput keypad(rowPins, colPins);
+static LockFSM lockFSM;
+
+void lab1_2Setup() {
+    stdioSerialInit(9600);
+    lcd.init();
+    keypad.init();
+    redLed.init();
+    greenLed.init();
+    lockFSM.init();
+    redLed.turnOn();  // Start locked
+    // Display initial FSM state
+    lcd.showTwoLines(lockFSM.getDisplay().line1,
+                     lockFSM.getDisplay().line2);
+}
+
+void lab1_2Loop() {
+    char key = keypad.getKey();
+    if (key) lockFSM.processKey(key);
+    lockFSM.update();
+    if (lockFSM.displayChanged()) {
+        lcd.showTwoLines(lockFSM.getDisplay().line1,
+                         lockFSM.getDisplay().line2);
+        lockFSM.clearDisplayChanged();
+    }
+    // Update LEDs on state change (tracked via prevLocked)
+    // Red=locked, Green=unlocked
+}
+\end{lstlisting}
+
+The application code is concise because all complexity is encapsulated in the FSM service layer. The main loop's responsibilities are limited to I/O routing: reading input from the keypad, passing it to the FSM, and reflecting the FSM's output on the LCD and LEDs. This separation means that changing the display technology (e.g., replacing the LCD with an OLED) would require modifying only the display driver and the application's update code, without touching the FSM logic.

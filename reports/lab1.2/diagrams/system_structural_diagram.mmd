@@ -1,0 +1,40 @@
+graph TB
+    subgraph "Host PC"
+        Terminal["Serial Terminal<br/>(Debug Monitor)"]
+    end
+
+    subgraph "Arduino Mega 2560"
+        UART0["UART0<br/>(USB-Serial)"]
+        MCU["ATmega2560<br/>MCU"]
+        I2C["I2C Bus<br/>(SDA/SCL)"]
+        GPIO_KP["GPIO Pins<br/>22-29"]
+        GPIO_LED["GPIO Pins<br/>6, 7"]
+    end
+
+    subgraph "Peripherals"
+        LCD["LCD 1602<br/>I2C Display"]
+        KP["4x4 Matrix<br/>Keypad"]
+        LED_R["Red LED<br/>(Locked)"]
+        LED_G["Green LED<br/>(Unlocked)"]
+        R1["220Ω"]
+        R2["220Ω"]
+    end
+
+    Terminal <-->|"USB"| UART0
+    UART0 <--> MCU
+    MCU <--> I2C
+    I2C <-->|"SDA/SCL"| LCD
+    MCU <--> GPIO_KP
+    GPIO_KP <-->|"Row/Col Scan"| KP
+    MCU --> GPIO_LED
+    GPIO_LED -->|"Pin 7"| R1
+    R1 --> LED_R
+    GPIO_LED -->|"Pin 6"| R2
+    R2 --> LED_G
+
+    style Terminal fill:#e1f5fe
+    style MCU fill:#fff3e0
+    style LCD fill:#e8f5e9
+    style KP fill:#fce4ec
+    style LED_R fill:#ffcdd2
+    style LED_G fill:#c8e6c9
