@@ -44,6 +44,18 @@ This template provides a standardized LaTeX structure for Embedded Systems labor
    ```
    Build artifacts go to `builds/` (configured in `.latexmkrc`).
 
+## Important Structural Conventions
+
+The report structure reflects important architectural and organizational principles. The **5-layer architecture** (APP → SRV → ECAL → MCAL → HW) separates application logic from hardware abstraction, and this design should be clearly documented in the Design section with corresponding flowcharts for each layer. Each lab must have its own isolated entry point to preserve all previous labs in a runnable state.
+
+**Documentation should use prose (paragraphs) instead of lists** wherever possible. Lists should only be used for step-by-step procedures or dense reference material. This improves readability and document flow.
+
+**All figure sizing must follow strict conventions** to maintain document compactness and readability. Include both width and height constraints: `height=0.5\textheight, keepaspectratio`. Use widths of 0.85 for system diagrams, 0.75 for architecture diagrams, 0.65 for main flowcharts, and 0.15–0.2 for per-function flowcharts. This prevents unnecessarily long documents while keeping diagrams visible and proportional.
+
+Per-module and per-function flowcharts should be documented separately with individual Mermaid diagrams rather than combined into one large diagram. This improves clarity and allows diagrams to fit within the height constraints.
+
+For more details on code organization, modular design, and development practices, see the `copilot-instructions.md` file in the `.github/` folder of the repository.
+
 ## File Structure
 
 ```

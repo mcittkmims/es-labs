@@ -9,10 +9,12 @@
 \subsubsection{Component-Level Architecture}
 
 % TODO: Describe the general system architecture with a structural diagram.
+% Remember: Use width and height constraints on all figures.
+% Example: \includegraphics[width=0.85\textwidth, height=0.5\textheight, keepaspectratio]{...}
 %
 % \begin{figure}[H]
 % \centering
-% \includegraphics[width=0.8\textwidth]{resources/Design/SystemArchitectureDiagrams/system_structural_diagram.png}
+% \includegraphics[width=0.85\textwidth, height=0.5\textheight, keepaspectratio]{resources/Design/SystemArchitectureDiagrams/system_structural_diagram.png}
 % \caption{System structural diagram of the application}
 % \label{fig:system_structural_diagram}
 % \end{figure}
@@ -25,20 +27,21 @@
 %
 % \begin{figure}[H]
 % \centering
-% \includegraphics[width=0.8\textwidth]{resources/Design/SystemArchitectureDiagrams/layered_architecture.png}
+% \includegraphics[width=0.75\textwidth, height=0.5\textheight, keepaspectratio]{resources/Design/SystemArchitectureDiagrams/layered_architecture.png}
 % \caption{Layered architecture of the system}
 % \label{fig:layered_architecture}
 % \end{figure}
 %
-% Describe each layer: APP, SRV, ECAL, MCAL, MCU, ECU.
+% Describe each layer and its role in the system.
 
 \subsection{Block Diagrams}
 
-% TODO: Present flowcharts / block diagrams of the application logic.
+% TODO: Present flowcharts and block diagrams of the algorithm and application logic.
+% Use separate per-function flowcharts when modules have multiple complex functions.
 %
 % \begin{figure}[H]
 % \centering
-% \includegraphics[width=0.9\textwidth]{resources/Design/BlockDiagrams/app_flowchart.png}
+% \includegraphics[width=0.65\textwidth, height=0.5\textheight, keepaspectratio]{resources/Design/BlockDiagrams/app_flowchart.png}
 % \caption{Flowchart of the application logic}
 % \label{fig:app_flowchart}
 % \end{figure}
@@ -51,7 +54,7 @@
 %
 % \begin{figure}[H]
 % \centering
-% \includegraphics[width=0.65\textwidth]{resources/Design/ElectricalSchematics/electric_schema.png}
+% \includegraphics[width=0.65\textwidth, height=0.5\textheight, keepaspectratio]{resources/Design/ElectricalSchematics/electric_schema.png}
 % \caption{Circuit schematic}
 % \label{fig:circuit_schematic}
 % \end{figure}
@@ -84,21 +87,38 @@
 
 \subsection{Modular Implementation}
 
-% TODO: Describe each software module's implementation.
-% Present interfaces, core functions, and operational logic for each layer.
-% Include code listings and flowcharts as needed.
-
-% Example subsubsection:
-% \subsubsection{Layer Name: Module Name}
-% Description, interface header listing, implementation listing, flowcharts.
+% TODO: Describe each software module's implementation following the layered architecture.
+% Present the interface (.h file) and implementation (.cpp file) for each module.
+% Include per-function flowcharts and operational logic for each significant function.
+% Use the following structure for each layer:
 %
-% \begin{lstlisting}[language=C++, caption=Module interface, label=lst:module_h]
+% 1. Brief description of the layer's role
+% 2. Interface header: show the public API and available methods
+% 3. Implementation highlights: explain critical code sections
+% 4. Per-function flowcharts: one diagram per significant function (not one per layer)
+%
+% Example subsubsection for a module:
+% \subsubsection{MCAL Layer: LED Driver}
+%
+% Brief description of the module's purpose.
+%
+% \begin{lstlisting}[language=C++, caption=Module interface (header), label=lst:module_h]
 % // Code here
 % \end{lstlisting}
 %
+% Description of implementation.
+%
+% \begin{lstlisting}[language=C++, caption=Module implementation, label=lst:module_cpp]
+% // Code here
+% \end{lstlisting}
+%
+% Per-function flowchart example (0.2\textwidth for narrow flowcharts, 0.15\textwidth for small ones):
+%
 % \begin{figure}[H]
 % \centering
-% \includegraphics[width=0.5\textwidth]{resources/Design/ModularImplementation/flowchart.png}
-% \caption{Flowchart description}
+% \includegraphics[width=0.2\textwidth, height=0.5\textheight, keepaspectratio]{resources/Design/ModularImplementation/flowchart_init.png}
+% \caption{Flowchart: Function initialization}
+% \label{fig:flowchart_init}
+% \end{figure}
 % \label{fig:module_flowchart}
 % \end{figure}
