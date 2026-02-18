@@ -1,0 +1,41 @@
+graph LR
+    subgraph Host["Host PC"]
+        Terminal["Serial Terminal<br/>(PlatformIO Monitor)"]
+    end
+
+    subgraph USB["USB-to-UART Bridge"]
+        Bridge["USB ↔ UART<br/>Converter"]
+    end
+
+    subgraph MCU["Arduino Mega 2560 (ATmega2560)"]
+        UART0["UART0<br/>(RX0/TX0)"]
+        STDIO["STDIO<br/>Redirection"]
+        Parser["Command<br/>Parser"]
+        LedDriver["LED<br/>Driver"]
+        GPIO["GPIO<br/>(Pin 7)"]
+    end
+
+    subgraph Circuit["LED Circuit"]
+        Resistor["220Ω<br/>Resistor"]
+        LED["Red<br/>LED"]
+        GND["GND"]
+    end
+
+    Terminal -- "TX (commands)" --> Bridge
+    Bridge -- "RX" --> UART0
+    UART0 --> STDIO
+    STDIO -- "fgets()" --> Parser
+    Parser -- "CMD_LED_ON/OFF" --> LedDriver
+    LedDriver --> GPIO
+    GPIO --> Resistor
+    Resistor --> LED
+    LED --> GND
+
+    STDIO -- "printf()" --> UART0
+    UART0 --> Bridge
+    Bridge -- "RX (responses)" --> Terminal
+
+    style Host fill:#e1f5fe,stroke:#0288d1,color:#000000
+    style MCU fill:#fff3e0,stroke:#f57c00,color:#000000
+    style Circuit fill:#e8f5e9,stroke:#388e3c,color:#000000
+    style USB fill:#f3e5f5,stroke:#7b1fa2,color:#000000

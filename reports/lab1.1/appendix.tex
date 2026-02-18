@@ -1,0 +1,296 @@
+\section{Appendix}
+
+The complete source code for Laboratory Work 1.1 is organized below by architectural layer. The full project is available in the GitHub repository.
+
+% TODO: Add link to GitHub repository
+% Repository: \url{https://github.com/mcittkmims/es-labs}
+
+\subsection{Application Layer}
+
+\subsubsection{Entry Point: main.cpp}
+
+\begin{lstlisting}[language=C++, caption=src/main.cpp --- Application entry point (lab selector), label=lst:appendix_main]
+/**
+ * @file main.cpp
+ * @brief Application Entry Point - Lab Selector
+ */
+
+#include <Arduino.h>
+
+// Select the active lab
+#include "lab1_1_main.h"
+
+void setup() {
+    lab1_1Setup();
+}
+
+void loop() {
+    lab1_1Loop();
+}
+\end{lstlisting}
+
+\subsubsection{Lab 1.1 Main Module}
+
+\begin{lstlisting}[language=C++, caption=lab/lab1\_1/lab1\_1\_main.h --- Lab 1.1 interface, label=lst:appendix_lab1_1_h]
+#ifndef LAB1_1_MAIN_H
+#define LAB1_1_MAIN_H
+
+void lab1_1Setup();
+void lab1_1Loop();
+
+#endif // LAB1_1_MAIN_H
+\end{lstlisting}
+
+\begin{lstlisting}[language=C++, caption=lab/lab1\_1/lab1\_1\_main.cpp --- Lab 1.1 implementation, label=lst:appendix_lab1_1_cpp]
+#include "lab1_1_main.h"
+#include <Arduino.h>
+#include <stdio.h>
+#include "Led.h"
+#include "StdioSerial.h"
+#include "CommandParser.h"
+
+// Pin Configuration
+static const uint8_t LED_PIN = 7;
+static const unsigned long BAUD_RATE = 9600;
+
+// Module-level objects
+static Led led(LED_PIN);
+static char inputBuffer[64];
+
+void lab1_1Setup() {
+    stdioSerialInit(BAUD_RATE);
+    led.init();
+
+    printf("\r\n");
+    printf("========================================\r\n");
+    printf("  Lab 1.1: Serial LED Control (STDIO)\r\n");
+    printf("  MCU: Arduino Mega 2560\r\n");
+    printf("========================================\r\n");
+    printf("\r\n");
+    printf("Available commands:\r\n");
+    printf("  led on   - Turn the LED ON\r\n");
+    printf("  led off  - Turn the LED OFF\r\n");
+    printf("\r\n");
+}
+
+void lab1_1Loop() {
+    printf("> ");
+
+    if (fgets(inputBuffer, sizeof(inputBuffer), stdin) != NULL) {
+        CommandType cmd = parseCommand(inputBuffer);
+
+        switch (cmd) {
+            case CMD_LED_ON:
+                led.turnOn();
+                printf("[OK] LED is now ON.\r\n");
+                break;
+            case CMD_LED_OFF:
+                led.turnOff();
+                printf("[OK] LED is now OFF.\r\n");
+                break;
+            case CMD_UNKNOWN:
+                printf("[ERROR] Unknown command.\r\n");
+                printf("Use 'led on' or 'led off'.\r\n");
+                break;
+        }
+    }
+}
+\end{lstlisting}
+
+\subsection{Service Layer}
+
+\subsubsection{CommandParser Module}
+
+\begin{lstlisting}[language=C++, caption=lib/CommandParser/CommandParser.h --- Command parser interface, label=lst:appendix_cmd_h]
+#ifndef COMMAND_PARSER_H
+#define COMMAND_PARSER_H
+
+#include <stdint.h>
+
+enum CommandType {
+    CMD_UNKNOWN,
+    CMD_LED_ON,
+    CMD_LED_OFF
+};
+
+CommandType parseCommand(const char *input);
+
+#endif // COMMAND_PARSER_H
+\end{lstlisting}
+
+\begin{lstlisting}[language=C++, caption=lib/CommandParser/CommandParser.cpp --- Command parser implementation, label=lst:appendix_cmd_cpp]
+#include "CommandParser.h"
+#include <string.h>
+#include <ctype.h>
+
+static const uint8_t PARSE_BUFFER_SIZE = 64;
+
+static void toLowerStr(char *dest, const char *src, size_t maxLen) {
+    size_t i = 0;
+    while (src[i] != '\0' && i < maxLen - 1) {
+        dest[i] = tolower((unsigned char)src[i]);
+        i++;
+    }
+    dest[i] = '\0';
+}
+
+static void trimStr(char *dest, const char *src, size_t maxLen) {
+    while (*src && isspace((unsigned char)*src)) {
+        src++;
+    }
+    size_t len = strlen(src);
+    while (len > 0 && isspace((unsigned char)src[len - 1])) {
+        len--;
+    }
+    if (len >= maxLen) {
+        len = maxLen - 1;
+    }
+    strncpy(dest, src, len);
+    dest[len] = '\0';
+}
+
+CommandType parseCommand(const char *input) {
+    char trimmed[PARSE_BUFFER_SIZE];
+    char lower[PARSE_BUFFER_SIZE];
+
+    trimStr(trimmed, input, sizeof(trimmed));
+    toLowerStr(lower, trimmed, sizeof(lower));
+
+    if (strcmp(lower, "led on") == 0) {
+        return CMD_LED_ON;
+    } else if (strcmp(lower, "led off") == 0) {
+        return CMD_LED_OFF;
+    }
+
+    return CMD_UNKNOWN;
+}
+\end{lstlisting}
+
+\subsection{ECU Abstraction Layer}
+
+\subsubsection{StdioSerial Module}
+
+\begin{lstlisting}[language=C++, caption=lib/StdioSerial/StdioSerial.h --- STDIO redirection interface, label=lst:appendix_stdio_h]
+#ifndef STDIO_SERIAL_H
+#define STDIO_SERIAL_H
+
+#include <Arduino.h>
+#include <stdio.h>
+
+void stdioSerialInit(unsigned long baudRate);
+
+#endif // STDIO_SERIAL_H
+\end{lstlisting}
+
+\begin{lstlisting}[language=C++, caption=lib/StdioSerial/StdioSerial.cpp --- STDIO redirection implementation, label=lst:appendix_stdio_cpp]
+#include "StdioSerial.h"
+
+static int serialPutChar(char c, FILE *stream) {
+    Serial.write(c);
+    return 0;
+}
+
+static int serialGetChar(FILE *stream) {
+    while (!Serial.available()) {
+        // Wait for input
+    }
+    char c = Serial.read();
+
+    if (c == '\r') {
+        Serial.write('\r');
+        Serial.write('\n');
+        return '\n';
+    }
+    if (c == '\b' || c == 127) {
+        Serial.write('\b');
+        Serial.write(' ');
+        Serial.write('\b');
+        return c;
+    }
+    Serial.write(c);
+    return c;
+}
+
+static FILE serialStream;
+
+void stdioSerialInit(unsigned long baudRate) {
+    Serial.begin(baudRate);
+    while (!Serial) { ; }
+    fdev_setup_stream(&serialStream,
+        serialPutChar, serialGetChar, _FDEV_SETUP_RW);
+    stdout = &serialStream;
+    stdin  = &serialStream;
+}
+\end{lstlisting}
+
+\subsection{Microcontroller Abstraction Layer}
+
+\subsubsection{Led Driver Module}
+
+\begin{lstlisting}[language=C++, caption=lib/Led/Led.h --- LED driver interface, label=lst:appendix_led_h]
+#ifndef LED_H
+#define LED_H
+
+#include <Arduino.h>
+
+class Led {
+public:
+    Led(uint8_t pin);
+    void init();
+    void turnOn();
+    void turnOff();
+    void toggle();
+    bool isOn() const;
+private:
+    uint8_t ledPin;
+    bool state;
+};
+
+#endif // LED_H
+\end{lstlisting}
+
+\begin{lstlisting}[language=C++, caption=lib/Led/Led.cpp --- LED driver implementation, label=lst:appendix_led_cpp]
+#include "Led.h"
+
+Led::Led(uint8_t pin) : ledPin(pin), state(false) {}
+
+void Led::init() {
+    pinMode(ledPin, OUTPUT);
+    digitalWrite(ledPin, LOW);
+    state = false;
+}
+
+void Led::turnOn() {
+    digitalWrite(ledPin, HIGH);
+    state = true;
+}
+
+void Led::turnOff() {
+    digitalWrite(ledPin, LOW);
+    state = false;
+}
+
+void Led::toggle() {
+    if (state) {
+        turnOff();
+    } else {
+        turnOn();
+    }
+}
+
+bool Led::isOn() const {
+    return state;
+}
+\end{lstlisting}
+
+\subsection{Configuration Files}
+
+\begin{lstlisting}[caption=platformio.ini --- PlatformIO project configuration, label=lst:appendix_platformio]
+[env:lab1_1]
+platform = atmelavr
+board = megaatmega2560
+framework = arduino
+monitor_speed = 9600
+build_src_filter = +<*> +<../lab/lab1_1/*>
+build_flags = -I lab/lab1_1
+\end{lstlisting}

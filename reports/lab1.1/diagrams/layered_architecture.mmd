@@ -1,0 +1,35 @@
+block-beta
+    columns 1
+
+    block:APP["APP — Application Layer"]:1
+        lab1_1["lab1_1_main<br/>Lab orchestration: prompt → read → parse → execute → respond"]
+    end
+
+    block:SRV["SRV — Service Layer"]:1
+        cmdParser["CommandParser<br/>Text command interpretation (trim, lowercase, match)"]
+    end
+
+    block:ECAL["ECAL — ECU Abstraction Layer"]:1
+        stdioSerial["StdioSerial<br/>STDIO ↔ UART redirection (printf/fgets over Serial)"]
+    end
+
+    block:MCAL["MCAL — MCU Abstraction Layer"]:1
+        ledDriver["Led Driver<br/>GPIO pin control (init, turnOn, turnOff, toggle)"]
+    end
+
+    block:HW["HW — Hardware"]:1
+        hw["ATmega2560: UART0 (USB Serial) + GPIO Pin 7 (LED)"]
+    end
+
+    lab1_1 --> cmdParser
+    lab1_1 --> stdioSerial
+    lab1_1 --> ledDriver
+    cmdParser --> stdioSerial
+    stdioSerial --> hw
+    ledDriver --> hw
+
+    style APP fill:#bbdefb,stroke:#1565c0,color:#000000
+    style SRV fill:#c8e6c9,stroke:#2e7d32,color:#000000
+    style ECAL fill:#fff9c4,stroke:#f9a825,color:#000000
+    style MCAL fill:#ffccbc,stroke:#d84315,color:#000000
+    style HW fill:#e0e0e0,stroke:#424242,color:#000000

@@ -1,0 +1,146 @@
+\section{Domain Analysis}
+
+\subsection{Objective of the Laboratory Work}
+
+The objective of this laboratory work is to familiarize students with the use of the C Standard I/O (STDIO) library for serial communication in embedded systems. The primary goal is to design and implement a simple application on an Arduino Mega 2560 microcontroller that controls an LED through text commands transmitted from a serial terminal.
+
+The key learning objectives include:
+
+\begin{itemize}
+    \item Understanding the fundamental principles of serial communication (UART protocol).
+    \item Using the STDIO library functions (\texttt{printf}, \texttt{fgets}) for text-based data exchange over a serial interface.
+    \item Designing an application that interprets commands received through the serial port.
+    \item Developing a modular software solution, with separate reusable components for each peripheral device.
+\end{itemize}
+
+\subsection{Problem Definition}
+
+The task requires the development of a microcontroller-based application with the following functional requirements:
+
+\begin{enumerate}
+    \item Configure the application to use the STDIO library through the serial interface for text exchange via a terminal emulator.
+    \item Design and implement a command interpreter that receives commands from the serial terminal:
+    \begin{itemize}
+        \item \texttt{led on} --- turns the LED ON.
+        \item \texttt{led off} --- turns the LED OFF.
+    \end{itemize}
+    \item The system must respond with text confirmation messages for each processed command.
+    \item All text input/output must be handled using the C STDIO library (\texttt{printf}, \texttt{fgets}, etc.), not Arduino-specific \texttt{Serial.print()} calls at the application level.
+    \item The application must be structured in a modular fashion, with separate files for each peripheral (LED, serial I/O).
+\end{enumerate}
+
+\subsection{Used Technologies}
+
+\subsubsection{UART Serial Communication}
+
+UART (Universal Asynchronous Receiver-Transmitter) is a hardware communication protocol that enables asynchronous serial data exchange between two devices. In this laboratory, UART is used to establish communication between the Arduino Mega 2560 and a host PC running a serial terminal application.
+
+Key characteristics of UART communication:
+
+\begin{itemize}
+    \item \textbf{Asynchronous:} No shared clock signal between transmitter and receiver. Both sides must agree on a common baud rate (in this lab: 9600 baud).
+    \item \textbf{Full-duplex:} Data can be transmitted and received simultaneously over two separate lines (TX and RX).
+    \item \textbf{Frame format:} Each data frame consists of a start bit, 8 data bits, an optional parity bit, and one or more stop bits.
+    \item \textbf{Point-to-point:} UART connects exactly two devices directly.
+\end{itemize}
+
+On the Arduino Mega 2560, UART0 is connected to the USB-to-Serial converter chip, allowing seamless communication with the host PC over a USB cable.
+
+\subsubsection{C Standard I/O Library (STDIO)}
+
+The C Standard I/O library (\texttt{<stdio.h>}) provides portable, high-level functions for formatted text input and output. In desktop environments, these functions interact with console I/O; in embedded systems, they can be redirected to any I/O peripheral.
+
+The key STDIO functions used in this lab are:
+
+\begin{itemize}
+    \item \texttt{printf()} --- formatted text output to \texttt{stdout}. Used to display prompts, confirmation messages, and error messages.
+    \item \texttt{fgets()} --- reads a line of text from \texttt{stdin}. Used to capture user commands from the serial terminal.
+\end{itemize}
+
+On AVR microcontrollers with the Arduino framework, STDIO streams (\texttt{stdout}, \texttt{stdin}) are not connected to any device by default. The AVR libc library provides the \texttt{fdev\_setup\_stream()} function to create custom FILE streams backed by user-defined read/write functions. By assigning a custom stream to \texttt{stdout} and \texttt{stdin}, all subsequent calls to \texttt{printf()} and \texttt{fgets()} are transparently redirected to the serial port.
+
+\subsubsection{PlatformIO Build System}
+
+PlatformIO is a professional open-source ecosystem for embedded development. It provides project management, library dependency resolution, multi-board support, and integrated build/upload/monitor tools. In this lab, PlatformIO is used within VS Code to compile, upload, and monitor the application on the Arduino Mega 2560.
+
+\subsubsection{Wokwi Simulator}
+
+Wokwi is an online and VS Code-integrated simulator for embedded systems. It supports Arduino, ESP32, and other popular platforms. Wokwi allows testing of the application in a virtual environment before deploying to physical hardware, providing a simulated serial terminal and virtual LEDs.
+
+\subsection{Hardware Components}
+
+\subsubsection{Arduino Mega 2560}
+
+The Arduino Mega 2560 is a microcontroller development board based on the ATmega2560 AVR chip. It features 54 digital I/O pins (15 of which support PWM output), 16 analog inputs, 4 hardware UART ports, a 16 MHz crystal oscillator, a USB connection, a power jack, and an ICSP header.
+
+Key specifications relevant to this lab:
+
+\begin{itemize}
+    \item \textbf{Microcontroller:} ATmega2560 (8-bit AVR, 16 MHz)
+    \item \textbf{Flash memory:} 256 KB (8 KB used by bootloader)
+    \item \textbf{SRAM:} 8 KB
+    \item \textbf{Digital I/O pins:} 54
+    \item \textbf{UART ports:} 4 (UART0 connected to USB)
+    \item \textbf{Operating voltage:} 5V
+    \item \textbf{I/O pin output current:} 20 mA (max 40 mA)
+\end{itemize}
+
+UART0 (pins 0/TX and 1/RX) is connected through a USB-to-Serial converter chip, enabling direct communication with the host PC for programming and serial monitoring.
+
+\subsubsection{LED (Light-Emitting Diode)}
+
+A standard 5mm red LED is used as the output actuator in this lab. The LED is connected to digital pin 7 of the Arduino Mega through a current-limiting resistor. When pin 7 is set HIGH (5V), current flows through the resistor and LED, causing it to emit light. When set LOW (0V), the LED turns off.
+
+LED specifications:
+
+\begin{itemize}
+    \item \textbf{Forward voltage (Vf):} approximately 1.8--2.2V (red LED)
+    \item \textbf{Forward current (If):} 20 mA (typical operating current)
+    \item \textbf{Maximum current:} 30 mA
+\end{itemize}
+
+\subsubsection{220 $\Omega$ Resistor}
+
+A 220~$\Omega$ resistor is placed in series with the LED to limit the current flowing through it. The resistor value is calculated based on Ohm's law:
+
+$$I = \frac{V_{pin} - V_{LED}}{R} = \frac{5V - 2V}{220\,\Omega} \approx 13.6\,mA$$
+
+This current is within the safe operating range of both the LED (< 20 mA) and the Arduino GPIO pin (< 40 mA absolute maximum).
+
+\subsubsection{Breadboard and Jumper Wires}
+
+A solderless breadboard provides a convenient prototyping platform for connecting the LED, resistor, and Arduino without soldering. Jumper wires are used to make electrical connections between the Arduino pins, the resistor, the LED, and the ground rail.
+
+\subsection{Software Components}
+
+\subsubsection{Visual Studio Code with PlatformIO}
+
+Visual Studio Code (VS Code) is a lightweight but powerful source code editor. The PlatformIO IDE extension transforms it into a full-featured embedded development environment with support for:
+
+\begin{itemize}
+    \item Project initialization and configuration via \texttt{platformio.ini}
+    \item Automatic toolchain and library management
+    \item Code compilation, firmware upload, and serial monitor
+    \item IntelliSense code completion for Arduino/AVR libraries
+\end{itemize}
+
+\subsubsection{Wokwi VS Code Extension}
+
+The Wokwi VS Code extension enables hardware simulation directly within the IDE. It reads a \texttt{diagram.json} file defining the virtual circuit and a \texttt{wokwi.toml} file pointing to the compiled firmware. This allows interactive testing of the serial command interface without physical hardware.
+
+\subsubsection{Serial Terminal (PlatformIO Monitor)}
+
+PlatformIO's built-in serial monitor provides a terminal interface for sending and receiving text over the UART connection. It operates at a configurable baud rate (9600 in this lab) and displays characters received from the microcontroller while transmitting typed characters back to it.
+
+\subsection{Case Study: Serial Command Interfaces in Embedded Systems}
+
+Serial command-line interfaces (CLIs) are widely used in embedded systems for diagnostics, configuration, and debugging. Many industrial and consumer devices provide a serial console for:
+
+\begin{itemize}
+    \item \textbf{Network equipment:} Routers and switches (Cisco IOS, OpenWrt) use serial consoles for initial configuration and troubleshooting.
+    \item \textbf{Industrial PLCs:} Programmable Logic Controllers often accept serial commands for parameter tuning and status queries.
+    \item \textbf{IoT gateways:} Edge devices provide serial debug interfaces for firmware updates and log inspection.
+    \item \textbf{3D printers:} Use G-code commands over serial (typically UART) to control motion, temperature, and extrusion.
+\end{itemize}
+
+The STDIO-based approach demonstrated in this lab mirrors these real-world implementations, where a standardized text protocol enables human-machine interaction through a simple terminal connection. The modular architecture (separating I/O abstraction from application logic) is a fundamental pattern in professional embedded firmware development.

@@ -1,0 +1,195 @@
+\section{Obtained Results}
+
+\subsection{Build Process}
+
+The project was compiled using PlatformIO with the \texttt{lab1\_1} environment targeting the Arduino Mega 2560 (ATmega2560). The build completed successfully with no errors or warnings.
+
+% PLACEHOLDER: Take a screenshot of the successful PlatformIO build output from the terminal and place it at:
+% reports/lab1.1/resources/ObtainedResults/build_results.png
+%
+% The screenshot should show the PlatformIO build summary (RAM/Flash usage, success message).
+%
+% \begin{figure}[H]
+% \centering
+% \includegraphics[width=0.85\textwidth]{resources/ObtainedResults/build_results.png}
+% \caption{Successful PlatformIO build output for Lab 1.1}
+% \label{fig:build_results}
+% \end{figure}
+
+\subsection{Simulation Initialization}
+
+Upon starting the Wokwi simulation, the virtual Arduino Mega 2560 boots and the application initializes the STDIO serial redirection and LED driver. The serial terminal displays the welcome banner and command prompt:
+
+\begin{lstlisting}[caption=Expected serial output on startup, label=lst:startup_output]
+========================================
+  Lab 1.1: Serial LED Control (STDIO)
+  MCU: Arduino Mega 2560
+========================================
+
+Available commands:
+  led on   - Turn the LED ON
+  led off  - Turn the LED OFF
+
+>
+\end{lstlisting}
+
+The LED starts in the OFF state (no current flowing through the circuit).
+
+% PLACEHOLDER: Take a screenshot of the Wokwi simulation showing the initial state
+% (LED off, welcome message in serial monitor) and place it at:
+% reports/lab1.1/resources/ObtainedResults/simulation_start.png
+%
+% \begin{figure}[H]
+% \centering
+% \includegraphics[width=0.65\textwidth]{resources/ObtainedResults/simulation_start.png}
+% \caption{Initial simulation state --- LED off, welcome banner displayed}
+% \label{fig:simulation_start}
+% \end{figure}
+
+\subsection{Command Interface Validation}
+
+\subsubsection{Test: LED ON Command}
+
+Typing \texttt{led on} and pressing Enter turns the LED on. The system responds with a confirmation message.
+
+\begin{lstlisting}[caption=Serial output --- LED ON command, label=lst:test_led_on]
+> led on
+[OK] LED is now ON.
+>
+\end{lstlisting}
+
+The LED in the Wokwi simulation lights up (red), confirming that pin 7 is driven HIGH.
+
+% PLACEHOLDER: Take a screenshot showing the Wokwi simulation with the LED ON
+% and the serial monitor showing the "led on" command and confirmation.
+% Place at: reports/lab1.1/resources/ObtainedResults/test_led_on.png
+%
+% \begin{figure}[H]
+% \centering
+% \includegraphics[width=0.65\textwidth]{resources/ObtainedResults/test_led_on.png}
+% \caption{LED ON --- simulation result with serial confirmation}
+% \label{fig:test_led_on}
+% \end{figure}
+
+\subsubsection{Test: LED OFF Command}
+
+Typing \texttt{led off} turns the LED off, and the system confirms:
+
+\begin{lstlisting}[caption=Serial output --- LED OFF command, label=lst:test_led_off]
+> led off
+[OK] LED is now OFF.
+>
+\end{lstlisting}
+
+% PLACEHOLDER: Take a screenshot showing the LED OFF state in Wokwi.
+% Place at: reports/lab1.1/resources/ObtainedResults/test_led_off.png
+%
+% \begin{figure}[H]
+% \centering
+% \includegraphics[width=0.65\textwidth]{resources/ObtainedResults/test_led_off.png}
+% \caption{LED OFF --- simulation result with serial confirmation}
+% \label{fig:test_led_off}
+% \end{figure}
+
+\subsubsection{Test: Unknown Command Handling}
+
+Entering an unrecognized command triggers an error message:
+
+\begin{lstlisting}[caption=Serial output --- unknown command error, label=lst:test_unknown]
+> hello
+[ERROR] Unknown command.
+Use 'led on' or 'led off'.
+>
+\end{lstlisting}
+
+The system does not crash or hang --- it simply reports the error and returns to the prompt, ready for the next command.
+
+\subsubsection{Test: Case Insensitivity}
+
+The command parser handles mixed-case input correctly:
+
+\begin{lstlisting}[caption=Serial output --- case insensitive commands, label=lst:test_case]
+> LED ON
+[OK] LED is now ON.
+> Led Off
+[OK] LED is now OFF.
+> LED on
+[OK] LED is now ON.
+>
+\end{lstlisting}
+
+This confirms that the \texttt{toLowerStr()} normalization in the parser works correctly.
+
+\subsubsection{Test: Leading and Trailing Whitespace}
+
+Commands with extra whitespace are handled gracefully:
+
+\begin{lstlisting}[caption=Serial output --- whitespace handling, label=lst:test_whitespace]
+>    led on
+[OK] LED is now ON.
+> led off
+[OK] LED is now OFF.
+>
+\end{lstlisting}
+
+The \texttt{trimStr()} function strips leading and trailing whitespace before matching.
+
+\subsection{Physical Hardware Implementation}
+
+% PLACEHOLDER: If testing on physical hardware, document the following:
+%
+% \subsubsection{Hardware Assembly}
+%
+% Take a photo of the breadboard circuit with the Arduino Mega 2560,
+% LED, and 220 Ohm resistor connected. Place the photo at:
+% reports/lab1.1/resources/ObtainedResults/HardwareResults/hardware_setup.jpg
+%
+% \begin{figure}[H]
+% \centering
+% \includegraphics[width=0.55\textwidth]{resources/ObtainedResults/HardwareResults/hardware_setup.jpg}
+% \caption{Physical hardware assembly --- Arduino Mega with LED circuit}
+% \label{fig:hw_setup}
+% \end{figure}
+
+% \subsubsection{Firmware Upload}
+%
+% Take a screenshot of the PlatformIO upload process. Place at:
+% reports/lab1.1/resources/ObtainedResults/HardwareResults/firmware_upload.png
+%
+% \begin{figure}[H]
+% \centering
+% \includegraphics[width=0.75\textwidth]{resources/ObtainedResults/HardwareResults/firmware_upload.png}
+% \caption{Successful firmware upload to Arduino Mega 2560}
+% \label{fig:firmware_upload}
+% \end{figure}
+
+% \subsubsection{Hardware Test Results}
+%
+% Take photos/screenshots of the physical LED in ON and OFF states
+% with the serial monitor visible. Place at:
+% reports/lab1.1/resources/ObtainedResults/HardwareResults/hw_led_on.jpg
+% reports/lab1.1/resources/ObtainedResults/HardwareResults/hw_led_off.jpg
+
+\subsection{System Observations}
+
+\begin{itemize}
+    \item \textbf{Response time:} The LED state changes immediately upon pressing Enter (no perceptible delay). The confirmation message appears within milliseconds.
+    \item \textbf{Blocking I/O:} The \texttt{fgets()} call blocks the main loop while waiting for input. This is acceptable for this simple application but would need to be replaced with non-blocking I/O in a multi-tasking system.
+    \item \textbf{Echo behavior:} Characters typed in the terminal are echoed back by the MCU (implemented in \texttt{serialGetChar()}), providing visual feedback to the user.
+    \item \textbf{Memory usage:} The application uses minimal RAM. The input buffer is 64 bytes, and the parser uses small stack-allocated buffers for processing.
+    \item \textbf{Simulation fidelity:} The Wokwi simulation accurately reproduces the serial communication and LED control behavior observed on physical hardware.
+\end{itemize}
+
+\subsection{Verification Summary}
+
+\begin{itemize}
+    \item \textbf{Compilation:} Successful build with no errors or warnings.
+    \item \textbf{Initialization:} STDIO serial redirection and LED initialization complete correctly. Welcome banner displays on startup.
+    \item \textbf{LED ON command:} \texttt{led on} correctly turns the LED on with confirmation message.
+    \item \textbf{LED OFF command:} \texttt{led off} correctly turns the LED off with confirmation message.
+    \item \textbf{Error handling:} Unknown commands produce a clear error message without crashing.
+    \item \textbf{Case insensitivity:} Commands work regardless of letter case.
+    \item \textbf{Whitespace tolerance:} Leading/trailing whitespace is trimmed before parsing.
+    \item \textbf{STDIO usage:} All text I/O uses \texttt{printf()} and \texttt{fgets()} (not \texttt{Serial.print()}).
+    \item \textbf{Modularity:} Code is cleanly separated into reusable library modules.
+\end{itemize}

@@ -1,0 +1,378 @@
+\section{Design}
+
+\subsection{System Architecture Diagrams}
+
+\subsubsection{Component-Level Architecture}
+
+The system consists of three main components: a host PC running a serial terminal, the Arduino Mega 2560 microcontroller, and the LED output circuit. The PC communicates with the MCU over a USB-to-UART bridge, sending text commands and receiving confirmation messages. The MCU processes these commands and drives the LED accordingly.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{resources/Design/SystemArchitectureDiagrams/system_structural_diagram.png}
+\caption{System structural diagram showing the PC, MCU, and LED circuit}
+\label{fig:system_structural_diagram}
+\end{figure}
+
+The system structural diagram illustrates the data flow:
+
+\begin{enumerate}
+    \item The user types a command (e.g., \texttt{led on}) in the serial terminal on the PC.
+    \item The command is transmitted over USB, converted to UART by the USB-to-Serial bridge on the Arduino board, and received by the ATmega2560's UART0 peripheral.
+    \item The STDIO library redirects the incoming bytes to \texttt{stdin}, allowing \texttt{fgets()} to read the complete command line.
+    \item The command parser module interprets the text and determines the action.
+    \item The LED driver module sets the GPIO pin HIGH or LOW to control the LED.
+    \item A confirmation message is sent back via \texttt{printf()} through \texttt{stdout}, which is redirected to UART TX, travels back over USB, and appears in the serial terminal.
+\end{enumerate}
+
+\subsubsection{Layered System Architecture}
+
+The software follows a layered architecture that separates concerns:
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.75\textwidth]{resources/Design/SystemArchitectureDiagrams/layered_architecture.png}
+\caption{Layered software architecture of the system}
+\label{fig:layered_architecture}
+\end{figure}
+
+The layers and their responsibilities are:
+
+\begin{itemize}
+    \item \textbf{Application Layer (APP):} Contains \texttt{lab1\_1\_main}, which orchestrates the main control loop --- prompting for input, reading commands, invoking the parser, executing LED actions, and displaying feedback.
+    \item \textbf{Service Layer (SRV):} Contains \texttt{CommandParser}, which provides command interpretation as a reusable service. It trims whitespace, normalizes case, and matches input strings against known commands.
+    \item \textbf{ECU Abstraction Layer (ECAL):} Contains \texttt{StdioSerial}, which abstracts the UART hardware into C standard I/O streams. This layer creates a bridge between the portable STDIO API and the Arduino Serial hardware.
+    \item \textbf{Microcontroller Abstraction Layer (MCAL):} Contains the \texttt{Led} driver, which provides a clean object-oriented API for GPIO-based LED control, hiding direct \texttt{pinMode()}/\texttt{digitalWrite()} calls from upper layers.
+    \item \textbf{Hardware (HW):} The physical ATmega2560 MCU with its UART0 peripheral (connected to USB) and digital GPIO pin 7 (connected to the LED circuit).
+\end{itemize}
+
+\subsection{Block Diagrams}
+
+The application follows a simple sequential algorithm (blocking I/O model):
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.75\textwidth]{resources/Design/BlockDiagrams/app_flowchart.png}
+\caption{Flowchart of the main application logic}
+\label{fig:app_flowchart}
+\end{figure}
+
+The algorithm proceeds as follows:
+
+\begin{enumerate}
+    \item \textbf{Initialization phase:}
+    \begin{enumerate}
+        \item Initialize the STDIO serial redirection (configure UART at 9600 baud, redirect \texttt{stdout} and \texttt{stdin}).
+        \item Initialize the LED driver (set GPIO pin 7 as OUTPUT, default state OFF).
+        \item Print a welcome banner with available commands.
+    \end{enumerate}
+    \item \textbf{Main loop (repeats indefinitely):}
+    \begin{enumerate}
+        \item Display the command prompt (\texttt{"> "}).
+        \item Wait for a complete line of text from the serial terminal (blocking \texttt{fgets()} call).
+        \item Pass the received string to the command parser.
+        \item Based on the parsed command:
+        \begin{itemize}
+            \item \texttt{CMD\_LED\_ON}: call \texttt{led.turnOn()} and print confirmation.
+            \item \texttt{CMD\_LED\_OFF}: call \texttt{led.turnOff()} and print confirmation.
+            \item \texttt{CMD\_UNKNOWN}: print an error message with usage instructions.
+        \end{itemize}
+        \item Return to step (a).
+    \end{enumerate}
+\end{enumerate}
+
+\subsection{Electrical Schematics}
+
+The circuit is straightforward: a single red LED is connected in series with a 220~$\Omega$ current-limiting resistor between digital pin 7 of the Arduino Mega and ground.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.65\textwidth]{resources/Design/ElectricalSchematics/electric_schema.png}
+\caption{Electrical schematic --- LED control circuit}
+\label{fig:circuit_schematic}
+\end{figure}
+
+\subsubsection{Component Specification}
+
+\begin{itemize}
+    \item \textbf{Arduino Mega 2560:} Microcontroller board (ATmega2560, 5V logic, 16 MHz). Provides the digital GPIO output (pin 7) and UART0 serial interface (via USB).
+    \item \textbf{Red LED (5mm):} Light-emitting diode, forward voltage $V_f \approx 2.0\,V$, max forward current 20 mA.
+    \item \textbf{Resistor (220~$\Omega$, 1/4W):} Current-limiting resistor. Limits LED current to approximately 13.6 mA at 5V supply.
+\end{itemize}
+
+\subsubsection{Circuit Connections}
+
+\begin{itemize}
+    \item \textbf{Arduino Pin 7} $\rightarrow$ \textbf{Resistor (220~$\Omega$) terminal 1}: GPIO output drives current through the resistor.
+    \item \textbf{Resistor terminal 2} $\rightarrow$ \textbf{LED Anode (+)}: Current flows from resistor into the LED.
+    \item \textbf{LED Cathode ($-$)} $\rightarrow$ \textbf{Arduino GND}: Completes the circuit to ground.
+\end{itemize}
+
+When pin 7 outputs HIGH (5V), current $I = (5V - 2V) / 220\,\Omega \approx 13.6\,mA$ flows through the LED, illuminating it. When pin 7 outputs LOW (0V), no current flows and the LED is off.
+
+\subsubsection{Hardware Configuration}
+
+The Wokwi simulation configuration file defines the virtual circuit:
+
+\begin{lstlisting}[language=json, caption=Wokwi diagram.json --- Virtual circuit definition, label=lst:wokwi_diagram]
+{
+  "version": 1,
+  "author": "Vremere Adrian",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "wokwi-arduino-mega",
+      "id": "mega",
+      "top": 0, "left": 0, "attrs": {}
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r1",
+      "top": -50, "left": 250, "rotate": 90,
+      "attrs": { "resistance": "220" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led1",
+      "top": -120, "left": 240,
+      "attrs": { "color": "red", "label": "LED1" }
+    }
+  ],
+  "connections": [
+    ["mega:7", "r1:1", "green", ["v0"]],
+    ["r1:2", "led1:A", "green", ["v0"]],
+    ["led1:C", "mega:GND.1", "black", ["v0"]]
+  ]
+}
+\end{lstlisting}
+
+\subsection{Project Structure}
+
+The project follows a modular directory layout as required by the course conventions:
+
+\begin{lstlisting}[caption=Project directory structure for Lab 1.1, label=lst:project_structure]
+labs/
+|-- platformio.ini              # Build config (env:lab1_1)
+|-- src/
+|   |-- main.cpp                # Entry point (lab selector)
+|-- lab/
+|   |-- lab1_1/
+|       |-- lab1_1_main.h       # Lab 1.1 interface
+|       |-- lab1_1_main.cpp     # Lab 1.1 implementation
+|-- lib/
+|   |-- Led/
+|   |   |-- Led.h               # LED driver interface
+|   |   |-- Led.cpp             # LED driver implementation
+|   |-- StdioSerial/
+|   |   |-- StdioSerial.h       # STDIO redirection interface
+|   |   |-- StdioSerial.cpp     # STDIO redirection implementation
+|   |-- CommandParser/
+|       |-- CommandParser.h     # Command parser interface
+|       |-- CommandParser.cpp   # Command parser implementation
+|-- wokwi/
+    |-- lab1.1/
+        |-- diagram.json        # Wokwi circuit definition
+        |-- wokwi.toml          # Wokwi firmware config
+\end{lstlisting}
+
+Each library under \texttt{lib/} is a self-contained, reusable module with a clear interface (\texttt{.h}) and implementation (\texttt{.cpp}). The lab-specific code resides in \texttt{lab/lab1\_1/}, while \texttt{src/main.cpp} simply delegates to the active lab's setup and loop functions.
+
+\subsection{Modular Implementation}
+
+\subsubsection{MCAL Layer: Led Driver}
+
+The Led driver provides a hardware abstraction for controlling an LED connected to a GPIO pin. It encapsulates \texttt{pinMode()} and \texttt{digitalWrite()} behind a clean object-oriented interface.
+
+\begin{lstlisting}[language=C++, caption=Led.h --- LED driver interface, label=lst:led_h]
+#ifndef LED_H
+#define LED_H
+
+#include <Arduino.h>
+
+class Led {
+public:
+    Led(uint8_t pin);
+    void init();
+    void turnOn();
+    void turnOff();
+    void toggle();
+    bool isOn() const;
+private:
+    uint8_t ledPin;
+    bool state;
+};
+
+#endif
+\end{lstlisting}
+
+\begin{lstlisting}[language=C++, caption=Led.cpp --- LED driver implementation, label=lst:led_cpp]
+#include "Led.h"
+
+Led::Led(uint8_t pin) : ledPin(pin), state(false) {}
+
+void Led::init() {
+    pinMode(ledPin, OUTPUT);
+    digitalWrite(ledPin, LOW);
+    state = false;
+}
+
+void Led::turnOn() {
+    digitalWrite(ledPin, HIGH);
+    state = true;
+}
+
+void Led::turnOff() {
+    digitalWrite(ledPin, LOW);
+    state = false;
+}
+
+void Led::toggle() {
+    if (state) { turnOff(); }
+    else { turnOn(); }
+}
+
+bool Led::isOn() const { return state; }
+\end{lstlisting}
+
+The \texttt{Led} class accepts a pin number at construction time, making it reusable for any GPIO-connected LED. The \texttt{init()} method must be called once during setup to configure the pin direction.
+
+\subsubsection{ECAL Layer: StdioSerial}
+
+The StdioSerial module redirects the C standard I/O streams (\texttt{stdout}, \texttt{stdin}) to the hardware UART, enabling the use of \texttt{printf()} and \texttt{fgets()} for serial communication.
+
+\begin{lstlisting}[language=C++, caption=StdioSerial.h --- STDIO redirection interface, label=lst:stdio_serial_h]
+#ifndef STDIO_SERIAL_H
+#define STDIO_SERIAL_H
+
+#include <Arduino.h>
+#include <stdio.h>
+
+void stdioSerialInit(unsigned long baudRate);
+
+#endif
+\end{lstlisting}
+
+\begin{lstlisting}[language=C++, caption=StdioSerial.cpp --- STDIO redirection implementation (key sections), label=lst:stdio_serial_cpp]
+#include "StdioSerial.h"
+
+static int serialPutChar(char c, FILE *stream) {
+    Serial.write(c);
+    return 0;
+}
+
+static int serialGetChar(FILE *stream) {
+    while (!Serial.available()) { }
+    char c = Serial.read();
+    if (c == '\r') {
+        Serial.write('\r');
+        Serial.write('\n');
+        return '\n';
+    }
+    Serial.write(c); // Echo
+    return c;
+}
+
+static FILE serialStream;
+
+void stdioSerialInit(unsigned long baudRate) {
+    Serial.begin(baudRate);
+    while (!Serial) { ; }
+    fdev_setup_stream(&serialStream,
+        serialPutChar, serialGetChar, _FDEV_SETUP_RW);
+    stdout = &serialStream;
+    stdin  = &serialStream;
+}
+\end{lstlisting}
+
+The implementation uses AVR libc's \texttt{fdev\_setup\_stream()} to create a custom \texttt{FILE} stream. The \texttt{serialPutChar()} function writes characters to the UART (used by \texttt{printf}), while \texttt{serialGetChar()} reads characters with local echo and carriage-return-to-newline conversion (used by \texttt{fgets}).
+
+\subsubsection{SRV Layer: CommandParser}
+
+The CommandParser module interprets text strings and maps them to command types.
+
+\begin{lstlisting}[language=C++, caption=CommandParser.h --- Command parser interface, label=lst:cmd_parser_h]
+#ifndef COMMAND_PARSER_H
+#define COMMAND_PARSER_H
+
+enum CommandType {
+    CMD_UNKNOWN,
+    CMD_LED_ON,
+    CMD_LED_OFF
+};
+
+CommandType parseCommand(const char *input);
+
+#endif
+\end{lstlisting}
+
+\begin{lstlisting}[language=C++, caption=CommandParser.cpp --- Command parser implementation (key sections), label=lst:cmd_parser_cpp]
+#include "CommandParser.h"
+#include <string.h>
+#include <ctype.h>
+
+static void toLowerStr(char *dest,
+    const char *src, size_t maxLen) { /* ... */ }
+
+static void trimStr(char *dest,
+    const char *src, size_t maxLen) { /* ... */ }
+
+CommandType parseCommand(const char *input) {
+    char trimmed[64], lower[64];
+    trimStr(trimmed, input, sizeof(trimmed));
+    toLowerStr(lower, trimmed, sizeof(lower));
+
+    if (strcmp(lower, "led on") == 0)
+        return CMD_LED_ON;
+    if (strcmp(lower, "led off") == 0)
+        return CMD_LED_OFF;
+
+    return CMD_UNKNOWN;
+}
+\end{lstlisting}
+
+The parser performs two preprocessing steps (trim whitespace, convert to lowercase) before matching against known commands. This ensures robust handling of user input variations (leading/trailing spaces, mixed case).
+
+\subsubsection{APP Layer: Lab 1.1 Main}
+
+The application layer ties all modules together:
+
+\begin{lstlisting}[language=C++, caption=lab1\_1\_main.cpp --- Application entry point (key sections), label=lst:lab1_1_main]
+#include "lab1_1_main.h"
+#include <stdio.h>
+#include "Led.h"
+#include "StdioSerial.h"
+#include "CommandParser.h"
+
+static const uint8_t LED_PIN = 7;
+static const unsigned long BAUD_RATE = 9600;
+static Led led(LED_PIN);
+static char inputBuffer[64];
+
+void lab1_1Setup() {
+    stdioSerialInit(BAUD_RATE);
+    led.init();
+    printf("\r\n=== Lab 1.1: Serial LED Control ===\r\n");
+    printf("Commands: led on, led off\r\n");
+}
+
+void lab1_1Loop() {
+    printf("> ");
+    if (fgets(inputBuffer, sizeof(inputBuffer), stdin)) {
+        CommandType cmd = parseCommand(inputBuffer);
+        switch (cmd) {
+            case CMD_LED_ON:
+                led.turnOn();
+                printf("[OK] LED is now ON.\r\n");
+                break;
+            case CMD_LED_OFF:
+                led.turnOff();
+                printf("[OK] LED is now OFF.\r\n");
+                break;
+            case CMD_UNKNOWN:
+                printf("[ERROR] Unknown command.\r\n");
+                break;
+        }
+    }
+}
+\end{lstlisting}
+
+The application logic is clean and readable: initialize peripherals, then loop over prompt-read-parse-execute-respond. All I/O uses standard C functions (\texttt{printf}, \texttt{fgets}), fulfilling the laboratory requirement.

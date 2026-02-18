@@ -1,0 +1,20 @@
+graph LR
+    subgraph Arduino["Arduino Mega 2560"]
+        Pin7["Digital Pin 7<br/>(GPIO Output)"]
+        GNDPin["GND Pin"]
+    end
+
+    Pin7 -- "5V / 0V" --> R1["220Ω Resistor"]
+    R1 --> LEDAnode["LED Anode (+)"]
+    LEDAnode --> LEDCathode["LED Cathode (−)"]
+    LEDCathode --> GNDPin
+
+    subgraph Info["Circuit Parameters"]
+        Calc["V_pin = 5V | V_LED ≈ 2V<br/>I = (5V − 2V) / 220Ω ≈ 13.6mA"]
+    end
+
+    style Arduino fill:#fff3e0,stroke:#f57c00,color:#000000
+    style R1 fill:#e0e0e0,stroke:#616161,color:#000000
+    style LEDAnode fill:#ef5350,stroke:#c62828,color:#ffffff
+    style LEDCathode fill:#ef5350,stroke:#c62828,color:#ffffff
+    style Info fill:#e8f5e9,stroke:#388e3c,color:#000000

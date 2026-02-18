@@ -1,0 +1,28 @@
+flowchart TD
+    A([START]) --> B["Initialize STDIO Serial<br/>(9600 baud, redirect stdout/stdin)"]
+    B --> C["Initialize LED Driver<br/>(Pin 7 as OUTPUT, LED OFF)"]
+    C --> D["Print Welcome Banner<br/>& Available Commands"]
+    D --> E["Print Prompt '> '"]
+    E --> F["Read line from stdin<br/>(fgets — blocking)"]
+    F --> G["Parse Command<br/>(trim + lowercase + match)"]
+    G --> H{Command?}
+
+    H -- "CMD_LED_ON" --> I["led.turnOn()<br/>(Pin 7 = HIGH)"]
+    I --> J["printf: '[OK] LED is now ON'"]
+
+    H -- "CMD_LED_OFF" --> K["led.turnOff()<br/>(Pin 7 = LOW)"]
+    K --> L["printf: '[OK] LED is now OFF'"]
+
+    H -- "CMD_UNKNOWN" --> M["printf: '[ERROR] Unknown command'<br/>printf: 'Use led on or led off'"]
+
+    J --> E
+    L --> E
+    M --> E
+
+    style A fill:#a5d6a7,stroke:#2e7d32,color:#000000
+    style H fill:#fff59d,stroke:#f9a825,color:#000000
+    style I fill:#bbdefb,stroke:#1565c0,color:#000000
+    style J fill:#bbdefb,stroke:#1565c0,color:#000000
+    style K fill:#ffccbc,stroke:#d84315,color:#000000
+    style L fill:#ffccbc,stroke:#d84315,color:#000000
+    style M fill:#ef9a9a,stroke:#c62828,color:#000000
