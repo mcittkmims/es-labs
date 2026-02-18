@@ -8,7 +8,7 @@ The system consists of three main components: a host PC running a serial termina
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.85\textwidth, height=4cm, keepaspectratio]{resources/Design/SystemArchitectureDiagrams/system_structural_diagram.png}
+\includegraphics[width=0.85\textwidth, height=0.5\textheight, keepaspectratio]{resources/Design/SystemArchitectureDiagrams/system_structural_diagram.png}
 \caption{System structural diagram showing the PC, MCU, and LED circuit}
 \label{fig:system_structural_diagram}
 \end{figure}
@@ -30,7 +30,7 @@ The software follows a layered architecture that separates concerns:
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.75\textwidth, height=4cm, keepaspectratio]{resources/Design/SystemArchitectureDiagrams/layered_architecture.png}
+\includegraphics[width=0.75\textwidth, height=0.5\textheight, keepaspectratio]{resources/Design/SystemArchitectureDiagrams/layered_architecture.png}
 \caption{Layered software architecture of the system}
 \label{fig:layered_architecture}
 \end{figure}
@@ -47,7 +47,7 @@ During startup, the system configures the STDIO serial redirection (UART at 9600
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.65\textwidth, height=4cm, keepaspectratio]{resources/Design/BlockDiagrams/flowchart_initialization.png}
+\includegraphics[width=0.65\textwidth, height=0.5\textheight, keepaspectratio]{resources/Design/BlockDiagrams/flowchart_initialization.png}
 \caption{Flowchart of the initialization phase}
 \label{fig:flowchart_init}
 \end{figure}
@@ -58,7 +58,7 @@ After initialization, the system enters an infinite loop: it displays a prompt, 
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.65\textwidth, height=4cm, keepaspectratio]{resources/Design/BlockDiagrams/flowchart_main_loop.png}
+\includegraphics[width=0.65\textwidth, height=0.5\textheight, keepaspectratio]{resources/Design/BlockDiagrams/flowchart_main_loop.png}
 \caption{Flowchart of the main command processing loop}
 \label{fig:flowchart_main_loop}
 \end{figure}
@@ -69,7 +69,7 @@ The circuit is straightforward: a single red LED is connected in series with a 2
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.65\textwidth, height=4cm, keepaspectratio]{resources/Design/ElectricalSchematics/electric_schema.png}
+\includegraphics[width=0.65\textwidth, height=0.5\textheight, keepaspectratio]{resources/Design/ElectricalSchematics/electric_schema.png}
 \caption{Electrical schematic --- LED control circuit}
 \label{fig:circuit_schematic}
 \end{figure}
@@ -88,7 +88,7 @@ The Wokwi simulation implements the above circuit virtually. \citeimg{fig:wokwi_
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.65\textwidth, height=4cm, keepaspectratio]{resources/Design/ElectricalSchematics/wokwi_circuit.png}
+\includegraphics[width=0.65\textwidth, height=0.5\textheight, keepaspectratio]{resources/Design/ElectricalSchematics/wokwi_circuit.png}
 \caption{Wokwi simulation circuit --- Arduino Mega 2560 with LED and 220~$\Omega$ resistor}
 \label{fig:wokwi_circuit}
 \end{figure}
@@ -221,7 +221,7 @@ The \texttt{init()} function initializes the LED pin by configuring it as an out
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.2\textwidth, height=4cm, keepaspectratio]{resources/Design/ModularImplementation/flowchart_led_init.png}
+\includegraphics[width=0.2\textwidth, height=0.5\textheight, keepaspectratio]{resources/Design/ModularImplementation/flowchart_led_init.png}
 \caption{Flowchart: LED driver initialization}
 \label{fig:flowchart_led_init}
 \end{figure}
@@ -230,7 +230,7 @@ The \texttt{turnOn()} function's operational flow is shown in \citeimg{fig:flowc
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.15\textwidth, height=4cm, keepaspectratio]{resources/Design/ModularImplementation/flowchart_led_turnon.png}
+\includegraphics[width=0.15\textwidth, height=0.5\textheight, keepaspectratio]{resources/Design/ModularImplementation/flowchart_led_turnon.png}
 \caption{Flowchart: LED activation function}
 \label{fig:flowchart_led_turnon}
 \end{figure}
@@ -239,7 +239,7 @@ The \texttt{turnOff()} function operates symmetrically, setting the pin LOW and 
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.15\textwidth, height=4cm, keepaspectratio]{resources/Design/ModularImplementation/flowchart_led_turnoff.png}
+\includegraphics[width=0.15\textwidth, height=0.5\textheight, keepaspectratio]{resources/Design/ModularImplementation/flowchart_led_turnoff.png}
 \caption{Flowchart: LED deactivation function}
 \label{fig:flowchart_led_turnoff}
 \end{figure}
@@ -300,7 +300,7 @@ The \texttt{stdioSerialInit()} function performs three essential operations: ini
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.2\textwidth, height=4cm, keepaspectratio]{resources/Design/ModularImplementation/flowchart_stdio_setup.png}
+\includegraphics[width=0.2\textwidth, height=0.5\textheight, keepaspectratio]{resources/Design/ModularImplementation/flowchart_stdio_setup.png}
 \caption{Flowchart: Serial STDIO initialization process}
 \label{fig:flowchart_stdio_setup}
 \end{figure}
@@ -309,7 +309,7 @@ Character transmission (\texttt{serialPutChar()}) places data in the UART transm
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.15\textwidth, height=4cm, keepaspectratio]{resources/Design/ModularImplementation/flowchart_stdio_putchar.png}
+\includegraphics[width=0.15\textwidth, height=0.5\textheight, keepaspectratio]{resources/Design/ModularImplementation/flowchart_stdio_putchar.png}
 \caption{Flowchart: Character transmission to serial port}
 \label{fig:flowchart_stdio_putchar}
 \end{figure}
@@ -318,7 +318,7 @@ Character reception (\texttt{serialGetChar()}) implements blocking read with cha
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.55\textwidth, height=4cm, keepaspectratio]{resources/Design/ModularImplementation/flowchart_stdio_serial.png}
+\includegraphics[width=0.55\textwidth, height=0.5\textheight, keepaspectratio]{resources/Design/ModularImplementation/flowchart_stdio_serial.png}
 \caption{Flowchart: Character reception from serial port}
 \label{fig:flowchart_stdio_getchar}
 \end{figure}
@@ -373,7 +373,7 @@ The parser performs two preprocessing steps (trim whitespace, convert to lowerca
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.50\textwidth, height=4cm, keepaspectratio]{resources/Design/ModularImplementation/flowchart_command_parser.png}
+\includegraphics[width=0.50\textwidth, height=0.5\textheight, keepaspectratio]{resources/Design/ModularImplementation/flowchart_command_parser.png}
 \caption{Functional flowchart of the CommandParser module}
 \label{fig:flowchart_command_parser}
 \end{figure}
