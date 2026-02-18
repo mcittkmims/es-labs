@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "author": "Vremere Adrian",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "wokwi-arduino-mega",
+      "id": "mega",
+      "top": 0,
+      "left": 0,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r1",
+      "top": -50,
+      "left": 250,
+      "rotate": 90,
+      "attrs": {
+        "resistance": "220"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led1",
+      "top": -120,
+      "left": 240,
+      "attrs": {
+        "color": "red",
+        "label": "LED1"
+      }
+    }
+  ],
+  "connections": [
+    ["mega:7", "r1:1", "green", ["v0"]],
+    ["r1:2", "led1:A", "green", ["v0"]],
+    ["led1:C", "mega:GND.1", "black", ["v0"]]
+  ]
+}
