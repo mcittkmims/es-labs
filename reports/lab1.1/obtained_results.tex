@@ -75,7 +75,28 @@ Typing \texttt{led off} turns the LED off, and the system confirms:
 \label{fig:test_led_off}
 \end{figure}
 
-\subsubsection{Test: Unknown Command Handling}
+\subsubsection{Test: Command Persistence}
+
+An important observation emerges when repeatedly issuing the same command. Sending \\texttt{led on} while the LED is already illuminated maintains its on state without any visible change:
+
+\\begin{lstlisting}[caption=Serial output --- repeated LED ON command, label=lst:test_led_on_repeat]
+> led on
+[OK] LED is now ON.
+> led on
+[OK] LED is now ON.
+>
+\\end{lstlisting}
+
+Similarly, sending \\texttt{led off} when the LED is already off still maintains the off state. This behavior is expected and demonstrates the unidirectional nature of the LED control interface. The microcontroller sends control signals to the LED but does not receive feedback about its current state. The system operates in open-loop control mode---commands are executed unconditionally without verifying the LED's previous state.
+
+\\begin{figure}[H]
+\\centering
+\\includegraphics[width=0.65\\textwidth]{resources/ObtainedResults/test_led_on_repeat.png}
+\\caption{Repeated \\texttt{led on} command maintains LED state}
+\\label{fig:test_led_on_repeat}
+\\end{figure}
+
+\\subsubsection{Test: Unknown Command Handling}
 
 Entering an unrecognized command triggers an error message:
 
@@ -88,7 +109,7 @@ Use 'led on' or 'led off'.
 
 The system does not crash or hang --- it simply reports the error and returns to the prompt, ready for the next command.
 
-\subsubsection{Test: Case Insensitivity}
+\\begin{figure}[H]\n\\centering\n\\includegraphics[width=0.65\\textwidth]{resources/ObtainedResults/test_unknown_command.png}\n\\caption{Error handling for unrecognized commands}\n\\label{fig:test_unknown_command}\n\\end{figure}\n\n\\subsubsection{Test: Case Insensitivity}
 
 The command parser handles mixed-case input correctly:
 

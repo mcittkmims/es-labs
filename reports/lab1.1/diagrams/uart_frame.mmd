@@ -1,0 +1,27 @@
+graph LR
+    IDLE["IDLE<br/>(HIGH)"] --> START["Start Bit<br/>(LOW)"]
+    START --> D0["D0"]
+    D0 --> D1["D1"]
+    D1 --> D2["D2"]
+    D2 --> D3["D3"]
+    D3 --> D4["D4"]
+    D4 --> D5["D5"]
+    D5 --> D6["D6"]
+    D6 --> D7["D7"]
+    D7 --> PARITY["Parity<br/>(optional)"]
+    PARITY --> STOP["Stop Bit<br/>(HIGH)"]
+    STOP --> IDLE2["IDLE<br/>(HIGH)"]
+
+    style IDLE fill:#e0e0e0,stroke:#616161,color:#000000
+    style START fill:#ef9a9a,stroke:#c62828,color:#000000
+    style D0 fill:#bbdefb,stroke:#1565c0,color:#000000
+    style D1 fill:#bbdefb,stroke:#1565c0,color:#000000
+    style D2 fill:#bbdefb,stroke:#1565c0,color:#000000
+    style D3 fill:#bbdefb,stroke:#1565c0,color:#000000
+    style D4 fill:#bbdefb,stroke:#1565c0,color:#000000
+    style D5 fill:#bbdefb,stroke:#1565c0,color:#000000
+    style D6 fill:#bbdefb,stroke:#1565c0,color:#000000
+    style D7 fill:#bbdefb,stroke:#1565c0,color:#000000
+    style PARITY fill:#fff9c4,stroke:#f9a825,color:#000000
+    style STOP fill:#a5d6a7,stroke:#2e7d32,color:#000000
+    style IDLE2 fill:#e0e0e0,stroke:#616161,color:#000000

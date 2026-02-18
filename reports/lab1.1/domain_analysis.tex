@@ -44,6 +44,15 @@ Key characteristics of UART communication:
     \item \textbf{Point-to-point:} UART connects exactly two devices directly.
 \end{itemize}
 
+Asynchronous data transmission occurs at the frame level, each having a specific structure as shown in \citeimg{fig:uart_frame}. At the protocol level, UART defines several key communication parameters: baud rate (transfer speed), data bits (typically 8 bits per frame), parity (for error detection), and stop bits (to mark frame boundaries). A commonly encountered standard configuration is 9600 baud, 8 data bits, no parity, and 1 stop bit (abbreviated as 9600 8N1).
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.85\textwidth]{resources/DomainAnalysis/UsedTechnologies/uart_frame.png}
+\caption{UART serial transmission frame structure}
+\label{fig:uart_frame}
+\end{figure}
+
 On the Arduino Mega 2560, UART0 is connected to the USB-to-Serial converter chip, allowing seamless communication with the host PC over a USB cable.
 
 \subsubsection{C Standard I/O Library (STDIO)}
@@ -67,13 +76,29 @@ PlatformIO is a professional open-source ecosystem for embedded development. It 
 
 Wokwi is an online and VS Code-integrated simulator for embedded systems. It supports Arduino, ESP32, and other popular platforms. Wokwi allows testing of the application in a virtual environment before deploying to physical hardware, providing a simulated serial terminal and virtual LEDs.
 
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.6\textwidth]{resources/DomainAnalysis/SoftwareComponents/wokwi.png}
+\caption{Example of circuit simulation in Wokwi with Arduino and LED}
+\label{fig:wokwi_simulation}
+\end{figure}
+
+In this laboratory work, Wokwi is integrated with PlatformIO through a configuration file (\texttt{wokwi.toml}). This integration allows the compiled firmware to be executed in the simulator for testing and verification without physical hardware, as shown in \citeimg{fig:wokwi_simulation}.
+
 \subsection{Hardware Components}
 
 \subsubsection{Arduino Mega 2560}
 
 The Arduino Mega 2560 is a microcontroller development board based on the ATmega2560 AVR chip. It features 54 digital I/O pins (15 of which support PWM output), 16 analog inputs, 4 hardware UART ports, a 16 MHz crystal oscillator, a USB connection, a power jack, and an ICSP header.
 
-Key specifications relevant to this lab:
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.7\textwidth]{resources/DomainAnalysis/HardwareComponents/arduino_mega_2560.png}
+\caption{Arduino Mega 2560 development board with AVR architecture}
+\label{fig:arduino_mega}
+\end{figure}
+
+The Arduino Mega 2560 board, shown in \citeimg{fig:arduino_mega}, uses an ATmega2560 microcontroller based on the AVR architecture. This 8-bit RISC processor operates at 16 MHz. Key specifications relevant to this lab:
 
 \begin{itemize}
     \item \textbf{Microcontroller:} ATmega2560 (8-bit AVR, 16 MHz)
@@ -90,6 +115,13 @@ UART0 (pins 0/TX and 1/RX) is connected through a USB-to-Serial converter chip, 
 \subsubsection{LED (Light-Emitting Diode)}
 
 A standard 5mm red LED is used as the output actuator in this lab. The LED is connected to digital pin 7 of the Arduino Mega through a current-limiting resistor. When pin 7 is set HIGH (5V), current flows through the resistor and LED, causing it to emit light. When set LOW (0V), the LED turns off.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.15\textwidth]{resources/DomainAnalysis/HardwareComponents/led.png}
+\caption{Electrical connection circuit of the LED to the microcontroller}
+\label{fig:led_component}
+\end{figure}
 
 LED specifications:
 
@@ -124,6 +156,15 @@ Visual Studio Code (VS Code) is a lightweight but powerful source code editor. T
     \item IntelliSense code completion for Arduino/AVR libraries
 \end{itemize}
 
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.6\textwidth]{resources/DomainAnalysis/SoftwareComponents/platformio.png}
+\caption{PlatformIO IDE extension in Visual Studio Code}
+\label{fig:platformio_extension}
+\end{figure}
+
+For this project, PlatformIO IDE is used to configure the Arduino Mega 2560 development board, manage the project structure (including \texttt{src/}, \texttt{lib/}, and \texttt{include/} directories), and compile the source code targeting the ATmega2560 microcontroller. The \texttt{platformio.ini} configuration file specifies the board type, framework, and build settings, as shown in \citeimg{fig:platformio_extension}. PlatformIO handles the compilation, linking, and firmware upload process, while its library manager facilitates the integration of custom libraries such as the LED driver and STDIO serial service used in this application.
+
 \subsubsection{Wokwi VS Code Extension}
 
 The Wokwi VS Code extension enables hardware simulation directly within the IDE. It reads a \texttt{diagram.json} file defining the virtual circuit and a \texttt{wokwi.toml} file pointing to the compiled firmware. This allows interactive testing of the serial command interface without physical hardware.
@@ -131,6 +172,20 @@ The Wokwi VS Code extension enables hardware simulation directly within the IDE.
 \subsubsection{Serial Terminal (PlatformIO Monitor)}
 
 PlatformIO's built-in serial monitor provides a terminal interface for sending and receiving text over the UART connection. It operates at a configurable baud rate (9600 in this lab) and displays characters received from the microcontroller while transmitting typed characters back to it.
+
+\subsection{System Architecture and Justification}
+
+The system follows a layered architecture that organizes functionality into distinct levels, each with specific responsibilities. This structure separates concerns and enables modular development. The architecture consists of the following layers:
+
+\begin{itemize}
+    \item \textbf{APP (Application Layer)} --- implements command processing logic and high-level functionalities.
+    \item \textbf{SRV (Service Layer)} --- provides common services such as command parsing and data formatting.
+    \item \textbf{ECAL (ECU Abstraction Layer)} --- abstracts platform-specific hardware details, including STDIO-to-UART redirection.
+    \item \textbf{MCAL (Microcontroller Abstraction Layer)} --- interfaces with microcontroller peripherals (LED GPIO control).
+    \item \textbf{HW (Hardware)} --- represents the physical ATmega2560 microcontroller and its hardware peripherals.
+\end{itemize}
+
+This layered organization enables independent testing of components and allows modifications or extensions without affecting other system parts. The hardware-software interface operates across multiple abstraction layers, facilitating clear separation between application logic and hardware control.
 
 \subsection{Case Study: Serial Command Interfaces in Embedded Systems}
 

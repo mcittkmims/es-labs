@@ -1,0 +1,11 @@
+flowchart TD
+    A([Led::init]) --> B["pinMode(ledPin, OUTPUT)"]
+    B --> C["digitalWrite(ledPin, LOW)"]
+    C --> D["state = false"]
+    D --> E([Return])
+
+    style A fill:#a5d6a7,stroke:#2e7d32,color:#000000
+    style B fill:#bbdefb,stroke:#1565c0,color:#000000
+    style C fill:#bbdefb,stroke:#1565c0,color:#000000
+    style D fill:#bbdefb,stroke:#1565c0,color:#000000
+    style E fill:#a5d6a7,stroke:#2e7d32,color:#000000

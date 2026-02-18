@@ -235,12 +235,34 @@ bool Led::isOn() const { return state; }
 
 The \texttt{Led} class accepts a pin number at construction time, making it reusable for any GPIO-connected LED. The \texttt{init()} method must be called once during setup to configure the pin direction.
 
+The \texttt{init()} function initializes the LED pin by configuring it as an output and setting the initial state to OFF, as illustrated in \citeimg{fig:flowchart_led_init}. The function ensures each LED is properly configured before application execution begins.
+
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.55\textwidth]{resources/Design/ModularImplementation/flowchart_led_driver.png}
-\caption{Functional flowchart of the Led driver module}
-\label{fig:flowchart_led_driver}
+\includegraphics[width=0.2\textwidth]{resources/Design/ModularImplementation/flowchart_led_init.png}
+\caption{Flowchart: LED driver initialization}
+\label{fig:flowchart_led_init}
 \end{figure}
+
+The \texttt{turnOn()} function's operational flow is shown in \citeimg{fig:flowchart_led_turnon}, demonstrating the GPIO state modification to illuminate the LED.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.15\textwidth]{resources/Design/ModularImplementation/flowchart_led_turnon.png}
+\caption{Flowchart: LED activation function}
+\label{fig:flowchart_led_turnon}
+\end{figure}
+
+The \texttt{turnOff()} function operates symmetrically, setting the pin LOW and updating the state, as shown in \citeimg{fig:flowchart_led_turnoff}.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.15\textwidth]{resources/Design/ModularImplementation/flowchart_led_turnoff.png}
+\caption{Flowchart: LED deactivation function}
+\label{fig:flowchart_led_turnoff}
+\end{figure}
+
+This driver demonstrates proper abstraction layer design: application code interacts with logical LED methods rather than physical pin numbers, hardware dependencies are isolated in the constructor, and the implementation remains independent of the specific pin assignments.
 
 \subsubsection{ECAL Layer: StdioSerial}
 
@@ -292,12 +314,34 @@ void stdioSerialInit(unsigned long baudRate) {
 
 The implementation uses AVR libc's \texttt{fdev\_setup\_stream()} to create a custom \texttt{FILE} stream. The \texttt{serialPutChar()} function writes characters to the UART (used by \texttt{printf}), while \texttt{serialGetChar()} reads characters with local echo and carriage-return-to-newline conversion (used by \texttt{fgets}).
 
+The \texttt{stdioSerialInit()} function performs three essential operations: initializing the UART hardware at the specified baud rate, associating custom I/O functions with a file stream using \texttt{fdev\_setup\_stream()}, and redirecting standard I/O descriptors to this stream. The operational flow is illustrated in \citeimg{fig:flowchart_stdio_setup}.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.2\textwidth]{resources/Design/ModularImplementation/flowchart_stdio_setup.png}
+\caption{Flowchart: Serial STDIO initialization process}
+\label{fig:flowchart_stdio_setup}
+\end{figure}
+
+Character transmission (\texttt{serialPutChar()}) places data in the UART transmit buffer, as shown in \citeimg{fig:flowchart_stdio_putchar}. The function writes a single character to the serial port and returns immediately after queuing the data.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.15\textwidth]{resources/Design/ModularImplementation/flowchart_stdio_putchar.png}
+\caption{Flowchart: Character transmission to serial port}
+\label{fig:flowchart_stdio_putchar}
+\end{figure}
+
+Character reception (\texttt{serialGetChar()}) implements blocking read with character echo for user feedback, as depicted in \citeimg{fig:flowchart_stdio_getchar}. The function waits until data becomes available in the receive buffer, reads the character, echoes it back to the terminal for visual confirmation, and returns the received value.
+
 \begin{figure}[H]
 \centering
 \includegraphics[width=0.55\textwidth]{resources/Design/ModularImplementation/flowchart_stdio_serial.png}
-\caption{Functional flowchart of the serialGetChar() input handler}
-\label{fig:flowchart_stdio_serial}
+\caption{Flowchart: Character reception from serial port}
+\label{fig:flowchart_stdio_getchar}
 \end{figure}
+
+This service layer eliminates direct hardware manipulation from application code, enabling portable I/O operations through standard library functions.
 
 \subsubsection{SRV Layer: CommandParser}
 
@@ -396,4 +440,4 @@ void lab1_1Loop() {
 }
 \end{lstlisting}
 
-The application logic is clean and readable: initialize peripherals, then loop over prompt-read-parse-execute-respond. All I/O uses standard C functions (\texttt{printf}, \texttt{fgets}), fulfilling the laboratory requirement.
+The application logic is clean and readable: initialize peripherals, then loop over prompt-read-parse-execute-respond. All I/O uses standard C functions (\\texttt{printf}, \\texttt{fgets}), fulfilling the laboratory requirement.\n\nThe module's setup function establishes the execution environment by initializing dependencies in proper order: serial communication first (enabling \\texttt{printf}/\\texttt{fgets}), then LED hardware. The main loop implements the command processing algorithm whose operational flow and detailed step-by-step execution were thoroughly described in \\citeimg{fig:flowchart_main_loop}. The implementation uses standard library functions for I/O operations and the Led class interface for hardware control, maintaining complete independence from hardware-specific details.\n\nThis architectural approach ensures that hardware modifications propagate only to the relevant abstraction layer---changing LED pin assignments requires only modifying the constructor argument, while replacing the serial interface would affect only \\texttt{StdioSerial}. The application layer remains entirely unaffected by such changes, demonstrating the power of proper abstraction boundaries.
