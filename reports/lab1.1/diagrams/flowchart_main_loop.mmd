@@ -1,0 +1,26 @@
+flowchart TD
+    E["Print Prompt '> '\n(printf)"] --> F["Read line from stdin\n(fgets — blocking I/O)"]
+    F --> G["parseCommand(inputBuffer)"]
+    G --> H{CommandType?}
+
+    H -- "CMD_LED_ON" --> I["led.turnOn()"]
+    I --> J["printf:\n'[OK] LED is now ON.'"]
+
+    H -- "CMD_LED_OFF" --> K["led.turnOff()"]
+    K --> L["printf:\n'[OK] LED is now OFF.'"]
+
+    H -- "CMD_UNKNOWN" --> M["printf:\n'[ERROR] Unknown command.'\n'Use led on or led off.'"]
+
+    J --> E
+    L --> E
+    M --> E
+
+    style E fill:#e1bee7,stroke:#7b1fa2,color:#000000
+    style F fill:#bbdefb,stroke:#1565c0,color:#000000
+    style G fill:#c8e6c9,stroke:#2e7d32,color:#000000
+    style H fill:#fff59d,stroke:#f9a825,color:#000000
+    style I fill:#bbdefb,stroke:#1565c0,color:#000000
+    style J fill:#bbdefb,stroke:#1565c0,color:#000000
+    style K fill:#ffccbc,stroke:#d84315,color:#000000
+    style L fill:#ffccbc,stroke:#d84315,color:#000000
+    style M fill:#ef9a9a,stroke:#c62828,color:#000000

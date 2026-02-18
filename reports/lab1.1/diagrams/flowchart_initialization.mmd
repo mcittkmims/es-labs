@@ -1,0 +1,21 @@
+flowchart TD
+    A([START]) --> B["stdioSerialInit(9600)"]
+    B --> B1["Serial.begin(9600)"]
+    B1 --> B2["fdev_setup_stream(&serialStream,\nserialPutChar, serialGetChar,\n_FDEV_SETUP_RW)"]
+    B2 --> B3["stdout = &serialStream\nstdin = &serialStream"]
+    B3 --> C["led.init()"]
+    C --> C1["pinMode(LED_PIN, OUTPUT)"]
+    C1 --> C2["digitalWrite(LED_PIN, LOW)\nstate = false"]
+    C2 --> D["printf: Welcome Banner\n& Available Commands"]
+    D --> E([→ Enter Main Loop])
+
+    style A fill:#a5d6a7,stroke:#2e7d32,color:#000000
+    style B fill:#bbdefb,stroke:#1565c0,color:#000000
+    style B1 fill:#bbdefb,stroke:#1565c0,color:#000000
+    style B2 fill:#bbdefb,stroke:#1565c0,color:#000000
+    style B3 fill:#bbdefb,stroke:#1565c0,color:#000000
+    style C fill:#fff9c4,stroke:#f9a825,color:#000000
+    style C1 fill:#fff9c4,stroke:#f9a825,color:#000000
+    style C2 fill:#fff9c4,stroke:#f9a825,color:#000000
+    style D fill:#e1bee7,stroke:#7b1fa2,color:#000000
+    style E fill:#a5d6a7,stroke:#2e7d32,color:#000000

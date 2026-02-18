@@ -1,0 +1,16 @@
+flowchart TD
+    A["Input: raw string\nfrom fgets()"] --> B["trimStr()\nRemove leading &\ntrailing whitespace"]
+    B --> C["toLowerStr()\nConvert all chars\nto lowercase"]
+    C --> D{Match against\nknown commands}
+
+    D -- "'led on'" --> E["Return CMD_LED_ON"]
+    D -- "'led off'" --> F["Return CMD_LED_OFF"]
+    D -- "no match" --> G["Return CMD_UNKNOWN"]
+
+    style A fill:#e1bee7,stroke:#7b1fa2,color:#000000
+    style B fill:#fff9c4,stroke:#f9a825,color:#000000
+    style C fill:#fff9c4,stroke:#f9a825,color:#000000
+    style D fill:#fff59d,stroke:#f9a825,color:#000000
+    style E fill:#a5d6a7,stroke:#2e7d32,color:#000000
+    style F fill:#a5d6a7,stroke:#2e7d32,color:#000000
+    style G fill:#ef9a9a,stroke:#c62828,color:#000000

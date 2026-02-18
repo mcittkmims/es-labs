@@ -1,0 +1,32 @@
+flowchart TD
+    A["Led method called"] --> B{Which method?}
+
+    B -- "init()" --> C["pinMode(pin, OUTPUT)"]
+    C --> C1["digitalWrite(pin, LOW)"]
+    C1 --> C2["state = false"]
+
+    B -- "turnOn()" --> D["digitalWrite(pin, HIGH)"]
+    D --> D1["state = true"]
+
+    B -- "turnOff()" --> E["digitalWrite(pin, LOW)"]
+    E --> E1["state = false"]
+
+    B -- "toggle()" --> F{"state == true?"}
+    F -- "Yes" --> G["Call turnOff()"]
+    F -- "No" --> H["Call turnOn()"]
+
+    B -- "isOn()" --> I["Return state"]
+
+    style A fill:#e1bee7,stroke:#7b1fa2,color:#000000
+    style B fill:#fff59d,stroke:#f9a825,color:#000000
+    style C fill:#bbdefb,stroke:#1565c0,color:#000000
+    style C1 fill:#bbdefb,stroke:#1565c0,color:#000000
+    style C2 fill:#bbdefb,stroke:#1565c0,color:#000000
+    style D fill:#a5d6a7,stroke:#2e7d32,color:#000000
+    style D1 fill:#a5d6a7,stroke:#2e7d32,color:#000000
+    style E fill:#ffccbc,stroke:#d84315,color:#000000
+    style E1 fill:#ffccbc,stroke:#d84315,color:#000000
+    style F fill:#fff59d,stroke:#f9a825,color:#000000
+    style G fill:#ffccbc,stroke:#d84315,color:#000000
+    style H fill:#a5d6a7,stroke:#2e7d32,color:#000000
+    style I fill:#e0e0e0,stroke:#616161,color:#000000

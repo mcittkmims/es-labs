@@ -47,38 +47,29 @@ The layers and their responsibilities are:
 
 \subsection{Block Diagrams}
 
-The application follows a simple sequential algorithm (blocking I/O model):
+The application algorithm is divided into two phases: initialization and the main command loop.
+
+\subsubsection{Initialization Phase}
+
+During startup, the system configures the STDIO serial redirection (UART at 9600 baud, \texttt{stdout}/\texttt{stdin} redirected), initializes the LED driver (pin 7 as OUTPUT, LED OFF), and prints a welcome banner listing the available commands.
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.75\textwidth]{resources/Design/BlockDiagrams/app_flowchart.png}
-\caption{Flowchart of the main application logic}
-\label{fig:app_flowchart}
+\includegraphics[width=0.65\textwidth]{resources/Design/BlockDiagrams/flowchart_initialization.png}
+\caption{Flowchart of the initialization phase}
+\label{fig:flowchart_init}
 \end{figure}
 
-The algorithm proceeds as follows:
+\subsubsection{Main Command Loop}
 
-\begin{enumerate}
-    \item \textbf{Initialization phase:}
-    \begin{enumerate}
-        \item Initialize the STDIO serial redirection (configure UART at 9600 baud, redirect \texttt{stdout} and \texttt{stdin}).
-        \item Initialize the LED driver (set GPIO pin 7 as OUTPUT, default state OFF).
-        \item Print a welcome banner with available commands.
-    \end{enumerate}
-    \item \textbf{Main loop (repeats indefinitely):}
-    \begin{enumerate}
-        \item Display the command prompt (\texttt{"> "}).
-        \item Wait for a complete line of text from the serial terminal (blocking \texttt{fgets()} call).
-        \item Pass the received string to the command parser.
-        \item Based on the parsed command:
-        \begin{itemize}
-            \item \texttt{CMD\_LED\_ON}: call \texttt{led.turnOn()} and print confirmation.
-            \item \texttt{CMD\_LED\_OFF}: call \texttt{led.turnOff()} and print confirmation.
-            \item \texttt{CMD\_UNKNOWN}: print an error message with usage instructions.
-        \end{itemize}
-        \item Return to step (a).
-    \end{enumerate}
-\end{enumerate}
+After initialization, the system enters an infinite loop: it displays a prompt, waits for a line from \texttt{stdin} (blocking \texttt{fgets()}), parses the command, executes the corresponding LED action, and prints a confirmation or error message.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.65\textwidth]{resources/Design/BlockDiagrams/flowchart_main_loop.png}
+\caption{Flowchart of the main command processing loop}
+\label{fig:flowchart_main_loop}
+\end{figure}
 
 \subsection{Electrical Schematics}
 
@@ -110,6 +101,15 @@ The circuit is straightforward: a single red LED is connected in series with a 2
 When pin 7 outputs HIGH (5V), current $I = (5V - 2V) / 220\,\Omega \approx 13.6\,mA$ flows through the LED, illuminating it. When pin 7 outputs LOW (0V), no current flows and the LED is off.
 
 \subsubsection{Hardware Configuration}
+
+The Wokwi simulation implements the above circuit virtually. \citeimg{fig:wokwi_circuit} shows the assembled circuit in the Wokwi simulator.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.65\textwidth]{resources/Design/ElectricalSchematics/wokwi_circuit.png}
+\caption{Wokwi simulation circuit --- Arduino Mega 2560 with LED and 220~$\Omega$ resistor}
+\label{fig:wokwi_circuit}
+\end{figure}
 
 The Wokwi simulation configuration file defines the virtual circuit:
 
@@ -235,6 +235,13 @@ bool Led::isOn() const { return state; }
 
 The \texttt{Led} class accepts a pin number at construction time, making it reusable for any GPIO-connected LED. The \texttt{init()} method must be called once during setup to configure the pin direction.
 
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.55\textwidth]{resources/Design/ModularImplementation/flowchart_led_driver.png}
+\caption{Functional flowchart of the Led driver module}
+\label{fig:flowchart_led_driver}
+\end{figure}
+
 \subsubsection{ECAL Layer: StdioSerial}
 
 The StdioSerial module redirects the C standard I/O streams (\texttt{stdout}, \texttt{stdin}) to the hardware UART, enabling the use of \texttt{printf()} and \texttt{fgets()} for serial communication.
@@ -285,6 +292,13 @@ void stdioSerialInit(unsigned long baudRate) {
 
 The implementation uses AVR libc's \texttt{fdev\_setup\_stream()} to create a custom \texttt{FILE} stream. The \texttt{serialPutChar()} function writes characters to the UART (used by \texttt{printf}), while \texttt{serialGetChar()} reads characters with local echo and carriage-return-to-newline conversion (used by \texttt{fgets}).
 
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.55\textwidth]{resources/Design/ModularImplementation/flowchart_stdio_serial.png}
+\caption{Functional flowchart of the serialGetChar() input handler}
+\label{fig:flowchart_stdio_serial}
+\end{figure}
+
 \subsubsection{SRV Layer: CommandParser}
 
 The CommandParser module interprets text strings and maps them to command types.
@@ -330,6 +344,13 @@ CommandType parseCommand(const char *input) {
 \end{lstlisting}
 
 The parser performs two preprocessing steps (trim whitespace, convert to lowercase) before matching against known commands. This ensures robust handling of user input variations (leading/trailing spaces, mixed case).
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.50\textwidth]{resources/Design/ModularImplementation/flowchart_command_parser.png}
+\caption{Functional flowchart of the CommandParser module}
+\label{fig:flowchart_command_parser}
+\end{figure}
 
 \subsubsection{APP Layer: Lab 1.1 Main}
 

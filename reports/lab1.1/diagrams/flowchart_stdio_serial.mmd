@@ -1,0 +1,26 @@
+flowchart TD
+    A["serialGetChar() called\nby fgets()"] --> B{"Serial.available()?"}
+    B -- "No" --> B
+    B -- "Yes" --> C["c = Serial.read()"]
+    C --> D{"c == '\\r'?"}
+
+    D -- "Yes" --> E["Echo '\\r' + '\\n'\nto terminal"]
+    E --> F["Return '\\n'\n(line terminator for fgets)"]
+
+    D -- "No" --> G{"c == backspace?"}
+    G -- "Yes" --> H["Echo '\\b' + ' ' + '\\b'\n(erase char on terminal)"]
+    H --> I["Return c"]
+    G -- "No" --> J["Echo c\n(visible character)"]
+    J --> K["Return c"]
+
+    style A fill:#e1bee7,stroke:#7b1fa2,color:#000000
+    style B fill:#fff59d,stroke:#f9a825,color:#000000
+    style C fill:#bbdefb,stroke:#1565c0,color:#000000
+    style D fill:#fff59d,stroke:#f9a825,color:#000000
+    style E fill:#c8e6c9,stroke:#2e7d32,color:#000000
+    style F fill:#a5d6a7,stroke:#2e7d32,color:#000000
+    style G fill:#fff59d,stroke:#f9a825,color:#000000
+    style H fill:#ffccbc,stroke:#d84315,color:#000000
+    style I fill:#a5d6a7,stroke:#2e7d32,color:#000000
+    style J fill:#c8e6c9,stroke:#2e7d32,color:#000000
+    style K fill:#a5d6a7,stroke:#2e7d32,color:#000000
