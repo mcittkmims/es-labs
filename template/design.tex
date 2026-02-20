@@ -9,12 +9,23 @@
 \subsubsection{Component-Level Architecture}
 
 % TODO: Describe the general system architecture with a structural diagram.
-% Remember: Use width and height constraints on all figures.
-% Example: \includegraphics[width=0.85\textwidth, height=0.5\textheight, keepaspectratio]{...}
+% Draw using TikZ with the 'positioning' and 'fit' libraries (already loaded).
+% Example component block diagram:
 %
 % \begin{figure}[H]
 % \centering
-% \includegraphics[width=0.85\textwidth, height=0.5\textheight, keepaspectratio]{resources/Design/SystemArchitectureDiagrams/system_structural_diagram.png}
+% \begin{tikzpicture}[
+%     comp/.style={draw, rectangle, rounded corners, minimum width=3cm,
+%                  minimum height=0.9cm, text centered, fill=blue!10},
+%     node distance=1.5cm and 2cm]
+%     \node[comp] (mcu)    {Arduino Mega 2560};
+%     \node[comp] (lcd)    [above right=of mcu] {LCD 1602 (I2C)};
+%     \node[comp] (keypad) [above left=of mcu]  {4x4 Keypad};
+%     \node[comp] (led)    [below right=of mcu] {LEDs};
+%     \draw[->] (mcu) -- node[above, font=\tiny]{I2C} (lcd);
+%     \draw[<-] (mcu) -- node[above, font=\tiny]{GPIO} (keypad);
+%     \draw[->] (mcu) -- node[right, font=\tiny]{GPIO} (led);
+% \end{tikzpicture}
 % \caption{System structural diagram of the application}
 % \label{fig:system_structural_diagram}
 % \end{figure}
@@ -24,10 +35,22 @@
 \subsubsection{Layered System Architecture}
 
 % TODO: Describe the layered architecture diagram and each layer's responsibilities.
+% Draw using TikZ. Example layered architecture:
 %
 % \begin{figure}[H]
 % \centering
-% \includegraphics[width=0.75\textwidth, height=0.5\textheight, keepaspectratio]{resources/Design/SystemArchitectureDiagrams/layered_architecture.png}
+% \begin{tikzpicture}[
+%     box/.style={draw, rectangle, minimum width=6cm, minimum height=0.8cm,
+%                 text centered, fill=blue!10},
+%     node distance=0.5cm]
+%     \node[box] (app)  {Application Layer (APP)};
+%     \node[box] (srv)  [below=of app]  {Service Layer (SRV)};
+%     \node[box] (ecal) [below=of srv]  {MCU Abstraction (ECAL)};
+%     \node[box] (mcal) [below=of ecal] {Driver Layer (MCAL)};
+%     \node[box] (hw)   [below=of mcal] {Hardware (HW)};
+%     \foreach \a/\b in {app/srv, srv/ecal, ecal/mcal, mcal/hw}
+%         \draw[->] (\a) -- (\b);
+% \end{tikzpicture}
 % \caption{Layered architecture of the system}
 % \label{fig:layered_architecture}
 % \end{figure}
@@ -36,25 +59,81 @@
 
 \subsection{Block Diagrams}
 
-% TODO: Present flowcharts and block diagrams of the algorithm and application logic.
+% TODO: Present flowcharts and block diagrams using TikZ (already loaded in settings.tex).
 % Use separate per-function flowcharts when modules have multiple complex functions.
+%
+% COMPLEXITY LIMIT: maximum 8 decision nodes per flowchart.
+% If a function branches across more paths, split into:
+%   1. A high-level overview flowchart showing state/operation groups
+%   2. One sub-diagram per group
+% For FSM state diagrams: maximum 8 states per tikzpicture. Split larger FSMs.
+%
+% Standard flowchart node styles:
+%
+% \tikzstyle{startstop} = [rectangle, rounded corners, minimum width=2.5cm,
+%     minimum height=0.7cm, text centered, draw=black, fill=gray!15]
+% \tikzstyle{process}   = [rectangle, minimum width=2.5cm,
+%     minimum height=0.7cm, text centered, draw=black, fill=blue!10]
+% \tikzstyle{decision}  = [diamond, aspect=2.5, minimum width=2cm,
+%     minimum height=0.7cm, text centered, draw=black, fill=orange!15]
+% \tikzstyle{arrow}     = [thick,->,>=Stealth]
 %
 % \begin{figure}[H]
 % \centering
-% \includegraphics[width=0.65\textwidth, height=0.5\textheight, keepaspectratio]{resources/Design/BlockDiagrams/app_flowchart.png}
+% \begin{tikzpicture}[node distance=1.2cm]
+%     \node (start) [startstop]                              {Start};
+%     \node (proc1) [process,  below of=start]               {Process 1};
+%     \node (dec1)  [decision, below of=proc1, yshift=-0.3cm]{Condition?};
+%     \node (proc2) [process,  below of=dec1,  yshift=-0.3cm]{Process 2};
+%     \node (stop)  [startstop,below of=proc2]               {End};
+%     \draw [arrow] (start) -- (proc1);
+%     \draw [arrow] (proc1) -- (dec1);
+%     \draw [arrow] (dec1) -- node[anchor=east]{Yes} (proc2);
+%     \draw [arrow] (proc2) -- (stop);
+% \end{tikzpicture}
 % \caption{Flowchart of the application logic}
 % \label{fig:app_flowchart}
+% \end{figure}
+%
+% For FSM state diagrams use the automata library:
+%
+% \begin{figure}[H]
+% \centering
+% \begin{tikzpicture}[>=Stealth, auto, node distance=2.8cm,
+%         every state/.style={draw, circle, minimum size=1.2cm}]
+%     \node[state, initial]   (s0) {IDLE};
+%     \node[state] (s1)  [right of=s0] {MENU};
+%     \node[state, accepting] (s2) [below of=s1] {RESULT};
+%     \path[->]
+%         (s0) edge              node {*}    (s1)
+%         (s1) edge              node {\#}   (s2)
+%         (s2) edge [bend right] node {auto} (s0);
+% \end{tikzpicture}
+% \caption{FSM state diagram}
+% \label{fig:fsm_state_diagram}
 % \end{figure}
 %
 % Describe the algorithm step by step.
 
 \subsection{Electrical Schematics}
 
-% TODO: Present the circuit schematic and describe the hardware configuration.
+% TODO: Draw the circuit schematic using CircuiTikZ (already loaded in settings.tex).
+% Use \draw chains with component keywords: R (resistor), C (capacitor), leD* (LED),
+% battery1 (battery), short (wire), ground, vcc, and more.
+% Full component list: https://tikz.dev/library-circuits
 %
 % \begin{figure}[H]
 % \centering
-% \includegraphics[width=0.65\textwidth, height=0.5\textheight, keepaspectratio]{resources/Design/ElectricalSchematics/electric_schema.png}
+% \begin{circuitikz}
+%     % LED with current-limiting resistor
+%     \draw (0,0) node[anchor=east]{Pin 7}
+%         to[R, l=220\,\si{\ohm}] (2,0)
+%         to[leD*, color=red]     (4,0)
+%         node[ground] {};
+%     % I2C SDA connection
+%     \draw (0,-1.5) node[anchor=east]{SDA (Pin 20)}
+%         to[short] (4,-1.5) node[anchor=west]{LCD SDA};
+% \end{circuitikz}
 % \caption{Circuit schematic}
 % \label{fig:circuit_schematic}
 % \end{figure}
