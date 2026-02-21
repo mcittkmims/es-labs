@@ -47,7 +47,12 @@ The Arduino Mega 2560 is a microcontroller development board based on the ATmega
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.7\textwidth]{../lab1.1/resources/DomainAnalysis/HardwareComponents/arduino_mega_2560.png}
+\IfFileExists{resources/DomainAnalysis/HardwareComponents/arduino_mega_2560.png}{%
+    \includegraphics[width=0.7\textwidth]{resources/DomainAnalysis/HardwareComponents/arduino_mega_2560.png}%
+}{%
+    \fbox{\parbox{0.68\textwidth}{\centering\color{gray}\small
+        [Photo pending --- save to resources/DomainAnalysis/HardwareComponents/arduino\_mega\_2560.png]}}%
+}
 \caption{Arduino Mega 2560 development board}
 \label{fig:arduino_mega}
 \end{figure}
@@ -56,13 +61,30 @@ The Arduino Mega 2560 is a microcontroller development board based on the ATmega
 
 The circuit uses a standard momentary-action tactile push button. When pressed, it connects pin 7 of the microcontroller to GND, making the \texttt{digitalRead()} return \texttt{LOW}. The ATmega2560 internal pull-up is enabled, so no external resistor is required on this line. Button bouncing is handled in software (see Debouncing above). The button is the sole input device for this application.
 
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/DomainAnalysis/HardwareComponents/pushbutton.png}{%
+    \includegraphics[width=0.35\textwidth]{resources/DomainAnalysis/HardwareComponents/pushbutton.png}%
+}{%
+    \fbox{\parbox{0.33\textwidth}{\centering\color{gray}\small
+        [Photo pending --- save to resources/DomainAnalysis/HardwareComponents/pushbutton.png]}}%
+}
+\caption{Momentary tactile push button}
+\label{fig:pushbutton}
+\end{figure}
+
 \subsubsection{LEDs and Current-Limiting Resistors}
 
 Three 5\,mm LEDs — green, red, and yellow — provide the visual output of the system. Each LED requires a forward voltage of approximately 2.0\,V (for red/yellow) or 2.2\,V (for green) and a safe forward current of 10--20\,mA. To limit the current from the 5\,V GPIO pin, a 220\,$\Omega$ resistor is placed in series with each LED, resulting in a drive current of approximately 12--14\,mA, which is within the rated maximum for both the LEDs and the ATmega2560 GPIO pins (40\,mA absolute maximum per pin).
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.4\textwidth]{../lab1.1/resources/DomainAnalysis/HardwareComponents/led.png}
+\IfFileExists{resources/DomainAnalysis/HardwareComponents/led.png}{%
+    \includegraphics[width=0.4\textwidth]{resources/DomainAnalysis/HardwareComponents/led.png}%
+}{%
+    \fbox{\parbox{0.38\textwidth}{\centering\color{gray}\small
+        [Photo pending --- save to resources/DomainAnalysis/HardwareComponents/led.png]}}%
+}
 \caption{Standard 5\,mm LED indicator component used for visual signaling}
 \label{fig:led_component}
 \end{figure}
@@ -75,7 +97,12 @@ PlatformIO is an open-source embedded development ecosystem integrated into VS C
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.75\textwidth]{../lab1.1/resources/DomainAnalysis/SoftwareComponents/platformio.png}
+\IfFileExists{resources/DomainAnalysis/SoftwareComponents/platformio.png}{%
+    \includegraphics[width=0.75\textwidth]{resources/DomainAnalysis/SoftwareComponents/platformio.png}%
+}{%
+    \fbox{\parbox{0.73\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save to resources/DomainAnalysis/SoftwareComponents/platformio.png]}}%
+}
 \caption{PlatformIO workspace in VS Code showing the Lab 2.1 build environment}
 \label{fig:platformio_env}
 \end{figure}
@@ -86,7 +113,12 @@ Wokwi is a browser and VS Code-integrated simulator supporting Arduino Mega 2560
 
 \begin{figure}[H]
 \centering
-\includegraphics[width=0.6\textwidth]{../lab1.1/resources/DomainAnalysis/SoftwareComponents/wokwi.png}
+\IfFileExists{resources/DomainAnalysis/SoftwareComponents/wokwi.png}{%
+    \includegraphics[width=0.6\textwidth]{resources/DomainAnalysis/SoftwareComponents/wokwi.png}%
+}{%
+    \fbox{\parbox{0.58\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save to resources/DomainAnalysis/SoftwareComponents/wokwi.png]}}%
+}
 \caption{Wokwi VS Code plugin used for circuit simulation and firmware testing}
 \label{fig:wokwi_tool}
 \end{figure}
