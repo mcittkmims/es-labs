@@ -36,31 +36,32 @@
 
 \subsection{Hardware Components}
 
-% TODO: Add a subsubsection for each hardware component used in this lab.
-% For each component, ask the user to provide a photo or product image and insert
-% an \IfFileExists figure block. Always request:
-%   - MCU / development board photo (reuse from a previous lab if it already exists)
-%   - A photo or datasheet illustration for each peripheral introduced in this lab
-% Save images to: resources/DomainAnalysis/HardwareComponents/<component_name>.png
+% TODO: Fill in subsubsection text for each component below.
+% For each peripheral introduced in this lab, copy the example block at the bottom,
+% replace component_name/caption, and ask the user to supply the photo.
+% Check previous labs' resources/DomainAnalysis/HardwareComponents/ for reusable images
+% before requesting new ones. Copy any reusable images locally — never use ../labX.Y/... paths.
 
 % ---- MCU / Development Board ------------------------------------------------
-% \subsubsection{Arduino Mega 2560}
-% Description of the board: ATmega2560 MCU, clock speed, Flash/SRAM, GPIO pins.
-%
-% \begin{figure}[H]
-% \centering
-% \IfFileExists{resources/DomainAnalysis/HardwareComponents/arduino_mega_2560.png}{%
-%     \includegraphics[width=0.65\textwidth]{resources/DomainAnalysis/HardwareComponents/arduino_mega_2560.png}%
-% }{%
-%     \fbox{\parbox{0.63\textwidth}{\centering\color{gray}\small
-%         [Photo pending --- save to resources/DomainAnalysis/HardwareComponents/arduino\_mega\_2560.png]}}%
-% }
-% \caption{Arduino Mega 2560 development board}
-% \label{fig:arduino_mega_2560}
-% \end{figure}
+\subsubsection{Arduino Mega 2560}
+
+% TODO: Describe the board — ATmega2560 MCU, 16 MHz clock, 256 KB Flash, 8 KB SRAM, GPIO pins.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/DomainAnalysis/HardwareComponents/arduino_mega_2560.png}{%
+    \includegraphics[width=0.65\textwidth]{resources/DomainAnalysis/HardwareComponents/arduino_mega_2560.png}%
+}{%
+    \fbox{\parbox{0.63\textwidth}{\centering\color{gray}\small
+        [Photo pending --- save to resources/DomainAnalysis/HardwareComponents/arduino\_mega\_2560.png]}}%
+}
+\caption{Arduino Mega 2560 development board}
+\label{fig:arduino_mega_2560}
+\end{figure}
 
 % ---- Peripheral Components --------------------------------------------------
-% Repeat the block below for each peripheral (LED, button, LCD, keypad, sensor, etc.).
+% TODO: Add a \subsubsection + figure block for each peripheral used in this lab.
+% Copy and adapt the example below for each one:
 %
 % \subsubsection{Component Name}
 % Description of the component: what it is, specifications, role in this lab.
@@ -79,42 +80,43 @@
 
 \subsection{Software Components}
 
-% TODO: Add a subsubsection for each software tool used (PlatformIO, Wokwi, libraries).
-% For each tool, ask the user to provide a screenshot showing the tool in use for this lab.
-% Save screenshots to: resources/DomainAnalysis/SoftwareComponents/<tool_name>.png
-% If the same screenshot was used in a previous lab, reference that path instead.
+% TODO: Fill in the subsubsection text for PlatformIO and Wokwi below.
+% If the same screenshots were already used in a previous lab, copy them into
+% resources/DomainAnalysis/SoftwareComponents/ (never use ../labX.Y/... paths).
 
 % ---- PlatformIO IDE ---------------------------------------------------------
-% \subsubsection{PlatformIO}
-% Description of PlatformIO: VS Code extension, build system, environment management.
-%
-% \begin{figure}[H]
-% \centering
-% \IfFileExists{resources/DomainAnalysis/SoftwareComponents/platformio.png}{%
-%     \includegraphics[width=0.75\textwidth]{resources/DomainAnalysis/SoftwareComponents/platformio.png}%
-% }{%
-%     \fbox{\parbox{0.73\textwidth}{\centering\color{gray}\small
-%         [Screenshot pending --- save to resources/DomainAnalysis/SoftwareComponents/platformio.png]}}%
-% }
-% \caption{PlatformIO IDE in VS Code}
-% \label{fig:platformio}
-% \end{figure}
+\subsubsection{PlatformIO}
+
+% TODO: Describe PlatformIO — VS Code extension, build system, environment management.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/DomainAnalysis/SoftwareComponents/platformio.png}{%
+    \includegraphics[width=0.75\textwidth]{resources/DomainAnalysis/SoftwareComponents/platformio.png}%
+}{%
+    \fbox{\parbox{0.73\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save to resources/DomainAnalysis/SoftwareComponents/platformio.png]}}%
+}
+\caption{PlatformIO IDE in VS Code}
+\label{fig:platformio}
+\end{figure}
 
 % ---- Wokwi Simulator --------------------------------------------------------
-% \subsubsection{Wokwi}
-% Description of Wokwi: browser/VS Code embedded simulator, supported boards.
-%
-% \begin{figure}[H]
-% \centering
-% \IfFileExists{resources/DomainAnalysis/SoftwareComponents/wokwi.png}{%
-%     \includegraphics[width=0.75\textwidth]{resources/DomainAnalysis/SoftwareComponents/wokwi.png}%
-% }{%
-%     \fbox{\parbox{0.73\textwidth}{\centering\color{gray}\small
-%         [Screenshot pending --- save to resources/DomainAnalysis/SoftwareComponents/wokwi.png]}}%
-% }
-% \caption{Wokwi simulator running the lab circuit}
-% \label{fig:wokwi}
-% \end{figure}
+\subsubsection{Wokwi}
+
+% TODO: Describe Wokwi — browser/VS Code embedded simulator, supported boards.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/DomainAnalysis/SoftwareComponents/wokwi.png}{%
+    \includegraphics[width=0.75\textwidth]{resources/DomainAnalysis/SoftwareComponents/wokwi.png}%
+}{%
+    \fbox{\parbox{0.73\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save to resources/DomainAnalysis/SoftwareComponents/wokwi.png]}}%
+}
+\caption{Wokwi simulator running the lab circuit}
+\label{fig:wokwi}
+\end{figure}
 
 \subsection{System Architecture and Justification}
 
