@@ -37,10 +37,12 @@ template/builds/
 *.log
 *.out
 *.pdf
+!reports/**/main.pdf
 *.synctex.gz
 *.toc
 *.blg
 *.bbl
+*.xdv
 
 # Dependencies
 .venv/

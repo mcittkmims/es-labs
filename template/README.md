@@ -52,7 +52,9 @@ The report structure reflects important architectural and organizational princip
 
 **All figure sizing must follow strict conventions** to maintain document compactness and readability. Include both width and height constraints: `height=0.5\textheight, keepaspectratio`. Use widths of 0.85 for system diagrams, 0.75 for architecture diagrams, 0.65 for main flowcharts, and 0.15–0.2 for per-function flowcharts. This prevents unnecessarily long documents while keeping diagrams visible and proportional.
 
-Per-module and per-function flowcharts should be documented separately with individual Mermaid diagrams rather than combined into one large diagram. This improves clarity and allows diagrams to fit within the height constraints.
+Per-module and per-function flowcharts should be documented separately with individual TikZ diagrams drawn directly in LaTeX rather than combined into one large diagram. This improves clarity and keeps diagrams within the complexity limits (maximum 8 decision nodes per flowchart, maximum 8 states per FSM diagram). All diagrams must use TikZ/CircuiTikZ — never use Mermaid, draw.io exports, or rasterized PNGs for diagrams that can be drawn as TikZ.
+
+All flowcharts must use explicit `at (x,y)` coordinates — never use `node distance` with `below of=` / `right of=` for positioning, as this causes node overlaps. Use `\tikzset` for style definitions (not the deprecated `\tikzstyle`).
 
 For more details on code organization, modular design, and development practices, see the `copilot-instructions.md` file in the `.github/` folder of the repository.
 

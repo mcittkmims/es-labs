@@ -10,18 +10,18 @@
 
 % TODO: Describe the general system architecture with a structural diagram.
 % Draw using TikZ with the 'positioning' and 'fit' libraries (already loaded).
+% Use explicit at(x,y) coordinates for reliable placement.
 % Example component block diagram:
 %
 % \begin{figure}[H]
 % \centering
 % \begin{tikzpicture}[
 %     comp/.style={draw, rectangle, rounded corners, minimum width=3cm,
-%                  minimum height=0.9cm, text centered, fill=blue!10},
-%     node distance=1.5cm and 2cm]
-%     \node[comp] (mcu)    {Arduino Mega 2560};
-%     \node[comp] (lcd)    [above right=of mcu] {LCD 1602 (I2C)};
-%     \node[comp] (keypad) [above left=of mcu]  {4x4 Keypad};
-%     \node[comp] (led)    [below right=of mcu] {LEDs};
+%                  minimum height=0.9cm, text centered, align=center, fill=blue!10}]
+%     \node[comp] (mcu)    at (0,    0)   {Arduino Mega 2560};
+%     \node[comp] (lcd)    at (4.5,  1.8) {LCD 1602 (I2C)};
+%     \node[comp] (keypad) at (-4.5, 1.8) {4x4 Keypad};
+%     \node[comp] (led)    at (4.5, -1.8) {LEDs};
 %     \draw[->] (mcu) -- node[above, font=\tiny]{I2C} (lcd);
 %     \draw[<-] (mcu) -- node[above, font=\tiny]{GPIO} (keypad);
 %     \draw[->] (mcu) -- node[right, font=\tiny]{GPIO} (led);
@@ -68,24 +68,30 @@
 %   2. One sub-diagram per group
 % For FSM state diagrams: maximum 8 states per tikzpicture. Split larger FSMs.
 %
-% Standard flowchart node styles:
+% Standard flowchart node styles (use \tikzset, NOT deprecated \tikzstyle):
 %
-% \tikzstyle{startstop} = [rectangle, rounded corners, minimum width=2.5cm,
-%     minimum height=0.7cm, text centered, draw=black, fill=gray!15]
-% \tikzstyle{process}   = [rectangle, minimum width=2.5cm,
-%     minimum height=0.7cm, text centered, draw=black, fill=blue!10]
-% \tikzstyle{decision}  = [diamond, aspect=2.5, minimum width=2cm,
-%     minimum height=0.7cm, text centered, draw=black, fill=orange!15]
-% \tikzstyle{arrow}     = [thick,->,>=Stealth]
+% \tikzset{
+%     startstop/.style={rectangle, rounded corners, minimum width=2.5cm,
+%         minimum height=0.7cm, text centered, align=center, draw=black, fill=gray!15},
+%     process/.style={rectangle, minimum width=2.5cm,
+%         minimum height=0.7cm, text centered, align=center, draw=black, fill=blue!10},
+%     decision/.style={diamond, aspect=2.5, minimum width=2cm,
+%         minimum height=0.7cm, text centered, align=center, draw=black, fill=orange!15},
+%     arrow/.style={thick,->,>=Stealth}
+% }
+%
+% IMPORTANT: Always use explicit at(x,y) coordinates — never use 'node distance'
+% with 'below of=' / 'right of=' for flowcharts. Relative positioning causes overlaps.
+% Minimum vertical gaps: 1.8cm process-process, 2.5cm near diamonds, 2.0cm near I/O.
 %
 % \begin{figure}[H]
 % \centering
-% \begin{tikzpicture}[node distance=1.2cm]
-%     \node (start) [startstop]                              {Start};
-%     \node (proc1) [process,  below of=start]               {Process 1};
-%     \node (dec1)  [decision, below of=proc1, yshift=-0.3cm]{Condition?};
-%     \node (proc2) [process,  below of=dec1,  yshift=-0.3cm]{Process 2};
-%     \node (stop)  [startstop,below of=proc2]               {End};
+% \begin{tikzpicture}
+%     \node (start) [startstop] at (0,   0.0)  {Start};
+%     \node (proc1) [process]   at (0,  -1.8)  {Process 1};
+%     \node (dec1)  [decision]  at (0,  -4.3)  {Condition?};
+%     \node (proc2) [process]   at (0,  -6.8)  {Process 2};
+%     \node (stop)  [startstop] at (0,  -8.6)  {End};
 %     \draw [arrow] (start) -- (proc1);
 %     \draw [arrow] (proc1) -- (dec1);
 %     \draw [arrow] (dec1) -- node[anchor=east]{Yes} (proc2);
@@ -209,13 +215,27 @@
 % // Code here
 % \end{lstlisting}
 %
-% Per-function flowchart example (0.2\textwidth for narrow flowcharts, 0.15\textwidth for small ones):
+% Per-function flowchart — draw directly in TikZ (never use PNG exports):
+%
+% \tikzset{
+%     startstop/.style={rectangle, rounded corners, minimum width=2.5cm,
+%         minimum height=0.7cm, text centered, align=center, draw=black, fill=gray!15},
+%     process/.style={rectangle, minimum width=2.5cm,
+%         minimum height=0.7cm, text centered, align=center, draw=black, fill=blue!10},
+%     decision/.style={diamond, aspect=2.5, minimum width=2cm,
+%         minimum height=0.7cm, text centered, align=center, draw=black, fill=orange!15},
+%     arrow/.style={thick,->,>=Stealth}
+% }
 %
 % \begin{figure}[H]
 % \centering
-% \includegraphics[width=0.2\textwidth, height=0.5\textheight, keepaspectratio]{resources/Design/ModularImplementation/flowchart_init.png}
+% \begin{tikzpicture}
+%     \node (start) [startstop] at (0,  0.0)  {Start};
+%     \node (proc1) [process]   at (0, -1.8)  {Initialize};
+%     \node (stop)  [startstop] at (0, -3.6)  {Return};
+%     \draw [arrow] (start) -- (proc1);
+%     \draw [arrow] (proc1) -- (stop);
+% \end{tikzpicture}
 % \caption{Flowchart: Function initialization}
 % \label{fig:flowchart_init}
-% \end{figure}
-% \label{fig:module_flowchart}
 % \end{figure}
