@@ -1,0 +1,104 @@
+\section{Domain Analysis}
+
+\subsection{Objective of the Laboratory Work}
+
+The objective of this laboratory work is to design and implement a multitasking bare-metal application on an Arduino Mega 2560 microcontroller that monitors the duration of button presses, provides visual feedback through coloured LEDs, and periodically reports statistics to the user via the STDIO serial interface. The application demonstrates non-preemptive cooperative scheduling — a foundational technique used in resource-constrained embedded systems where no real-time operating system (RTOS) is available.
+
+The key learning objectives include understanding non-preemptive task scheduling with period- and offset-based dispatch, implementing input debouncing and duration measurement using a finite state machine, structuring a multitasking embedded application using task context structures and recurrence arrays, and integrating multiple cooperative tasks that communicate through shared global state without locks or semaphores.
+
+\subsection{Problem Definition}
+
+The laboratory requires the development of a microcontroller-based application structured as a set of non-preemptive tasks with the following functional requirements:
+
+\begin{enumerate}
+    \item Implement a non-preemptive bare-metal scheduler using task context structures, each containing a function pointer, a recurrence period, and a startup offset. Only one task must be active per scheduler tick.
+    \item Task 1 --- Button Detection and Duration Measurement: monitor the state of a push button, detect press/release transitions using a debounce state machine, measure press duration in milliseconds, and signal the result visually by lighting a green LED for short presses ($<$\,500\,ms) or a red LED for long presses ($\geq$\,500\,ms).
+    \item Task 2 --- Statistics Accumulation and Blinking: at each detected press, increment press counters and duration accumulators, and drive a rapid yellow LED blink sequence: 5 blinks for a short press and 10 blinks for a long press.
+    \item Task 3 --- Periodic STDIO Reporting: every 10 seconds, transmit a formatted summary (total presses, short/long counts, average duration) over the serial STDIO interface, then reset all accumulators for the next measurement window.
+\end{enumerate}
+
+\subsection{Used Technologies}
+
+\subsubsection{GPIO and Digital Input/Output}
+
+General-Purpose Input/Output (GPIO) pins are the fundamental building blocks for interfacing a microcontroller with external digital components. On the Arduino Mega 2560 (ATmega2560), GPIO pins are configured via the \texttt{pinMode()} function and read/written with \texttt{digitalRead()} and \texttt{digitalWrite()}. For a push button, the pin is configured as \texttt{INPUT\_PULLUP}: the internal pull-up resistor holds the line HIGH when the button is open, and the button connects the line to GND when pressed, producing a LOW reading. This eliminates the need for an external pull-up resistor and ensures a defined signal level in both button states.
+
+\subsubsection{Button Debouncing}
+
+Mechanical push buttons suffer from contact bounce: when a button is pressed or released, the contacts briefly oscillate between open and closed states before settling. This typically lasts for 5--50\,ms and produces multiple spurious edge transitions that the microcontroller would otherwise interpret as rapid consecutive presses. Software debouncing addresses this by requiring that the new button state persist for a minimum confirmation period (typically 30--50\,ms) before the state change is accepted. In this application, a four-state FSM (Idle, Debounce-Down, Pressed, Debounce-Up) implements debouncing on both the press and release edges, using a 50\,ms confirmation window.
+
+\subsubsection{Non-Preemptive Cooperative Scheduling (Bare-Metal)}
+
+Non-preemptive scheduling, also known as cooperative multitasking, is a software design pattern for bare-metal embedded systems that require apparently concurrent task execution without an RTOS. Each task is implemented as a short, non-blocking function. A central scheduler loop iterates an array of task descriptors on every system tick and dispatches at most one due task per tick. A task descriptor contains three user-defined fields: a function pointer, a recurrence period (in milliseconds), and a startup offset that staggers initial execution to avoid all tasks firing simultaneously.
+
+Compared to RTOS-based preemptive scheduling, the cooperative approach eliminates context-switching overhead, stack-per-task memory cost, and complex synchronisation primitives. Its primary constraint is that every task function must return quickly; a blocking call in one task delays all others. This constraint is acceptable in the current application because all tasks are small and bounded in duration.
+
+The scheduler achieves its timing discipline by maintaining an absolute \texttt{nextRun} timestamp for each task, computed as \texttt{nextRun~+=~period} after each execution. This avoids cumulative drift that would result from computing \texttt{nextRun~=~millis()~+~period} at the end of each run. This technique is known as deadline-relative advancement and is standard in professional bare-metal schedulers.
+
+\subsubsection{UART Serial Communication and STDIO}
+
+The ATmega2560 UART0 is connected through the on-board USB-to-Serial bridge to the host PC. By redirecting the AVR libc standard streams (\texttt{stdout}, \texttt{stdin}) to the serial hardware, standard C functions \texttt{printf()} and \texttt{fgets()} send and receive data over the USB connection. This STDIO redirection technique is implemented in the reusable \texttt{StdioSerial} library introduced in Laboratory Work 1.1.
+
+\subsection{Hardware Components}
+
+\subsubsection{Arduino Mega 2560}
+
+The Arduino Mega 2560 is a microcontroller development board based on the ATmega2560, an 8-bit AVR microcontroller running at 16\,MHz. It provides 54 digital I/O pins, 16 analogue inputs, 256\,KB Flash, 8\,KB SRAM, and 4096 bytes of EEPROM. Four hardware UART interfaces are available. For this laboratory, four GPIO pins are used: one for button input and three for LED outputs.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.7\textwidth]{../lab1.1/resources/DomainAnalysis/HardwareComponents/arduino_mega_2560.png}
+\caption{Arduino Mega 2560 development board}
+\label{fig:arduino_mega}
+\end{figure}
+
+\subsubsection{Push Button}
+
+The circuit uses a standard momentary-action tactile push button. When pressed, it connects pin 7 of the microcontroller to GND, making the \texttt{digitalRead()} return \texttt{LOW}. The ATmega2560 internal pull-up is enabled, so no external resistor is required on this line. Button bouncing is handled in software (see Debouncing above). The button is the sole input device for this application.
+
+\subsubsection{LEDs and Current-Limiting Resistors}
+
+Three 5\,mm LEDs — green, red, and yellow — provide the visual output of the system. Each LED requires a forward voltage of approximately 2.0\,V (for red/yellow) or 2.2\,V (for green) and a safe forward current of 10--20\,mA. To limit the current from the 5\,V GPIO pin, a 220\,$\Omega$ resistor is placed in series with each LED, resulting in a drive current of approximately 12--14\,mA, which is within the rated maximum for both the LEDs and the ATmega2560 GPIO pins (40\,mA absolute maximum per pin).
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.4\textwidth]{../lab1.1/resources/DomainAnalysis/HardwareComponents/led.png}
+\caption{Standard 5\,mm LED indicator component used for visual signaling}
+\label{fig:led_component}
+\end{figure}
+
+\subsection{Software Components}
+
+\subsubsection{PlatformIO Build System}
+
+PlatformIO is an open-source embedded development ecosystem integrated into VS Code. It handles toolchain management, library resolution, and build configuration. Lab 2.1 is defined as an independent PlatformIO environment (\texttt{lab2\_1}) in \texttt{platformio.ini}, targeting the \texttt{megaatmega2560} board with the AVR toolchain. The \texttt{build\_src\_filter} directive ensures only the correct lab entry-point files are compiled into each environment, preserving full isolation between labs.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.75\textwidth]{../lab1.1/resources/DomainAnalysis/SoftwareComponents/platformio.png}
+\caption{PlatformIO workspace in VS Code showing the Lab 2.1 build environment}
+\label{fig:platformio_env}
+\end{figure}
+
+\subsubsection{Wokwi Simulator}
+
+Wokwi is a browser and VS Code-integrated simulator supporting Arduino Mega 2560, ESP32, and other platforms. Each lab has a dedicated Wokwi configuration folder (\texttt{labs/wokwi/lab2.1/}) containing a \texttt{diagram.json} with the circuit description and a \texttt{wokwi.toml} pointing to the compiled firmware binary. The simulator enables functional testing of the button press detection, LED signaling, and serial report output without physical hardware.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.6\textwidth]{../lab1.1/resources/DomainAnalysis/SoftwareComponents/wokwi.png}
+\caption{Wokwi VS Code plugin used for circuit simulation and firmware testing}
+\label{fig:wokwi_tool}
+\end{figure}
+
+\subsubsection{TaskScheduler Library}
+
+The \texttt{TaskScheduler} library is a new reusable module created specifically for this laboratory. It provides a minimal non-preemptive cooperative scheduler based on an array of \texttt{TaskContext\_t} structures. Each structure stores a function pointer, a period, an offset, and a computed \texttt{nextRun} timestamp. The \texttt{schedulerRun()} function selects the most-overdue due task on each call and dispatches it exactly once, making it straightforward to express each application concern as an independent, testable, non-blocking function.
+
+\subsubsection{StdioSerial Library}
+
+The \texttt{StdioSerial} library, originally developed in Laboratory Work 1.1, redirects the AVR libc standard I/O streams to UART0 for use with \texttt{printf()} and \texttt{fgets()}. It is used without modification in Lab 2.1 to output the periodic statistics report from Task 3.
+
+\subsection{Case Study: Industrial Process Monitoring}
+
+The combination of periodic sampling, event detection, and timed reporting demonstrated in this lab is directly applicable to industrial condition monitoring. In manufacturing environments, vibration sensors or limit switches monitor machine operating cycles. An embedded controller counts actuations, classifies them by duration or force, and transmits summary statistics to a SCADA system at regular intervals. Short cycle times might indicate a correctly operating machine, while anomalously long or short presses may indicate faults requiring maintenance. Non-preemptive bare-metal scheduling is preferred in such safety-relevant applications because its timing is fully deterministic and auditable without relying on an RTOS certification layer.

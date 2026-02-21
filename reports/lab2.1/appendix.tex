@@ -1,0 +1,303 @@
+\section{Appendix}
+
+The complete source code for Laboratory Work 2.1 is organised below by architectural layer. The full project is available in the GitHub repository: \url{https://github.com/mcittkmims/es-labs}.
+
+\subsection{Scheduler Layer}
+
+\subsubsection{TaskScheduler Interface}
+
+\begin{lstlisting}[language=C++, caption=lib/TaskScheduler/TaskScheduler.h --- Scheduler API and task context struct, label=lst:taskscheduler_h]
+#ifndef TASK_SCHEDULER_H
+#define TASK_SCHEDULER_H
+
+#include <Arduino.h>
+
+/**
+ * Task context structure.
+ * Holds all scheduling metadata for a single task.
+ */
+typedef struct {
+    void     (*funcPtr)();  // Pointer to the task function. Must be non-blocking.
+    uint32_t  period;       // Recurrence period in milliseconds.
+    uint32_t  offset;       // Startup offset in milliseconds before first execution.
+    uint32_t  nextRun;      // Absolute time (ms) of the next scheduled execution.
+} TaskContext_t;
+
+/**
+ * Initialize the scheduler.
+ * Computes nextRun = millis() + offset for each task.
+ */
+void schedulerInit(TaskContext_t *tasks, uint8_t count);
+
+/**
+ * Run one scheduler tick.
+ * Executes the most-overdue due task exactly once.
+ */
+void schedulerRun(TaskContext_t *tasks, uint8_t count);
+
+#endif // TASK_SCHEDULER_H
+\end{lstlisting}
+
+\subsubsection{TaskScheduler Implementation}
+
+\begin{lstlisting}[language=C++, caption=lib/TaskScheduler/TaskScheduler.cpp --- Scheduler implementation, label=lst:taskscheduler_cpp]
+#include "TaskScheduler.h"
+
+void schedulerInit(TaskContext_t *tasks, uint8_t count) {
+    uint32_t now = millis();
+    for (uint8_t i = 0; i < count; i++) {
+        tasks[i].nextRun = now + tasks[i].offset;
+    }
+}
+
+void schedulerRun(TaskContext_t *tasks, uint8_t count) {
+    uint32_t now     = millis();
+    int8_t   chosen  = -1;
+    uint32_t earliest = UINT32_MAX;
+
+    // Find the most-overdue task among all tasks that are due this tick.
+    for (uint8_t i = 0; i < count; i++) {
+        if (now >= tasks[i].nextRun) {
+            if (tasks[i].nextRun < earliest) {
+                earliest = tasks[i].nextRun;
+                chosen   = i;
+            }
+        }
+    }
+
+    if (chosen >= 0) {
+        tasks[chosen].funcPtr();
+        tasks[chosen].nextRun += tasks[chosen].period;
+
+        // Guard: re-anchor if we've fallen far behind schedule.
+        if (tasks[chosen].nextRun < millis()) {
+            tasks[chosen].nextRun = millis() + tasks[chosen].period;
+        }
+    }
+}
+\end{lstlisting}
+
+\subsection{Application Layer}
+
+\subsubsection{Lab 2.1 Entry Point Interface}
+
+\begin{lstlisting}[language=C++, caption=lab/lab2\_1/lab2\_1\_main.h --- Lab 2.1 declarations, label=lst:lab2_1_h]
+#ifndef LAB2_1_MAIN_H
+#define LAB2_1_MAIN_H
+
+/**
+ * Initialize peripherals and the task scheduler for Lab 2.1.
+ * Configures button (INPUT_PULLUP), LED pins (OUTPUT), STDIO serial,
+ * and registers the three tasks in the TaskScheduler.
+ */
+void lab2_1Setup();
+
+/**
+ * Main application loop --- drives the non-preemptive task scheduler.
+ * Calls schedulerRun() every iteration; at most one task runs per call.
+ */
+void lab2_1Loop();
+
+#endif // LAB2_1_MAIN_H
+\end{lstlisting}
+
+\subsubsection{Lab 2.1 Main Implementation}
+
+\begin{lstlisting}[language=C++, caption=lab/lab2\_1/lab2\_1\_main.cpp --- Three-task cooperative application, label=lst:lab2_1_cpp]
+#include "lab2_1_main.h"
+#include <Arduino.h>
+#include <stdio.h>
+#include "TaskScheduler.h"
+#include "StdioSerial.h"
+
+// -- Pin mapping --------------------------------------------------------
+static const uint8_t PIN_BUTTON     = 7;
+static const uint8_t PIN_LED_GREEN  = 8;
+static const uint8_t PIN_LED_RED    = 9;
+static const uint8_t PIN_LED_YELLOW = 10;
+
+// -- Constants ----------------------------------------------------------
+static const uint32_t SHORT_PRESS_THRESHOLD_MS = 500;
+static const uint32_t LED_INDICATOR_DURATION_MS = 1500;
+static const uint32_t BLINK_HALF_PERIOD_MS = 100;
+static const uint8_t  BLINK_STEPS_SHORT    = 10;
+static const uint8_t  BLINK_STEPS_LONG     = 20;
+static const uint32_t DEBOUNCE_MS          = 50;
+
+// -- Shared global state ------------------------------------------------
+static volatile bool     g_newPress         = false;
+static volatile uint32_t g_lastPressDuration = 0;
+static volatile bool     g_isShortPress     = false;
+static volatile uint32_t g_totalPresses     = 0;
+static volatile uint32_t g_shortPresses     = 0;
+static volatile uint32_t g_longPresses      = 0;
+static volatile uint32_t g_totalDurationMs  = 0;
+
+// -- Task 1 private state -----------------------------------------------
+typedef enum { BTN_IDLE, BTN_DEBOUNCE_DOWN,
+               BTN_PRESSED, BTN_DEBOUNCE_UP } ButtonState_e;
+
+static ButtonState_e s_btnState      = BTN_IDLE;
+static uint32_t      s_debounceStart = 0;
+static uint32_t      s_pressStart    = 0;
+static uint32_t      s_pressEnd      = 0;
+static uint32_t      s_greenLedOffAt = 0;
+static uint32_t      s_redLedOffAt   = 0;
+
+// -- Task 2 private state -----------------------------------------------
+static uint8_t  s_blinkStepsRemaining = 0;
+static uint32_t s_blinkLastToggle     = 0;
+static bool     s_yellowLedOn        = false;
+
+// -- Forward declarations -----------------------------------------------
+static void task1ButtonAndLed();
+static void task2StatisticsAndBlink();
+static void task3PeriodicReport();
+
+// -- Task context array (recurrence table) -----------------------------
+static TaskContext_t s_tasks[] = {
+    { task1ButtonAndLed,       10,     0 },
+    { task2StatisticsAndBlink, 50,     5 },
+    { task3PeriodicReport,  10000,  2000 },
+};
+static const uint8_t TASK_COUNT = sizeof(s_tasks) / sizeof(s_tasks[0]);
+
+// -- Task 1: Button Detection + LED Signaling ---------------------------
+static void task1ButtonAndLed() {
+    uint32_t now    = millis();
+    bool     btnLow = (digitalRead(PIN_BUTTON) == LOW);
+
+    switch (s_btnState) {
+        case BTN_IDLE:
+            if (btnLow) { s_debounceStart = now; s_btnState = BTN_DEBOUNCE_DOWN; }
+            break;
+        case BTN_DEBOUNCE_DOWN:
+            if (!btnLow)                                   { s_btnState = BTN_IDLE; }
+            else if (now - s_debounceStart >= DEBOUNCE_MS) { s_pressStart = now; s_btnState = BTN_PRESSED; }
+            break;
+        case BTN_PRESSED:
+            if (!btnLow) { s_pressEnd = now; s_debounceStart = now; s_btnState = BTN_DEBOUNCE_UP; }
+            break;
+        case BTN_DEBOUNCE_UP:
+            if (btnLow)                                    { s_btnState = BTN_PRESSED; }
+            else if (now - s_debounceStart >= DEBOUNCE_MS) {
+                uint32_t dur = s_pressEnd - s_pressStart;
+                g_lastPressDuration = dur;
+                g_isShortPress      = (dur < SHORT_PRESS_THRESHOLD_MS);
+                g_newPress          = true;
+                if (g_isShortPress) { digitalWrite(PIN_LED_GREEN, HIGH); s_greenLedOffAt = now + LED_INDICATOR_DURATION_MS; }
+                else                { digitalWrite(PIN_LED_RED,   HIGH); s_redLedOffAt   = now + LED_INDICATOR_DURATION_MS; }
+                s_btnState = BTN_IDLE;
+            }
+            break;
+    }
+
+    if (s_greenLedOffAt && now >= s_greenLedOffAt) { digitalWrite(PIN_LED_GREEN, LOW); s_greenLedOffAt = 0; }
+    if (s_redLedOffAt   && now >= s_redLedOffAt)   { digitalWrite(PIN_LED_RED,   LOW); s_redLedOffAt   = 0; }
+}
+
+// -- Task 2: Statistics + Yellow LED Blink Sequencer -------------------
+static void task2StatisticsAndBlink() {
+    uint32_t now = millis();
+    if (g_newPress) {
+        g_newPress = false;
+        g_totalPresses++;
+        g_totalDurationMs += g_lastPressDuration;
+        if (g_isShortPress) { g_shortPresses++; s_blinkStepsRemaining = BLINK_STEPS_SHORT; }
+        else                { g_longPresses++;  s_blinkStepsRemaining = BLINK_STEPS_LONG;  }
+        digitalWrite(PIN_LED_YELLOW, HIGH);
+        s_yellowLedOn     = true;
+        s_blinkLastToggle = now;
+    }
+    if (s_blinkStepsRemaining > 0 && (now - s_blinkLastToggle) >= BLINK_HALF_PERIOD_MS) {
+        s_yellowLedOn = !s_yellowLedOn;
+        digitalWrite(PIN_LED_YELLOW, s_yellowLedOn ? HIGH : LOW);
+        s_blinkLastToggle = now;
+        if (--s_blinkStepsRemaining == 0) { digitalWrite(PIN_LED_YELLOW, LOW); s_yellowLedOn = false; }
+    }
+}
+
+// -- Task 3: Periodic STDIO Report -------------------------------------
+static void task3PeriodicReport() {
+    uint32_t total   = g_totalPresses;
+    uint32_t shorts  = g_shortPresses;
+    uint32_t longs   = g_longPresses;
+    uint32_t totalMs = g_totalDurationMs;
+    uint32_t avgMs   = (total > 0) ? (totalMs / total) : 0;
+
+    printf("\r\n===== [10s Report] =====\r\n");
+    printf("Total presses    : %lu\r\n", total);
+    printf("Short presses    : %lu  (< %u ms)\r\n", shorts, (unsigned)SHORT_PRESS_THRESHOLD_MS);
+    printf("Long presses     : %lu  (>= %u ms)\r\n", longs, (unsigned)SHORT_PRESS_THRESHOLD_MS);
+    printf("Average duration : %lu ms\r\n", avgMs);
+    printf("========================\r\n");
+
+    g_totalPresses = g_shortPresses = g_longPresses = g_totalDurationMs = 0;
+}
+
+// -- Public entry points ------------------------------------------------
+void lab2_1Setup() {
+    pinMode(PIN_BUTTON,     INPUT_PULLUP);
+    pinMode(PIN_LED_GREEN,  OUTPUT);
+    pinMode(PIN_LED_RED,    OUTPUT);
+    pinMode(PIN_LED_YELLOW, OUTPUT);
+    digitalWrite(PIN_LED_GREEN,  LOW);
+    digitalWrite(PIN_LED_RED,    LOW);
+    digitalWrite(PIN_LED_YELLOW, LOW);
+
+    stdioSerialInit(9600);
+    printf("\r\n========================================\r\n");
+    printf("  Lab 2.1 -- Button Press Monitor\r\n");
+    printf("  Non-Preemptive Task Scheduler Demo\r\n");
+    printf("  Tasks: 3 | Tick base: 10 ms\r\n");
+    printf("========================================\r\n\r\n");
+
+    schedulerInit(s_tasks, TASK_COUNT);
+}
+
+void lab2_1Loop() {
+    schedulerRun(s_tasks, TASK_COUNT);
+}
+\end{lstlisting}
+
+\subsection{Application Entry Point}
+
+\subsubsection{Lab Selector --- main.cpp (relevant section)}
+
+\begin{lstlisting}[language=C++, caption=src/main.cpp --- Lab selector with Lab 2.1 added, label=lst:main_cpp]
+#include <Arduino.h>
+
+#if defined(LAB1_1)
+    #include "lab1_1_main.h"
+#elif defined(LAB1_2)
+    #include "lab1_2_main.h"
+#elif defined(LAB2_1)
+    #include "lab2_1_main.h"
+#else
+    #error "No lab selected! Add -DLABx_x to build_flags in platformio.ini"
+#endif
+
+void setup() {
+#if defined(LAB2_1)
+    lab2_1Setup();
+#endif
+}
+
+void loop() {
+#if defined(LAB2_1)
+    lab2_1Loop();
+#endif
+}
+\end{lstlisting}
+
+\subsubsection{PlatformIO Environment Configuration}
+
+\begin{lstlisting}[language={}, caption=platformio.ini --- Lab 2.1 environment section, label=lst:platformio_ini]
+[env:lab2_1]
+platform = atmelavr
+board = megaatmega2560
+framework = arduino
+monitor_speed = 9600
+build_src_filter = +<*> +<../lab/lab2_1/*>
+build_flags = -I lab/lab2_1 -DLAB2_1
+\end{lstlisting}

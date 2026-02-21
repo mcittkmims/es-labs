@@ -1,0 +1,98 @@
+{
+  "version": 1,
+  "author": "Vremere Adrian",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "wokwi-arduino-mega",
+      "id": "mega",
+      "top": 0,
+      "left": 0,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn1",
+      "top": 100,
+      "left": -160,
+      "rotate": 90,
+      "attrs": {
+        "color": "blue",
+        "label": "BTN"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r_green",
+      "top": -80,
+      "left": 330,
+      "rotate": 90,
+      "attrs": {
+        "resistance": "220"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led_green",
+      "top": -150,
+      "left": 318,
+      "attrs": {
+        "color": "green",
+        "label": "GREEN"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r_red",
+      "top": -80,
+      "left": 400,
+      "rotate": 90,
+      "attrs": {
+        "resistance": "220"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led_red",
+      "top": -150,
+      "left": 388,
+      "attrs": {
+        "color": "red",
+        "label": "RED"
+      }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r_yellow",
+      "top": -80,
+      "left": 470,
+      "rotate": 90,
+      "attrs": {
+        "resistance": "220"
+      }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led_yellow",
+      "top": -150,
+      "left": 458,
+      "attrs": {
+        "color": "yellow",
+        "label": "YELLOW"
+      }
+    }
+  ],
+  "connections": [
+    ["mega:7",     "btn1:1.l",      "green",  ["v0"]],
+    ["btn1:2.l",   "mega:GND.1",    "black",  ["v0"]],
+    ["mega:8",     "r_green:1",     "green",  ["v0"]],
+    ["r_green:2",  "led_green:A",   "green",  ["v0"]],
+    ["led_green:C","mega:GND.2",    "black",  ["v0"]],
+    ["mega:9",     "r_red:1",       "red",    ["v0"]],
+    ["r_red:2",    "led_red:A",     "red",    ["v0"]],
+    ["led_red:C",  "mega:GND.3",    "black",  ["v0"]],
+    ["mega:10",    "r_yellow:1",    "orange", ["v0"]],
+    ["r_yellow:2", "led_yellow:A",  "orange", ["v0"]],
+    ["led_yellow:C","mega:GND.4",   "black",  ["v0"]]
+  ]
+}

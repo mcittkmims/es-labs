@@ -1,0 +1,103 @@
+\section{Obtained Results}
+
+\subsection{Build Process}
+
+The project was compiled using PlatformIO with the \texttt{lab2\_1} environment targeting the Arduino Mega 2560 (ATmega2560). The build completed successfully with no errors or warnings, using only 2.7\,\% of the available Flash memory (6\,768 bytes out of 253\,952 bytes) and 9.8\,\% of SRAM (800 bytes out of 8\,192 bytes).
+
+% ── Uncomment after capturing the PlatformIO build terminal screenshot ──────
+% Save screenshot to: resources/ObtainedResults/build_results.png
+%\begin{figure}[H]
+%\centering
+%\includegraphics[width=0.85\textwidth]{resources/ObtainedResults/build_results.png}
+%\caption{Successful PlatformIO build output for Lab 2.1 (\texttt{lab2\_1} environment)}
+%\label{fig:build_results}
+%\end{figure}
+
+The expected build summary is:
+
+\begin{lstlisting}[caption=PlatformIO build summary, label=lst:build_summary]
+RAM:   [=         ]   9.8% (used 800 bytes from 8192 bytes)
+Flash: [          ]   2.7% (used 6768 bytes from 253952 bytes)
+========================= [SUCCESS] =========================
+Environment    Status    Duration
+-------------  --------  ------------
+lab2_1         SUCCESS   00:00:02.xxx
+\end{lstlisting}
+
+\subsection{Simulation Startup}
+
+Upon starting the Wokwi simulation with the \texttt{lab2\_1} firmware, the board boots and the scheduler is initialised. Task 3 fires after an initial 2\,s offset and prints the startup banner via STDIO. The serial terminal shows the welcome message:
+
+\begin{lstlisting}[caption=Expected startup banner in the Wokwi serial terminal, label=lst:startup_output]
+========================================
+  Lab 2.1 -- Button Press Monitor
+  Non-Preemptive Task Scheduler Demo
+  Tasks: 3 | Tick base: 10 ms
+========================================
+GREEN  LED  = short press (< 500 ms)
+RED    LED  = long press  (>= 500 ms)
+YELLOW LED  = activity blink
+Report interval: 10 seconds
+========================================
+\end{lstlisting}
+
+% ── Uncomment after taking Wokwi simulation screenshot ───────────────────
+% Save screenshot to: resources/ObtainedResults/simulation_start.png
+%\begin{figure}[H]
+%\centering
+%\includegraphics[width=0.75\textwidth]{resources/ObtainedResults/simulation_start.png}
+%\caption{Wokwi simulation start --- startup banner in serial terminal, all LEDs off}
+%\label{fig:simulation_start}
+%\end{figure}
+
+\subsection{Button Press Detection}
+
+\subsubsection{Short Press Test ($<$\,500\,ms)}
+
+Pressing the button briefly (less than 500\,ms) causes Task 1 to light the green LED for 1\,500\,ms and set the \texttt{g\_newPress} flag. Task 2 picks up the event on its next 50\,ms tick and drives a 5-blink yellow LED sequence (10 half-cycles at 100\,ms each = 1\,000\,ms total). The green LED and yellow blink are simultaneously visible in the simulation.
+
+% ── Uncomment after capturing the short-press simulation screenshot ──────
+% Save screenshot to: resources/ObtainedResults/test_short_press.png
+%\begin{figure}[H]
+%\centering
+%\includegraphics[width=0.75\textwidth]{resources/ObtainedResults/test_short_press.png}
+%\caption{Short press result --- green LED lit, yellow LED blinking (5 blinks)}
+%\label{fig:test_short_press}
+%\end{figure}
+
+\subsubsection{Long Press Test ($\geq$\,500\,ms)}
+
+Holding the button for more than 500\,ms causes Task 1 to light the red LED and signal a long press. Task 2 starts a 10-blink yellow LED sequence (20 half-cycles = 2\,000\,ms). The red LED and the longer blink sequence are visible simultaneously.
+
+% ── Uncomment after capturing the long-press simulation screenshot ───────
+% Save screenshot to: resources/ObtainedResults/test_long_press.png
+%\begin{figure}[H]
+%\centering
+%\includegraphics[width=0.75\textwidth]{resources/ObtainedResults/test_long_press.png}
+%\caption{Long press result --- red LED lit, yellow LED blinking (10 blinks)}
+%\label{fig:test_long_press}
+%\end{figure}
+
+\subsection{Periodic STDIO Report}
+
+Every 10 seconds, Task 3 prints the statistics for the elapsed window. After performing a mix of short and long presses, the serial terminal shows output similar to the following:
+
+\begin{lstlisting}[caption=Example periodic report after 4 presses (2 short + 2 long), label=lst:periodic_report]
+===== [10s Report] =====
+Total presses    : 4
+Short presses    : 2  (< 500 ms)
+Long presses     : 2  (>= 500 ms)
+Average duration : 712 ms
+========================
+\end{lstlisting}
+
+After printing, all counters are reset to zero. A window with no button activity prints all zeroes for counts and average duration.
+
+% ── Uncomment after capturing the serial report screenshot ───────────────
+% Save screenshot to: resources/ObtainedResults/test_report.png
+%\begin{figure}[H]
+%\centering
+%\includegraphics[width=0.75\textwidth]{resources/ObtainedResults/test_report.png}
+%\caption{Periodic STDIO report from Task 3 after a sequence of button presses}
+%\label{fig:test_report}
+%\end{figure}

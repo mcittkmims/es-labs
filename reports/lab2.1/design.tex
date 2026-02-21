@@ -1,0 +1,349 @@
+\section{Design}
+
+% ─── TikZ style definitions for this section ──────────────────────────────
+\tikzstyle{startstop} = [rectangle, rounded corners, minimum width=2.8cm,
+    minimum height=0.7cm, text centered, align=center, draw=black, fill=gray!15]
+\tikzstyle{process}   = [rectangle, minimum width=2.8cm,
+    minimum height=0.7cm, text centered, align=center, draw=black, fill=blue!8]
+\tikzstyle{decision}  = [diamond, aspect=2.8, minimum width=2.5cm,
+    minimum height=0.7cm, text centered, align=center, draw=black, fill=orange!15]
+\tikzstyle{io}        = [trapezium, trapezium left angle=70, trapezium right angle=110,
+    minimum width=2.8cm, minimum height=0.7cm, text centered, align=center, draw=black, fill=teal!10]
+\tikzstyle{arrow}     = [thick,->,>=Stealth]
+
+\subsection{System Architecture Diagrams}
+
+\subsubsection{Layered Software Architecture}
+
+The software is organised into five layers, each with a clearly bounded responsibility. The Application Layer contains the lab entry point \texttt{lab2\_1\_main}, which initialises all hardware and registers the tasks. The Task Layer holds the three cooperative task functions (Task 1, Task 2, Task 3) that implement the application logic. The Scheduler Layer is the \texttt{TaskScheduler} library, which drives periodic dispatch of tasks without preemption. The Driver Layer consists of \texttt{StdioSerial} (UART STDIO redirection) and the Arduino GPIO API (\texttt{pinMode}, \texttt{digital\-Read}, \texttt{digital\-Write}). At the bottom, the Hardware Layer comprises the ATmega2560 MCU, the push button, and the three indicator LEDs.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=0.45cm]
+    \tikzstyle{layer} = [draw, rectangle, minimum width=10cm, minimum height=0.8cm,
+                         text centered, font=\small]
+    \tikzstyle{sublayer} = [draw, rectangle, minimum width=3cm, minimum height=0.8cm,
+                            text centered, font=\small\itshape]
+
+    % Layers top to bottom
+    \node[layer, fill=blue!15]   (app)  {Application Layer --- \texttt{lab2\_1\_main}};
+    \node[layer, fill=green!12, below=of app]  (task) {};
+    \node[sublayer, fill=green!20, minimum width=2.8cm,
+          xshift=-3.2cm, at=(task.center)] (t1) {Task 1};
+    \node[sublayer, fill=green!20, minimum width=2.8cm,
+          at=(task.center)] (t2) {Task 2};
+    \node[sublayer, fill=green!20, minimum width=2.8cm,
+          xshift=3.2cm, at=(task.center)] (t3) {Task 3};
+    \node[font=\small\bfseries, left=0.1cm of task] {};
+
+    \node[layer, fill=yellow!20, below=of task]  (sched) {Scheduler Layer --- \texttt{TaskScheduler}};
+    \node[layer, fill=orange!15, below=of sched] (drv)   {Driver Layer --- \texttt{StdioSerial} \quad GPIO API};
+    \node[layer, fill=red!10,    below=of drv]   (hw)    {Hardware Layer --- ATmega2560 \quad Button (Pin 7) \quad LEDs (Pins 8--10)};
+
+    \draw[arrow] (app)   -- (task);
+    \draw[arrow] (task)  -- (sched);
+    \draw[arrow] (sched) -- (drv);
+    \draw[arrow] (drv)   -- (hw);
+
+    % Task layer label
+    \node[font=\small\bfseries, left=0.05cm of task, xshift=-4.7cm]
+        {\rotatebox{90}{\small Task Layer}};
+\end{tikzpicture}
+\caption{Layered software architecture of the Lab 2.1 application}
+\label{fig:layered_architecture}
+\end{figure}
+
+\subsubsection{System Structural Diagram}
+
+The system involves a host PC communicating bidirectionally with the microcontroller over USB (through UART0) and four physical peripherals connected to GPIO pins. The button is the sole input, while three LEDs serve as outputs. The TaskScheduler orchestrates all application logic, and Task 3 produces the only serial output (the periodic statistics report).
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=1.2cm and 1.8cm]
+    \tikzstyle{dev}  = [draw, rectangle, rounded corners, minimum width=3.0cm,
+                        minimum height=0.8cm, text centered, align=center, fill=blue!10, font=\small]
+    \tikzstyle{hw}   = [draw, rectangle, minimum width=2.5cm,
+                        minimum height=0.7cm, text centered, align=center, fill=gray!12, font=\small]
+    \tikzstyle{bidirarrow} = [thick, <->, >=Stealth]
+    \tikzstyle{outarrow}   = [thick, ->, >=Stealth]
+
+    \node[dev] (pc)   {PC Terminal};
+    \node[dev, right=3.0cm of pc] (mcu) {ATmega2560\\{\scriptsize TaskScheduler}};
+
+    % Input
+    \node[hw, below right=0.5cm and 1.5cm of mcu] (btn)  {Push Button\\{\scriptsize Pin 7, INPUT}};
+    % Outputs
+    \node[hw, above right=0.5cm and 1.5cm of mcu] (gLed) {Green LED\\{\scriptsize Pin 8, OUTPUT}};
+    \node[hw, right=3.2cm of mcu]                 (rLed) {Red LED\\{\scriptsize Pin 9, OUTPUT}};
+    \node[hw, below right=1.6cm and 1.5cm of mcu] (yLed) {Yellow LED\\{\scriptsize Pin 10, OUTPUT}};
+
+    % Connections
+    \draw[bidirarrow] (pc)  -- node[above, font=\scriptsize]{USB / UART0} (mcu);
+    \draw[outarrow, dashed] (mcu) -- node[above right, font=\scriptsize]{Read}  (btn);
+    \draw[outarrow] (mcu) -- node[above, font=\scriptsize]{Green}  (gLed);
+    \draw[outarrow] (mcu) -- node[above, font=\scriptsize]{Red}    (rLed);
+    \draw[outarrow] (mcu) -- node[below, font=\scriptsize]{Yellow} (yLed);
+\end{tikzpicture}
+\caption{System structural diagram showing MCU, peripherals, and serial interface}
+\label{fig:structural_diagram}
+\end{figure}
+
+\subsection{Behaviour Diagrams}
+
+\subsubsection{Non-Preemptive Task Scheduler --- Tick Flowchart}
+
+The \texttt{schedulerRun()} function implements a single scheduling tick. It scans the task array for due tasks, selects the one with the earliest missed deadline (most urgently overdue), runs its function pointer exactly once, and advances the task's next scheduled time. If no task is due, the function returns immediately, allowing the \texttt{loop()} to spin rapidly until the next deadline is reached.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=1.1cm]
+    \node (start)  [startstop]                           {schedulerRun()};
+    \node (init)   [process,  below of=start]            {now = millis()\\chosen = $-1$, earliest = MAX};
+    \node (dec1)   [decision, below of=init, yshift=-0.4cm] {i $<$ count?};
+    \node (dec2)   [decision, below of=dec1, yshift=-0.4cm] {tasks[i] due\\\&\& earliest?};
+    \node (upd)    [process,  right=2.5cm of dec2]       {chosen = i\\earliest = nextRun[i]};
+    \node (inc)    [process,  below of=dec2, yshift=-0.4cm] {i++};
+    \node (dec3)   [decision, below of=inc, yshift=-0.3cm]  {chosen $\geq$ 0?};
+    \node (run)    [process,  below of=dec3, yshift=-0.3cm] {tasks[chosen].funcPtr()\\nextRun += period};
+    \node (stop)   [startstop,below of=run]              {return};
+
+    \draw [arrow] (start) -- (init);
+    \draw [arrow] (init)  -- (dec1);
+    \draw [arrow] (dec1)  -- node[anchor=east]{\scriptsize Yes} (dec2);
+    \draw [arrow] (dec1.east) -- ++(2.5,0) |- node[above, near start]{\scriptsize No} (dec3);
+    \draw [arrow] (dec2)  -- node[anchor=east]{\scriptsize Yes} (upd);
+    \draw [arrow] (dec2)  -- node[anchor=east]{\scriptsize No}  (inc);
+    \draw [arrow] (upd.south) |- (inc.east);
+    \draw [arrow] (inc)   -- (dec1);
+    \draw [arrow] (dec3)  -- node[anchor=east]{\scriptsize Yes} (run);
+    \draw [arrow] (dec3.west) -- ++(-1.5,0) |- node[above, near start]{\scriptsize No} (stop);
+    \draw [arrow] (run)   -- (stop);
+\end{tikzpicture}
+\caption{Flowchart of \texttt{schedulerRun()} --- one task dispatched per tick}
+\label{fig:scheduler_flowchart}
+\end{figure}
+
+\subsubsection{Button FSM --- State Transition Diagram}
+
+Task 1 uses a four-state FSM to reliably detect button presses and measure their duration. The debounce confirmation window is 50\,ms on both the press and release edges, eliminating contact bounce artefacts. The press start time is recorded on entry to PRESSED state, and the release time is captured when the first HIGH reading occurs during PRESSED. The duration is computed only when the DEBOUNCE\_UP state confirms the release.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[>=Stealth, auto, node distance=3.0cm,
+        every state/.style={draw, circle, minimum size=1.3cm, font=\small, align=center}]
+    \node[state, initial]  (idle)  {IDLE};
+    \node[state]           (down)  [right of=idle]  {DBN\\DOWN};
+    \node[state]           (press) [right of=down]  {PRESSED};
+    \node[state]           (up)    [right of=press] {DBN\\UP};
+
+    \path[->]
+        (idle)  edge              node[above]{\scriptsize btnLow}           (down)
+        (down)  edge[bend left]   node[below]{\scriptsize !btnLow (glitch)} (idle)
+        (down)  edge              node[above]{\scriptsize 50\,ms \& down}   (press)
+        (press) edge              node[above]{\scriptsize !btnLow}          (up)
+        (up)    edge[bend left]   node[above]{\scriptsize btnLow (bounce)}  (press)
+        (up)    edge[bend right=45] node[below]{\scriptsize 50\,ms \& up $\Rightarrow$ signal}   (idle);
+\end{tikzpicture}
+\caption{Button debounce finite state machine with 50\,ms confirmation windows}
+\label{fig:button_fsm}
+\end{figure}
+
+\subsubsection{Task 1 --- Button Detection and LED Signaling Flowchart}
+
+Task 1 runs every 10\,ms. On each tick it reads the button pin, advances the FSM (see \citeimg{fig:button_fsm}), and checks the two LED auto-off timers. When the FSM completes a press cycle, it lights the green LED (short press) or the red LED (long press) for 1\,500\,ms and signals Task 2 via the \texttt{g\_newPress} flag.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=1.1cm]
+    \node (start)  [startstop]                              {Task 1 Start};
+    \node (read)   [io,      below of=start]                {now = millis()\\btnLow = digitalRead(7)};
+    \node (fsm)    [process, below of=read]                 {Advance Button FSM\\(see Fig.~\ref{fig:button_fsm})};
+    \node (dec1)   [decision,below of=fsm, yshift=-0.3cm]   {Press completed?};
+    \node (led)    [process, right=2.2cm of dec1]           {Light GREEN or RED LED\\set auto-off timer};
+    \node (dec2)   [decision,below of=dec1, yshift=-0.4cm]  {Green timer\\expired?};
+    \node (goff)   [process, right=2.2cm of dec2]           {GREEN LED off\\timer = 0};
+    \node (dec3)   [decision,below of=dec2, yshift=-0.4cm]  {Red timer\\expired?};
+    \node (roff)   [process, right=2.2cm of dec3]           {RED LED off\\timer = 0};
+    \node (stop)   [startstop,below of=dec3, yshift=-0.3cm] {Task 1 End};
+
+    \draw [arrow] (start) -- (read);
+    \draw [arrow] (read)  -- (fsm);
+    \draw [arrow] (fsm)   -- (dec1);
+    \draw [arrow] (dec1)  -- node[above]{\scriptsize Yes} (led);
+    \draw [arrow] (led.south) |- (dec2.east);
+    \draw [arrow] (dec1)  -- node[anchor=east]{\scriptsize No}  (dec2);
+    \draw [arrow] (dec2)  -- node[above]{\scriptsize Yes} (goff);
+    \draw [arrow] (goff.south) |- (dec3.east);
+    \draw [arrow] (dec2)  -- node[anchor=east]{\scriptsize No}  (dec3);
+    \draw [arrow] (dec3)  -- node[above]{\scriptsize Yes} (roff);
+    \draw [arrow] (roff.south) |- (stop.east);
+    \draw [arrow] (dec3)  -- node[anchor=east]{\scriptsize No}  (stop);
+\end{tikzpicture}
+\caption{Task 1 flowchart --- button reading, FSM dispatch, and LED timer management}
+\label{fig:task1_flowchart}
+\end{figure}
+
+\subsubsection{Task 2 --- Statistics and Yellow LED Blink Flowchart}
+
+Task 2 runs every 50\,ms. It first checks whether Task 1 has signalled a new completed press event. If so, it increments the appropriate counters, arms the yellow LED blink sequencer (10 half-cycles for a short press, 20 for a long press), and clears the event flag. Independently of new events, the blink sequencer is advanced on each run: when 100\,ms has elapsed since the last toggle, the yellow LED changes state until all half-cycles are consumed.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=1.1cm]
+    \node (start)  [startstop]                              {Task 2 Start};
+    \node (dec1)   [decision, below of=start, yshift=-0.2cm]{g\_newPress?};
+    \node (stats)  [process,  right=2.5cm of dec1]         {Update counters\\g\_totalPresses++\\g\_shortPresses or g\_longPresses++};
+    \node (blink)  [process,  below of=stats]              {Arm blink: steps = 10 (short)\\or 20 (long), LED ON};
+    \node (clr)    [process,  below of=blink]              {g\_newPress = false};
+    \node (dec2)   [decision, below of=dec1, yshift=-2.0cm]{steps $>$ 0\\AND 100\,ms elapsed?};
+    \node (tog)    [process,  right=2.5cm of dec2]         {Toggle yellow LED\\steps-{}-\\reset timer};
+    \node (dec3)   [decision, below of=dec2, yshift=-0.4cm]{steps == 0?};
+    \node (off)    [process,  right=2.5cm of dec3]         {Yellow LED off};
+    \node (stop)   [startstop,below of=dec3, yshift=-0.3cm]{Task 2 End};
+
+    \draw [arrow] (start) -- (dec1);
+    \draw [arrow] (dec1)  -- node[above]{\scriptsize Yes} (stats);
+    \draw [arrow] (stats) -- (blink);
+    \draw [arrow] (blink) -- (clr);
+    \draw [arrow] (clr.south) |- (dec2.east);
+    \draw [arrow] (dec1)  -- node[anchor=east]{\scriptsize No}  (dec2);
+    \draw [arrow] (dec2)  -- node[above]{\scriptsize Yes} (tog);
+    \draw [arrow] (tog.south) |- (dec3.east);
+    \draw [arrow] (dec2)  -- node[anchor=east]{\scriptsize No}  (dec3);
+    \draw [arrow] (dec3)  -- node[above]{\scriptsize Yes} (off);
+    \draw [arrow] (off.south) |- (stop.east);
+    \draw [arrow] (dec3)  -- node[anchor=east]{\scriptsize No}  (stop);
+\end{tikzpicture}
+\caption{Task 2 flowchart --- statistics update and yellow LED blink sequencer}
+\label{fig:task2_flowchart}
+\end{figure}
+
+\subsubsection{Task 3 --- Periodic STDIO Report Flowchart}
+
+Task 3 runs every 10\,000\,ms. It snapshots the current accumulator values, computes the average duration, prints a formatted report via \texttt{printf()}, and resets all counters. The reset ensures each reporting window is independent, so the user sees the activity in the most recent 10-second window rather than a cumulative total.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=1.1cm]
+    \node (start)  [startstop]                              {Task 3 Start (10\,s)};
+    \node (snap)   [process,  below of=start]              {Snapshot statistics:\\total, shorts, longs, totalMs};
+    \node (avg)    [process,  below of=snap]               {avgMs = total $>$ 0 ? totalMs / total : 0};
+    \node (print)  [io,       below of=avg]                {printf() formatted\\10s report to STDIO};
+    \node (reset)  [process,  below of=print]              {Reset all accumulators\\to zero};
+    \node (stop)   [startstop,below of=reset]              {Task 3 End};
+
+    \draw [arrow] (start) -- (snap);
+    \draw [arrow] (snap)  -- (avg);
+    \draw [arrow] (avg)   -- (print);
+    \draw [arrow] (print) -- (reset);
+    \draw [arrow] (reset) -- (stop);
+\end{tikzpicture}
+\caption{Task 3 flowchart --- periodic statistics report and accumulator reset}
+\label{fig:task3_flowchart}
+\end{figure}
+
+\subsection{Electrical Schematics}
+
+The circuit comprises four connections to the Arduino Mega 2560: one active-LOW button input on pin 7 (with internal pull-up, no external resistor required), and three LED output circuits on pins 8, 9, and 10. Each LED branch consists of a 220\,$\Omega$ current-limiting resistor in series with the LED, with the cathode returning to GND.
+
+\begin{figure}[H]
+\centering
+\begin{circuitikz}[scale=0.85, transform shape]
+    % MCU block
+    \draw (0,0) rectangle (3,8);
+    \node[align=center] at (1.5,4) {ATmega2560\\(Arduino\\Mega 2560)};
+
+    % Label pins on the right side of MCU
+    \node[anchor=west, font=\small] at (3, 7.0) {Pin 7};
+    \node[anchor=west, font=\small] at (3, 5.2) {Pin 8};
+    \node[anchor=west, font=\small] at (3, 3.4) {Pin 9};
+    \node[anchor=west, font=\small] at (3, 1.6) {Pin 10};
+    \node[anchor=west, font=\small] at (3, 0.4) {GND};
+
+    % Button circuit: Pin 7 -> button -> GND (active-LOW with internal pull-up)
+    \draw (3, 7.0) -- (5.5, 7.0)
+        to[push button, label=$BTN$] (5.5, 5.7)
+        node[ground]{};
+
+    % Green LED: Pin 8 -> 220 Ohm -> LED green -> GND
+    \draw (3, 5.2) -- (5.0, 5.2)
+        to[R, l=$220\,\si{\ohm}$] (7.5, 5.2)
+        to[leD*, color=green, l=\scriptsize GREEN] (9.5, 5.2)
+        node[ground]{};
+
+    % Red LED: Pin 9 -> 220 Ohm -> LED red -> GND
+    \draw (3, 3.4) -- (5.0, 3.4)
+        to[R, l=$220\,\si{\ohm}$] (7.5, 3.4)
+        to[leD*, color=red, l=\scriptsize RED] (9.5, 3.4)
+        node[ground]{};
+
+    % Yellow LED: Pin 10 -> 220 Ohm -> LED yellow -> GND
+    \draw (3, 1.6) -- (5.0, 1.6)
+        to[R, l=$220\,\si{\ohm}$] (7.5, 1.6)
+        to[leD*, color=orange, l=\scriptsize YELLOW] (9.5, 1.6)
+        node[ground]{};
+
+    % GND line from MCU
+    \draw (3, 0.4) -- (4.5, 0.4) node[ground]{};
+\end{circuitikz}
+\caption{Electrical schematic --- button (active-LOW) and three LED indicator circuits}
+\label{fig:circuit_schematic}
+\end{figure}
+
+\subsubsection{Component Specification}
+
+Three circuit elements are used per LED branch: the 5\,V digital output GPIO pin, a 220\,$\Omega$ resistor, and a standard 5\,mm LED with approximately 2.0\,V forward voltage. The resulting current is $I = (5.0 - 2.0) / 220 \approx 13.6\,\text{mA}$, well within the ATmega2560 absolute-maximum GPIO sink/source current of 40\,mA. The push button requires no external component because the ATmega2560 internal pull-up holds the line at approximately 5\,V when the button is open.
+
+\subsection{Hardware Configuration --- Wokwi Simulation}
+
+The Wokwi simulation files are located in \texttt{labs/wokwi/lab2.1/}. The \texttt{diagram.json} wires the Arduino Mega 2560 to a push button (Pin 7), a green LED with 220\,$\Omega$ resistor (Pin 8), a red LED with 220\,$\Omega$ resistor (Pin 9), and a yellow LED with 220\,$\Omega$ resistor (Pin 10), exactly matching the code pin mapping. The \texttt{wokwi.toml} points to the compiled \texttt{lab2\_1} firmware hex.
+
+% ──────────────────────────────────────────────────────────────────────────
+% Wokwi circuit screenshot placeholder.
+% To activate: run the Wokwi simulation in VS Code, press the button a few
+% times so LEDs are visible, take a screenshot, save it to:
+%   reports/lab2.1/resources/Design/ElectricalSchematics/wokwi_circuit.png
+% Then uncomment the figure below.
+% ──────────────────────────────────────────────────────────────────────────
+%\begin{figure}[H]
+%\centering
+%\includegraphics[width=0.85\textwidth]{resources/Design/ElectricalSchematics/wokwi_circuit.png}
+%\caption{Wokwi simulation --- Lab 2.1 circuit with button and three LEDs (active run)}
+%\label{fig:wokwi_circuit}
+%\end{figure}
+
+\subsection{Project Structure}
+
+The project follows the established repository layout. The Lab 2.1 entry point lives in \texttt{labs/lab/lab2\_1/} while the new \texttt{TaskScheduler} library is placed in \texttt{labs/lib/TaskScheduler/} to make it reusable in future labs. The \texttt{StdioSerial} library from Lab 1.1 is reused without modification. The \texttt{main.cpp} lab selector gains an additional \texttt{LAB2\_1} branch, and \texttt{platformio.ini} receives a new \texttt{[env:lab2\_1]} section.
+
+\begin{lstlisting}[language={}, caption=Repository layout for Lab 2.1, label=lst:project_structure]
+labs/
+  src/
+    main.cpp               # Lab selector (conditionally includes lab entry points)
+  lab/
+    lab2_1/
+      lab2_1_main.h        # Lab 2.1 entry-point declarations
+      lab2_1_main.cpp      # Three task bodies + lab2_1Setup / lab2_1Loop
+  lib/
+    TaskScheduler/
+      TaskScheduler.h      # Task context struct + scheduler API
+      TaskScheduler.cpp    # Scheduler implementation
+    StdioSerial/           # (reused from Lab 1.1)
+  wokwi/
+    lab2.1/
+      diagram.json         # Wokwi circuit (button + 3 LEDs)
+      wokwi.toml           # Firmware path for lab2_1 environment
+  platformio.ini           # Added [env:lab2_1] environment
+\end{lstlisting}
+
+\subsection{Modular Implementation}
+
+\subsubsection{TaskScheduler Module}
+
+The \texttt{TaskScheduler} library exposes two functions: \texttt{schedulerInit()} and \texttt{schedulerRun()}. Initialisation computes the absolute \texttt{nextRun} time for each task as \texttt{millis() + offset}, so tasks with different offsets start executing at staggered times even if \texttt{setup()} is called with all offsets zero. The run function implements a simple earliest-deadline-first selection over the due task subset: it iterates the entire array once searching for due tasks, picks the one with the smallest \texttt{nextRun} value (highest overdue urgency), calls its function, and advances \texttt{nextRun} by \texttt{period}. A guard prevents cascading catch-up: if the newly computed \texttt{nextRun} is already past, it is re-anchored to \texttt{now + period}.
+
+\subsubsection{Lab 2.1 Main Module}
+
+\texttt{lab2\_1\_main.cpp} contains all application-specific logic in three static task functions, plus the public \texttt{lab2\_1Setup()} and \texttt{lab2\_1Loop()} entry points. All shared state is declared as \texttt{static volatile} at file scope, making it invisible outside the translation unit. The task contexts are declared in a static array \texttt{s\_tasks[]}, whose size is computed with \texttt{sizeof(s\_tasks) / sizeof(s\_tasks[0])} to avoid a hardcoded constant.
+
+Task 1 uses a \texttt{ButtonState\_e} enum and four \texttt{static} variables to maintain the FSM state across calls without dynamic allocation. Task 2 maintains the blink sequencer state with three variables: \texttt{s\_blinkStepsRemaining}, \texttt{s\_blinkLastToggle}, and \texttt{s\_yellowLedOn}. Task 3 captures a snapshot of the mutable global counters into local variables before printing, ensuring the printed values are consistent even though the accumulators are reset immediately after.
