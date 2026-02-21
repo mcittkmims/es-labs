@@ -5,24 +5,34 @@
 \subsection{Build Process}
 
 % TODO: Document the compilation/build process and results.
-%
-% \begin{figure}[H]
-% \centering
-% \includegraphics[width=0.7\textwidth]{resources/ObtainedResults/build_results.png}
-% \caption{Successful compilation output}
-% \label{fig:build_results}
-% \end{figure}
+% Save screenshot to: resources/ObtainedResults/build_results.png
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/build_results.png}{%
+    \includegraphics[width=0.85\textwidth]{resources/ObtainedResults/build_results.png}%
+}{%
+    \fbox{\parbox{0.83\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save to resources/ObtainedResults/build\_results.png]}}%
+}
+\caption{Successful PlatformIO build output}
+\label{fig:build_results}
+\end{figure}
 
 \subsection{Simulation Initialization}
 
 % TODO: Describe the simulation startup behavior.
-%
-% \begin{figure}[H]
-% \centering
-% \includegraphics[width=0.5\textwidth]{resources/ObtainedResults/simulation_start.png}
-% \caption{Initial simulation state}
-% \label{fig:simulation_start}
-% \end{figure}
+% Save screenshot to: resources/ObtainedResults/simulation_start.png
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/simulation_start.png}{%
+    \includegraphics[width=0.75\textwidth]{resources/ObtainedResults/simulation_start.png}%
+}{%
+    \fbox{\parbox{0.73\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save to resources/ObtainedResults/simulation\_start.png]}}%
+}
+\caption{Wokwi simulation startup state}
+\label{fig:simulation_start}
+\end{figure}
 
 \subsection{Command Interface Validation}
 
@@ -33,12 +43,18 @@
 % \subsubsection{Test Scenario Name}
 % Description of the test and expected behavior.
 %
-% \begin{figure}[H]
-% \centering
-% \includegraphics[width=0.5\textwidth]{resources/ObtainedResults/test_screenshot.png}
-% \caption{Test scenario result}
-% \label{fig:test_result}
-% \end{figure}
+% Save screenshot to: resources/ObtainedResults/test_<scenario>.png
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/test_screenshot.png}{%
+    \includegraphics[width=0.75\textwidth]{resources/ObtainedResults/test_screenshot.png}%
+}{%
+    \fbox{\parbox{0.73\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save to resources/ObtainedResults/test\_screenshot.png]}}%
+}
+\caption{Test scenario result}
+\label{fig:test_result}
+\end{figure}
 
 \subsection{System Observations}
 

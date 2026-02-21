@@ -28,13 +28,10 @@ The software is organised into five layers, each with a clearly bounded responsi
     % Layers top to bottom
     \node[layer, fill=blue!15]   (app)  {Application Layer --- \texttt{lab2\_1\_main}};
     \node[layer, fill=green!12, below=of app]  (task) {};
-    \node[sublayer, fill=green!20, minimum width=2.8cm,
-          xshift=-3.2cm, at=(task.center)] (t1) {Task 1};
-    \node[sublayer, fill=green!20, minimum width=2.8cm,
-          at=(task.center)] (t2) {Task 2};
-    \node[sublayer, fill=green!20, minimum width=2.8cm,
-          xshift=3.2cm, at=(task.center)] (t3) {Task 3};
-    \node[font=\small\bfseries, left=0.1cm of task] {};
+    % Place sublayer nodes at fixed positions inside the task layer
+    \node[sublayer, fill=green!20, minimum width=2.8cm] at ($(task.center)+(-3.2cm,0)$) (t1) {Task 1};
+    \node[sublayer, fill=green!20, minimum width=2.8cm] at (task.center)               (t2) {Task 2};
+    \node[sublayer, fill=green!20, minimum width=2.8cm] at ($(task.center)+(3.2cm,0)$) (t3) {Task 3};
 
     \node[layer, fill=yellow!20, below=of task]  (sched) {Scheduler Layer --- \texttt{TaskScheduler}};
     \node[layer, fill=orange!15, below=of sched] (drv)   {Driver Layer --- \texttt{StdioSerial} \quad GPIO API};
@@ -44,10 +41,6 @@ The software is organised into five layers, each with a clearly bounded responsi
     \draw[arrow] (task)  -- (sched);
     \draw[arrow] (sched) -- (drv);
     \draw[arrow] (drv)   -- (hw);
-
-    % Task layer label
-    \node[font=\small\bfseries, left=0.05cm of task, xshift=-4.7cm]
-        {\rotatebox{90}{\small Task Layer}};
 \end{tikzpicture}
 \caption{Layered software architecture of the Lab 2.1 application}
 \label{fig:layered_architecture}
@@ -59,30 +52,28 @@ The system involves a host PC communicating bidirectionally with the microcontro
 
 \begin{figure}[H]
 \centering
-\begin{tikzpicture}[node distance=1.2cm and 1.8cm]
+\begin{tikzpicture}
     \tikzstyle{dev}  = [draw, rectangle, rounded corners, minimum width=3.0cm,
-                        minimum height=0.8cm, text centered, align=center, fill=blue!10, font=\small]
-    \tikzstyle{hw}   = [draw, rectangle, minimum width=2.5cm,
-                        minimum height=0.7cm, text centered, align=center, fill=gray!12, font=\small]
+                        minimum height=0.9cm, text centered, align=center, fill=blue!10, font=\small]
+    \tikzstyle{hw}   = [draw, rectangle, minimum width=3.0cm,
+                        minimum height=0.75cm, text centered, align=center, fill=gray!12, font=\small]
     \tikzstyle{bidirarrow} = [thick, <->, >=Stealth]
     \tikzstyle{outarrow}   = [thick, ->, >=Stealth]
 
-    \node[dev] (pc)   {PC Terminal};
-    \node[dev, right=3.0cm of pc] (mcu) {ATmega2560\\{\scriptsize TaskScheduler}};
-
-    % Input
-    \node[hw, below right=0.5cm and 1.5cm of mcu] (btn)  {Push Button\\{\scriptsize Pin 7, INPUT}};
-    % Outputs
-    \node[hw, above right=0.5cm and 1.5cm of mcu] (gLed) {Green LED\\{\scriptsize Pin 8, OUTPUT}};
-    \node[hw, right=3.2cm of mcu]                 (rLed) {Red LED\\{\scriptsize Pin 9, OUTPUT}};
-    \node[hw, below right=1.6cm and 1.5cm of mcu] (yLed) {Yellow LED\\{\scriptsize Pin 10, OUTPUT}};
+    % Fixed-coordinate layout: PC left, MCU centre, LEDs stacked right, Button below MCU
+    \node[dev] (pc)   at (0,   0)    {PC Terminal};
+    \node[dev] (mcu)  at (5,   0)    {ATmega2560\\{\scriptsize TaskScheduler}};
+    \node[hw]  (btn)  at (5,  -2.2)  {Push Button\\{\scriptsize Pin 7, INPUT\_PULLUP}};
+    \node[hw]  (gLed) at (10,  1.5)  {Green LED\\{\scriptsize Pin 8, OUTPUT}};
+    \node[hw]  (rLed) at (10,  0)    {Red LED\\{\scriptsize Pin 9, OUTPUT}};
+    \node[hw]  (yLed) at (10, -1.5)  {Yellow LED\\{\scriptsize Pin 10, OUTPUT}};
 
     % Connections
     \draw[bidirarrow] (pc)  -- node[above, font=\scriptsize]{USB / UART0} (mcu);
-    \draw[outarrow, dashed] (mcu) -- node[above right, font=\scriptsize]{Read}  (btn);
-    \draw[outarrow] (mcu) -- node[above, font=\scriptsize]{Green}  (gLed);
-    \draw[outarrow] (mcu) -- node[above, font=\scriptsize]{Red}    (rLed);
-    \draw[outarrow] (mcu) -- node[below, font=\scriptsize]{Yellow} (yLed);
+    \draw[outarrow, dashed] (mcu) -- node[right, font=\scriptsize]{Read (active-LOW)} (btn);
+    \draw[outarrow] (mcu.east) -- node[above, font=\scriptsize]{Green}  (gLed.west);
+    \draw[outarrow] (mcu.east) -- node[above, font=\scriptsize]{Red}    (rLed.west);
+    \draw[outarrow] (mcu.east) -- node[below, font=\scriptsize]{Yellow} (yLed.west);
 \end{tikzpicture}
 \caption{System structural diagram showing MCU, peripherals, and serial interface}
 \label{fig:structural_diagram}
@@ -303,14 +294,18 @@ The Wokwi simulation files are located in \texttt{labs/wokwi/lab2.1/}. The \text
 % To activate: run the Wokwi simulation in VS Code, press the button a few
 % times so LEDs are visible, take a screenshot, save it to:
 %   reports/lab2.1/resources/Design/ElectricalSchematics/wokwi_circuit.png
-% Then uncomment the figure below.
 % ──────────────────────────────────────────────────────────────────────────
-%\begin{figure}[H]
-%\centering
-%\includegraphics[width=0.85\textwidth]{resources/Design/ElectricalSchematics/wokwi_circuit.png}
-%\caption{Wokwi simulation --- Lab 2.1 circuit with button and three LEDs (active run)}
-%\label{fig:wokwi_circuit}
-%\end{figure}
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/Design/ElectricalSchematics/wokwi_circuit.png}{%
+    \includegraphics[width=0.85\textwidth]{resources/Design/ElectricalSchematics/wokwi_circuit.png}%
+}{%
+    \fbox{\parbox{0.83\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save to resources/Design/ElectricalSchematics/wokwi\_circuit.png]}}%
+}
+\caption{Wokwi simulation --- Lab 2.1 circuit with button and three LEDs (active run)}
+\label{fig:wokwi_circuit}
+\end{figure}
 
 \subsection{Project Structure}
 

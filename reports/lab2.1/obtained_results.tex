@@ -4,14 +4,18 @@
 
 The project was compiled using PlatformIO with the \texttt{lab2\_1} environment targeting the Arduino Mega 2560 (ATmega2560). The build completed successfully with no errors or warnings, using only 2.7\,\% of the available Flash memory (6\,768 bytes out of 253\,952 bytes) and 9.8\,\% of SRAM (800 bytes out of 8\,192 bytes).
 
-% ── Uncomment after capturing the PlatformIO build terminal screenshot ──────
 % Save screenshot to: resources/ObtainedResults/build_results.png
-%\begin{figure}[H]
-%\centering
-%\includegraphics[width=0.85\textwidth]{resources/ObtainedResults/build_results.png}
-%\caption{Successful PlatformIO build output for Lab 2.1 (\texttt{lab2\_1} environment)}
-%\label{fig:build_results}
-%\end{figure}
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/build_results.png}{%
+    \includegraphics[width=0.85\textwidth]{resources/ObtainedResults/build_results.png}%
+}{%
+    \fbox{\parbox{0.83\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save to resources/ObtainedResults/build\_results.png]}}%
+}
+\caption{Successful PlatformIO build output for Lab 2.1 (\texttt{lab2\_1} environment)}
+\label{fig:build_results}
+\end{figure}
 
 The expected build summary is:
 
@@ -41,14 +45,18 @@ Report interval: 10 seconds
 ========================================
 \end{lstlisting}
 
-% ── Uncomment after taking Wokwi simulation screenshot ───────────────────
 % Save screenshot to: resources/ObtainedResults/simulation_start.png
-%\begin{figure}[H]
-%\centering
-%\includegraphics[width=0.75\textwidth]{resources/ObtainedResults/simulation_start.png}
-%\caption{Wokwi simulation start --- startup banner in serial terminal, all LEDs off}
-%\label{fig:simulation_start}
-%\end{figure}
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/simulation_start.png}{%
+    \includegraphics[width=0.75\textwidth]{resources/ObtainedResults/simulation_start.png}%
+}{%
+    \fbox{\parbox{0.73\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save to resources/ObtainedResults/simulation\_start.png]}}%
+}
+\caption{Wokwi simulation start --- startup banner in serial terminal, all LEDs off}
+\label{fig:simulation_start}
+\end{figure}
 
 \subsection{Button Press Detection}
 
@@ -56,27 +64,35 @@ Report interval: 10 seconds
 
 Pressing the button briefly (less than 500\,ms) causes Task 1 to light the green LED for 1\,500\,ms and set the \texttt{g\_newPress} flag. Task 2 picks up the event on its next 50\,ms tick and drives a 5-blink yellow LED sequence (10 half-cycles at 100\,ms each = 1\,000\,ms total). The green LED and yellow blink are simultaneously visible in the simulation.
 
-% ── Uncomment after capturing the short-press simulation screenshot ──────
 % Save screenshot to: resources/ObtainedResults/test_short_press.png
-%\begin{figure}[H]
-%\centering
-%\includegraphics[width=0.75\textwidth]{resources/ObtainedResults/test_short_press.png}
-%\caption{Short press result --- green LED lit, yellow LED blinking (5 blinks)}
-%\label{fig:test_short_press}
-%\end{figure}
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/test_short_press.png}{%
+    \includegraphics[width=0.75\textwidth]{resources/ObtainedResults/test_short_press.png}%
+}{%
+    \fbox{\parbox{0.73\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save to resources/ObtainedResults/test\_short\_press.png]}}%
+}
+\caption{Short press result --- green LED lit, yellow LED blinking (5 blinks)}
+\label{fig:test_short_press}
+\end{figure}
 
 \subsubsection{Long Press Test ($\geq$\,500\,ms)}
 
 Holding the button for more than 500\,ms causes Task 1 to light the red LED and signal a long press. Task 2 starts a 10-blink yellow LED sequence (20 half-cycles = 2\,000\,ms). The red LED and the longer blink sequence are visible simultaneously.
 
-% ── Uncomment after capturing the long-press simulation screenshot ───────
 % Save screenshot to: resources/ObtainedResults/test_long_press.png
-%\begin{figure}[H]
-%\centering
-%\includegraphics[width=0.75\textwidth]{resources/ObtainedResults/test_long_press.png}
-%\caption{Long press result --- red LED lit, yellow LED blinking (10 blinks)}
-%\label{fig:test_long_press}
-%\end{figure}
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/test_long_press.png}{%
+    \includegraphics[width=0.75\textwidth]{resources/ObtainedResults/test_long_press.png}%
+}{%
+    \fbox{\parbox{0.73\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save to resources/ObtainedResults/test\_long\_press.png]}}%
+}
+\caption{Long press result --- red LED lit, yellow LED blinking (10 blinks)}
+\label{fig:test_long_press}
+\end{figure}
 
 \subsection{Periodic STDIO Report}
 
@@ -93,11 +109,15 @@ Average duration : 712 ms
 
 After printing, all counters are reset to zero. A window with no button activity prints all zeroes for counts and average duration.
 
-% ── Uncomment after capturing the serial report screenshot ───────────────
 % Save screenshot to: resources/ObtainedResults/test_report.png
-%\begin{figure}[H]
-%\centering
-%\includegraphics[width=0.75\textwidth]{resources/ObtainedResults/test_report.png}
-%\caption{Periodic STDIO report from Task 3 after a sequence of button presses}
-%\label{fig:test_report}
-%\end{figure}
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/test_report.png}{%
+    \includegraphics[width=0.75\textwidth]{resources/ObtainedResults/test_report.png}%
+}{%
+    \fbox{\parbox{0.73\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save to resources/ObtainedResults/test\_report.png]}}%
+}
+\caption{Periodic STDIO report from Task 3 after a sequence of button presses}
+\label{fig:test_report}
+\end{figure}

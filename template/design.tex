@@ -159,14 +159,18 @@
 % - Take a screenshot showing the full circuit with all components visible and the
 %   simulation running (LEDs/LCD active, not just the static diagram).
 % - Save as: resources/Design/ElectricalSchematics/wokwi_circuit.png
-% Then uncomment the figure block below:
-%
-% \begin{figure}[H]
-% \centering
-% \includegraphics[width=0.75\textwidth, height=0.5\textheight, keepaspectratio]{resources/Design/ElectricalSchematics/wokwi_circuit.png}
-% \caption{Wokwi simulation circuit}
-% \label{fig:wokwi_circuit}
-% \end{figure}
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/Design/ElectricalSchematics/wokwi_circuit.png}{%
+    \includegraphics[width=0.85\textwidth]{resources/Design/ElectricalSchematics/wokwi_circuit.png}%
+}{%
+    \fbox{\parbox{0.83\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- run the Wokwi simulation and save to\\
+        resources/Design/ElectricalSchematics/wokwi\_circuit.png]}}%
+}
+\caption{Wokwi simulation circuit (active run)}
+\label{fig:wokwi_circuit}
+\end{figure}
 
 \subsection{Project structure}
 
