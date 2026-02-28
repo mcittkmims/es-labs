@@ -130,7 +130,11 @@ void vTaskMeasure(void *pvParameters) {
             redLedOffAt = 0;
         }
 
-        // ── Yield CPU until next 10 ms tick ────────────────────────────
-        vTaskDelay(pdMS_TO_TICKS(TASK_MEASURE_PERIOD_MS));
+        // ── Yield CPU until next tick (~16 ms with WDT at 62 Hz) ──────
+        // pdMS_TO_TICKS(10) evaluates to 0 because the WDT tick period
+        // is ~16 ms.  A delay of 0 ticks never yields to lower-priority
+        // tasks, so we always delay at least 1 tick.
+        const TickType_t xDelay = pdMS_TO_TICKS(TASK_MEASURE_PERIOD_MS);
+        vTaskDelay(xDelay > 0 ? xDelay : 1);
     }
 }

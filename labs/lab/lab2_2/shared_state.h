@@ -70,7 +70,7 @@ static const configSTACK_DEPTH_TYPE TASK_STATS_STACK = 200;
 /** Task 3 — Periodic report: 10 s period, lowest priority. */
 static const uint32_t TASK_REPORT_PERIOD_MS = 10000;
 static const UBaseType_t TASK_REPORT_PRIORITY = 1;
-static const configSTACK_DEPTH_TYPE TASK_REPORT_STACK = 300;
+static const configSTACK_DEPTH_TYPE TASK_REPORT_STACK = 400;
 
 // ──────────────────────────────────────────────────────────────────────────
 // Shared Data Structures
