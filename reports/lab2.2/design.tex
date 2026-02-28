@@ -1,0 +1,398 @@
+\section{Design}
+
+% ─── TikZ style definitions for this section ──────────────────────────────
+\tikzstyle{startstop} = [rectangle, rounded corners, minimum width=2.8cm,
+    minimum height=0.7cm, text centered, align=center, draw=black, fill=gray!15]
+\tikzstyle{process}   = [rectangle, minimum width=2.8cm,
+    minimum height=0.7cm, text centered, align=center, draw=black, fill=blue!8]
+\tikzstyle{decision}  = [diamond, aspect=2.8, minimum width=2.5cm,
+    minimum height=0.7cm, text centered, align=center, draw=black, fill=orange!15]
+\tikzstyle{io}        = [trapezium, trapezium left angle=70, trapezium right angle=110,
+    minimum width=2.8cm, minimum height=0.7cm, text centered, align=center, draw=black, fill=teal!10]
+\tikzstyle{arrow}     = [thick,->,>=Stealth]
+
+\subsection{System Architecture Diagrams}
+
+\subsubsection{Layered Software Architecture}
+
+The software is organised into five layers, structurally similar to Lab~2.1 but with the Scheduler Layer replaced by FreeRTOS. The Application Layer contains the lab entry point \texttt{lab2\_2\_main}, which initialises hardware, creates synchronization primitives, and spawns FreeRTOS tasks. The Task Layer holds three preemptive task functions, each running in its own stack context. The RTOS Layer is the FreeRTOS kernel, which manages task scheduling, context switching, semaphores, and mutexes. The Driver Layer consists of \texttt{StdioSerial} (UART STDIO redirection) and the Arduino GPIO API. At the bottom, the Hardware Layer comprises the ATmega2560 MCU, the push button, and the three indicator LEDs.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=0.45cm]
+    \tikzstyle{layer} = [draw, rectangle, minimum width=10cm, minimum height=0.8cm,
+                         text centered, font=\small]
+    \tikzstyle{sublayer} = [draw, rectangle, minimum width=2.8cm, minimum height=0.8cm,
+                            text centered, font=\small\itshape]
+
+    % Layers top to bottom
+    \node[layer, fill=blue!15]   (app)  {Application Layer --- \texttt{lab2\_2\_main}};
+    \node[layer, fill=green!12, below=of app]  (task) {};
+    % Sub-layers inside Task layer
+    \node[sublayer, fill=green!20, minimum width=2.8cm] at ($(task.center)+(-3.2cm,0)$) (t1) {Task 1 (P3)};
+    \node[sublayer, fill=green!20, minimum width=2.8cm] at (task.center)               (t2) {Task 2 (P2)};
+    \node[sublayer, fill=green!20, minimum width=2.8cm] at ($(task.center)+(3.2cm,0)$) (t3) {Task 3 (P1)};
+
+    \node[layer, fill=yellow!20, below=of task]  (rtos) {RTOS Layer --- FreeRTOS Kernel (Scheduler, Semaphore, Mutex)};
+    \node[layer, fill=orange!15, below=of rtos]  (drv)  {Driver Layer --- \texttt{StdioSerial} \quad GPIO API};
+    \node[layer, fill=red!10,    below=of drv]   (hw)   {Hardware Layer --- ATmega2560 \quad Button (Pin 7) \quad LEDs (Pins 8--10)};
+
+    \draw[arrow] (app)  -- (task);
+    \draw[arrow] (task) -- (rtos);
+    \draw[arrow] (rtos) -- (drv);
+    \draw[arrow] (drv)  -- (hw);
+\end{tikzpicture}
+\caption{Layered software architecture of the Lab 2.2 FreeRTOS application}
+\label{fig:layered_architecture}
+\end{figure}
+
+\subsubsection{System Structural Diagram}
+
+The physical system is identical to Lab~2.1: a host PC communicates with the ATmega2560 over USB/UART0, a push button provides input on Pin~7, and three LEDs provide visual output on Pins 8--10. The internal software structure, however, now includes FreeRTOS synchronization primitives: a binary semaphore for event flow between Task~1 and Task~2, and a mutex protecting the shared data structures.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+    \tikzstyle{dev}  = [draw, rectangle, rounded corners, minimum width=3.0cm,
+                        minimum height=0.9cm, text centered, align=center, fill=blue!10, font=\small]
+    \tikzstyle{hw}   = [draw, rectangle, minimum width=3.0cm,
+                        minimum height=0.75cm, text centered, align=center, fill=gray!12, font=\small]
+    \tikzstyle{sync} = [draw, rectangle, dashed, rounded corners, minimum width=2.6cm,
+                        minimum height=0.75cm, text centered, align=center, fill=purple!10, font=\small]
+    \tikzstyle{bidirarrow} = [thick, <->, >=Stealth]
+    \tikzstyle{outarrow}   = [thick, ->, >=Stealth]
+
+    % Nodes at fixed positions
+    \node[dev] (pc)   at (0,   0)    {PC Terminal};
+    \node[dev] (mcu)  at (5.5, 0)    {ATmega2560\\{\scriptsize FreeRTOS Kernel}};
+    \node[hw]  (btn)  at (5.5,-2.5)  {Push Button\\{\scriptsize Pin 7, INPUT\_PULLUP}};
+    \node[hw]  (gLed) at (11,  1.5)  {Green LED\\{\scriptsize Pin 8}};
+    \node[hw]  (rLed) at (11,  0)    {Red LED\\{\scriptsize Pin 9}};
+    \node[hw]  (yLed) at (11, -1.5)  {Yellow LED\\{\scriptsize Pin 10}};
+    \node[sync](sem)  at (2.5,-2.5)  {Binary Semaphore\\{\scriptsize Task 1 $\to$ Task 2}};
+    \node[sync](mtx)  at (2.5,-4.0)  {Mutex\\{\scriptsize Shared Data}};
+
+    % Connections
+    \draw[bidirarrow] (pc)   -- node[above, font=\scriptsize]{USB / UART0} (mcu);
+    \draw[outarrow, dashed] (mcu)  -- node[right, font=\scriptsize]{Read} (btn);
+    \draw[outarrow] (mcu.east) -- node[above, font=\scriptsize]{Green}  (gLed.west);
+    \draw[outarrow] (mcu.east) -- node[above, font=\scriptsize]{Red}    (rLed.west);
+    \draw[outarrow] (mcu.east) -- node[below, font=\scriptsize]{Yellow} (yLed.west);
+    \draw[outarrow, dashed, purple] (mcu.south west) -- (sem.east);
+    \draw[outarrow, dashed, purple] (mcu.south west) -- (mtx.east);
+\end{tikzpicture}
+\caption{System structural diagram with FreeRTOS synchronization primitives}
+\label{fig:structural_diagram}
+\end{figure}
+
+\subsubsection{Inter-Task Communication Diagram}
+
+The data flow between the three tasks is mediated by two FreeRTOS primitives. Task~1 writes press event data (\texttt{g\_pressInfo}) under mutex protection and then gives the binary semaphore to wake Task~2. Task~2 takes the semaphore, reads the press info and updates the cumulative statistics (\texttt{g\_stats}) under the same mutex. Task~3 periodically reads and resets \texttt{g\_stats} under mutex protection. This architecture ensures that no data structure is ever accessed concurrently by two tasks.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+    \tikzstyle{taskbox} = [draw, rectangle, rounded corners, minimum width=3.0cm,
+                           minimum height=1.0cm, text centered, align=center, fill=green!15, font=\small]
+    \tikzstyle{databox} = [draw, rectangle, minimum width=2.5cm,
+                           minimum height=0.7cm, text centered, align=center, fill=yellow!15, font=\small]
+    \tikzstyle{syncbox} = [draw, ellipse, minimum width=2.0cm,
+                           minimum height=0.6cm, text centered, align=center, fill=purple!15, font=\small]
+
+    % Tasks
+    \node[taskbox] (t1) at (0, 0)    {Task 1\\Measure\\(Prio 3)};
+    \node[taskbox] (t2) at (5.5, 0)  {Task 2\\Stats + Blink\\(Prio 2)};
+    \node[taskbox] (t3) at (11, 0)   {Task 3\\Report\\(Prio 1)};
+
+    % Shared data
+    \node[databox] (pi) at (2.75, -2.0) {\texttt{g\_pressInfo}};
+    \node[databox] (st) at (8.25, -2.0) {\texttt{g\_stats}};
+
+    % Sync primitives
+    \node[syncbox] (sem) at (2.75, 1.5)  {Semaphore};
+    \node[syncbox] (mtx) at (5.5, -3.5)  {Mutex};
+
+    % Arrows
+    \draw[arrow] (t1) -- node[above, font=\scriptsize]{give} (sem);
+    \draw[arrow] (sem) -- node[above, font=\scriptsize]{take} (t2);
+    \draw[arrow] (t1.south) -- node[left, font=\scriptsize]{write} (pi.north west);
+    \draw[arrow] (pi.north east) -- node[right, font=\scriptsize]{read} (t2.south);
+    \draw[arrow] (t2.south) -- node[left, font=\scriptsize]{update} (st.north west);
+    \draw[arrow] (st.north east) -- node[right, font=\scriptsize]{read+reset} (t3.south);
+    \draw[arrow, dashed, purple] (mtx.west) -| node[below left, font=\scriptsize]{protects} (pi.south);
+    \draw[arrow, dashed, purple] (mtx.east) -| node[below right, font=\scriptsize]{protects} (st.south);
+\end{tikzpicture}
+\caption{Inter-task communication: semaphore for event signaling, mutex for data protection}
+\label{fig:inter_task_comm}
+\end{figure}
+
+\subsection{Behaviour Diagrams}
+
+\subsubsection{Button FSM --- State Transition Diagram}
+
+The button debounce FSM is identical to Lab~2.1. Task~1 uses a four-state machine to reliably detect button presses and measure their duration. The debounce confirmation window is 50\,ms on both press and release edges. The only difference from Lab~2.1 is that when the FSM completes a press cycle, it writes to \texttt{g\_pressInfo} under mutex and gives the binary semaphore, instead of setting a volatile boolean flag.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[>=Stealth, auto, node distance=3.0cm,
+        every state/.style={draw, circle, minimum size=1.3cm, font=\small, align=center}]
+    \node[state, initial]  (idle)  {IDLE};
+    \node[state]           (down)  [right of=idle]  {DBN\\DOWN};
+    \node[state]           (press) [right of=down]  {PRESSED};
+    \node[state]           (up)    [right of=press] {DBN\\UP};
+
+    \path[->]
+        (idle)  edge              node[above]{\scriptsize btnLow}           (down)
+        (down)  edge[bend left]   node[below]{\scriptsize !btnLow (glitch)} (idle)
+        (down)  edge              node[above]{\scriptsize 50\,ms \& down}   (press)
+        (press) edge              node[above]{\scriptsize !btnLow}          (up)
+        (up)    edge[bend left]   node[above]{\scriptsize btnLow (bounce)}  (press)
+        (up)    edge[bend right=45] node[below]{\scriptsize 50\,ms \& up $\Rightarrow$ signal}   (idle);
+\end{tikzpicture}
+\caption{Button debounce finite state machine with 50\,ms confirmation windows}
+\label{fig:button_fsm}
+\end{figure}
+
+\subsubsection{Task 1 --- Button Detection and LED Signaling Flowchart}
+
+Task~1 runs every 10\,ms using \texttt{vTaskDelay()}. On each iteration it reads the button pin, advances the debounce FSM (see \citeimg{fig:button_fsm}), and checks the two LED auto-off timers. When the FSM completes a press cycle, the task acquires the mutex, writes the press duration and type to \texttt{g\_pressInfo}, releases the mutex, and then gives the binary semaphore to wake Task~2.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+    \node (start) [startstop] at (0,   0.0)  {Task 1 Start};
+    \node (read)  [io]        at (0,  -2.0)  {now = millis()\\btnLow = digitalRead(7)};
+    \node (fsm)   [process]   at (0,  -4.0)  {Advance Button FSM\\(see Fig.~\ref{fig:button_fsm})};
+    \node (dec1)  [decision]  at (0,  -6.3)  {Press completed?};
+    \node (mtx1)  [process]   at (6.0,-6.3)  {Mutex: write g\_pressInfo\\Give semaphore\\Light GREEN or RED LED};
+    \node (dec2)  [decision]  at (0,  -8.8)  {Green timer\\expired?};
+    \node (goff)  [process]   at (6.0,-8.8)  {GREEN LED off};
+    \node (dec3)  [decision]  at (0, -11.3)  {Red timer\\expired?};
+    \node (roff)  [process]   at (6.0,-11.3) {RED LED off};
+    \node (delay) [process]   at (0, -13.3)  {vTaskDelay(10\,ms)};
+    \node (stop)  [startstop] at (0, -15.0)  {Loop back};
+
+    \draw [arrow] (start) -- (read);
+    \draw [arrow] (read)  -- (fsm);
+    \draw [arrow] (fsm)   -- (dec1);
+    \draw [arrow] (dec1)  -- node[above]{\scriptsize Yes} (mtx1);
+    \draw [arrow] (mtx1.west) -- (2.5, -6.3) -- (2.5, -8.8) -- (dec2);
+    \draw [arrow] (dec1)  -- node[anchor=east]{\scriptsize No}  (dec2);
+    \draw [arrow] (dec2)  -- node[above]{\scriptsize Yes} (goff);
+    \draw [arrow] (goff.west) -- (3.0, -8.8) -- (3.0, -11.3) -- (dec3);
+    \draw [arrow] (dec2)  -- node[anchor=east]{\scriptsize No}  (dec3);
+    \draw [arrow] (dec3)  -- node[above]{\scriptsize Yes} (roff);
+    \draw [arrow] (roff.west) -- (2.5, -11.3) -- (2.5, -13.3) -- (delay);
+    \draw [arrow] (dec3)  -- node[anchor=east]{\scriptsize No}  (delay);
+    \draw [arrow] (delay) -- (stop);
+    \draw [arrow] (stop.west) -- ++(-2.5,0) |- (start.west);
+\end{tikzpicture}
+\caption{Task 1 flowchart --- button FSM, mutex-protected write, semaphore give}
+\label{fig:task1_flowchart}
+\end{figure}
+
+\subsubsection{Task 2 --- Statistics and Yellow LED Blink Flowchart}
+
+Task~2 is event-driven: it blocks on \texttt{xSemaphoreTake()} until Task~1 signals a new press. Upon waking, it acquires the mutex, reads the press info and updates the cumulative statistics, then releases the mutex. It then performs the yellow LED blink sequence as a simple blocking loop with \texttt{vTaskDelay()} --- a dramatic simplification over the bare-metal state-machine approach used in Lab~2.1, demonstrating how preemptive scheduling enables cleaner sequential code.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+    \node (start)  [startstop] at (0,   0.0)  {Task 2 Start};
+    \node (wait)   [process]   at (0,  -1.8)  {xSemaphoreTake()\\(blocks until signal)};
+    \node (mtx)    [process]   at (0,  -3.8)  {Mutex: read pressInfo\\update g\_stats\\(totalPresses++, etc.)};
+    \node (dec1)   [decision]  at (0,  -6.3)  {Short press?};
+    \node (blink5) [process]   at (-4, -8.3)  {blinkCount = 5};
+    \node (blink10)[process]   at (4,  -8.3)  {blinkCount = 10};
+    \node (loop)   [process]   at (0, -10.3)  {for i = 0..blinkCount:\\LED ON, vTaskDelay(100ms)\\LED OFF, vTaskDelay(100ms)};
+    \node (stop)   [startstop] at (0, -12.5)  {Loop back};
+
+    \draw [arrow] (start) -- (wait);
+    \draw [arrow] (wait)  -- (mtx);
+    \draw [arrow] (mtx)   -- (dec1);
+    \draw [arrow] (dec1.west)  -- node[above]{\scriptsize Yes} (blink5.east);
+    \draw [arrow] (dec1.east)  -- node[above]{\scriptsize No} (blink10.west);
+    \draw [arrow] (blink5.south) |- (loop.west);
+    \draw [arrow] (blink10.south) |- (loop.east);
+    \draw [arrow] (loop)  -- (stop);
+    \draw [arrow] (stop.west) -- ++(-2.5,0) |- (start.west);
+\end{tikzpicture}
+\caption{Task 2 flowchart --- semaphore wait, mutex-protected stats update, blocking blink}
+\label{fig:task2_flowchart}
+\end{figure}
+
+\subsubsection{Task 3 --- Periodic STDIO Report Flowchart}
+
+Task~3 uses \texttt{vTaskDelayUntil()} for drift-free 10-second periodicity. On each cycle, it acquires the mutex, copies the statistics to a local snapshot, resets the accumulators, releases the mutex, and prints the formatted report. By taking the snapshot under the mutex and printing outside it, the critical section is minimised.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+    \node (start) [startstop] at (0,  0.0)  {Task 3 Start};
+    \node (delay) [process]   at (0, -1.8)  {vTaskDelayUntil(10\,s)};
+    \node (mtx)   [process]   at (0, -3.6)  {Mutex: snapshot = g\_stats\\reset g\_stats to zero};
+    \node (avg)   [process]   at (0, -5.4)  {avgMs = totalMs / total};
+    \node (print) [io]        at (0, -7.4)  {printf() formatted\\10s report to STDIO};
+    \node (stop)  [startstop] at (0, -9.4)  {Loop back};
+
+    \draw [arrow] (start) -- (delay);
+    \draw [arrow] (delay) -- (mtx);
+    \draw [arrow] (mtx)   -- (avg);
+    \draw [arrow] (avg)   -- (print);
+    \draw [arrow] (print) -- (stop);
+    \draw [arrow] (stop.west) -- ++(-2.5,0) |- (start.west);
+\end{tikzpicture}
+\caption{Task 3 flowchart --- drift-free periodic report with mutex-protected snapshot}
+\label{fig:task3_flowchart}
+\end{figure}
+
+\subsection{Bare-Metal vs FreeRTOS Comparison}
+
+The following table summarises the key architectural differences between the Lab~2.1 bare-metal and Lab~2.2 FreeRTOS implementations:
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{|l|l|l|}
+\hline
+\textbf{Aspect} & \textbf{Lab 2.1 (Bare-Metal)} & \textbf{Lab 2.2 (FreeRTOS)} \\
+\hline
+Scheduling & Cooperative, poll-based & Preemptive, tick-based \\
+\hline
+Task isolation & Shared stack (single context) & Private stack per task (TCB) \\
+\hline
+Event signaling & Volatile boolean flag & Binary semaphore \\
+\hline
+Data protection & Implicit (no preemption) & Mutex with priority inheritance \\
+\hline
+Periodic timing & nextRun += period & vTaskDelayUntil() \\
+\hline
+Blink sequence & Non-blocking state machine & Blocking loop with vTaskDelay() \\
+\hline
+RAM usage & 800 bytes (9.8\,\%) & 944 bytes (11.5\,\%) \\
+\hline
+Flash usage & 6\,768 bytes (2.7\,\%) & 14\,790 bytes (5.8\,\%) \\
+\hline
+\end{tabular}
+\caption{Architectural comparison between Lab 2.1 (bare-metal) and Lab 2.2 (FreeRTOS)}
+\label{tab:comparison}
+\end{table}
+
+\subsection{Electrical Schematics}
+
+The circuit is identical to Lab~2.1: one active-LOW button on pin~7 (internal pull-up, no external resistor), and three LED circuits on pins 8, 9, and 10, each with a 220\,$\Omega$ series resistor.
+
+\begin{figure}[H]
+\centering
+\begin{circuitikz}[scale=0.85, transform shape]
+    % MCU block
+    \draw (0,0) rectangle (3,8);
+    \node[align=center] at (1.5,4) {ATmega2560\\(Arduino\\Mega 2560)};
+
+    % Label pins on the right side of MCU
+    \node[anchor=west, font=\small] at (3, 7.0) {Pin 7};
+    \node[anchor=west, font=\small] at (3, 5.2) {Pin 8};
+    \node[anchor=west, font=\small] at (3, 3.4) {Pin 9};
+    \node[anchor=west, font=\small] at (3, 1.6) {Pin 10};
+    \node[anchor=west, font=\small] at (3, 0.4) {GND};
+
+    % Button circuit: Pin 7 -> button -> GND (active-LOW with internal pull-up)
+    \draw (3, 7.0) -- (5.5, 7.0)
+        to[push button, label=$BTN$] (5.5, 5.7)
+        node[ground]{};
+
+    % Green LED: Pin 8 -> 220 Ohm -> LED green -> GND
+    \draw (3, 5.2) -- (5.0, 5.2)
+        to[R, l=$220\,\si{\ohm}$] (7.5, 5.2)
+        to[leD*, color=green, l=\scriptsize GREEN] (9.5, 5.2)
+        node[ground]{};
+
+    % Red LED: Pin 9 -> 220 Ohm -> LED red -> GND
+    \draw (3, 3.4) -- (5.0, 3.4)
+        to[R, l=$220\,\si{\ohm}$] (7.5, 3.4)
+        to[leD*, color=red, l=\scriptsize RED] (9.5, 3.4)
+        node[ground]{};
+
+    % Yellow LED: Pin 10 -> 220 Ohm -> LED yellow -> GND
+    \draw (3, 1.6) -- (5.0, 1.6)
+        to[R, l=$220\,\si{\ohm}$] (7.5, 1.6)
+        to[leD*, color=orange, l=\scriptsize YELLOW] (9.5, 1.6)
+        node[ground]{};
+
+    % GND line from MCU
+    \draw (3, 0.4) -- (4.5, 0.4) node[ground]{};
+\end{circuitikz}
+\caption{Electrical schematic --- button (active-LOW) and three LED indicator circuits}
+\label{fig:circuit_schematic}
+\end{figure}
+
+\subsection{Hardware Configuration --- Wokwi Simulation}
+
+The Wokwi simulation files are located in \texttt{labs/wokwi/lab2.2/}. The \texttt{diagram.json} is identical to Lab~2.1 (same circuit), and the \texttt{wokwi.toml} points to the \texttt{lab2\_2} firmware binary. Since FreeRTOS is a software-only change, the same physical circuit supports both implementations.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/Design/ElectricalSchematics/wokwi_circuit.png}{%
+    \includegraphics[width=0.85\textwidth]{resources/Design/ElectricalSchematics/wokwi_circuit.png}%
+}{%
+    \fbox{\parbox{0.83\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save to resources/Design/ElectricalSchematics/wokwi\_circuit.png]}}%
+}
+\caption{Wokwi simulation --- Lab 2.2 circuit with button and three LEDs (active run)}
+\label{fig:wokwi_circuit}
+\end{figure}
+
+\subsection{Project Structure}
+
+The Lab~2.2 code is organised into a modular folder structure within \texttt{labs/lab/lab2\_2/}, with each task and the shared state extracted into dedicated source files. This modular decomposition directly mirrors the architectural diagram, making the codebase navigable and testable.
+
+\begin{lstlisting}[language={}, caption=Repository layout for Lab 2.2, label=lst:project_structure]
+labs/
+  src/
+    main.cpp                  # Lab selector (adds LAB2_2 branch)
+  lab/
+    lab2_2/
+      lab2_2_main.h           # Lab 2.2 entry-point declarations
+      lab2_2_main.cpp         # Setup: init HW, create tasks/sync
+      shared_state.h          # Shared data types, extern sync handles
+      shared_state.cpp        # Definitions + sync primitive creation
+      task_measure.h          # Task 1 declaration
+      task_measure.cpp        # Task 1: button FSM + LED signaling
+      task_stats.h            # Task 2 declaration
+      task_stats.cpp          # Task 2: stats update + blink sequence
+      task_report.h           # Task 3 declaration
+      task_report.cpp         # Task 3: periodic STDIO report
+  lib/
+    StdioSerial/              # (reused from Lab 1.1)
+  wokwi/
+    lab2.2/
+      diagram.json            # Wokwi circuit (same as Lab 2.1)
+      wokwi.toml              # Firmware path for lab2_2 environment
+  platformio.ini              # Added [env:lab2_2] with FreeRTOS dep
+\end{lstlisting}
+
+\subsection{Modular Implementation}
+
+\subsubsection{Shared State Module (\texttt{shared\_state})}
+
+The \texttt{shared\_state} module declares two data structures: \texttt{PressInfo\_t} (press duration and type, passed from Task~1 to Task~2) and \texttt{Stats\_t} (cumulative counters, updated by Task~2 and read/reset by Task~3). It also declares the two FreeRTOS synchronization handles: \texttt{xNewPressSemaphore} (binary semaphore) and \texttt{xSharedDataMutex} (mutex). The \texttt{sharedStateInit()} function creates both primitives and must be called before any tasks are spawned.
+
+The \texttt{shared\_state.h} header also centralises all hardware pin definitions and application constants (thresholds, periods, stack sizes, priorities), ensuring a single source of truth across all modules. This eliminates the risk of pin mapping inconsistencies that could arise if each module defined its own constants.
+
+\subsubsection{Task 1 --- Measure Module (\texttt{task\_measure})}
+
+The \texttt{task\_measure} module implements the \texttt{vTaskMeasure()} function, which is registered as a FreeRTOS task with priority~3 (highest) and a private stack of 200 bytes. The task function is an infinite loop containing the same four-state button debounce FSM and LED auto-off timer logic as Lab~2.1. The only change is the inter-task communication: instead of setting a volatile \texttt{g\_newPress} flag, the task acquires the mutex, writes to \texttt{g\_pressInfo}, releases the mutex, and gives the binary semaphore. All task-local state (FSM state, debounce timestamps, LED timers) is declared as local variables within the task function, taking advantage of the private stack provided by FreeRTOS.
+
+\subsubsection{Task 2 --- Stats Module (\texttt{task\_stats})}
+
+The \texttt{task\_stats} module implements the \texttt{vTaskStats()} function at priority~2. The task blocks on \texttt{xSemaphoreTake(xNewPressSemaphore, portMAX\_DELAY)} with zero CPU usage until Task~1 signals a new press. Upon waking, it acquires the mutex, copies the press info locally and updates the cumulative statistics, then releases the mutex.
+
+The yellow LED blink sequence is implemented as a simple \texttt{for} loop with \texttt{vTaskDelay()} calls for the on and off phases. This is a key advantage of preemptive scheduling: in the bare-metal Lab~2.1, the blink sequence required a non-blocking state machine with step counters, last-toggle timestamps, and toggle-state tracking. In FreeRTOS, the same behaviour is expressed in five lines of blocking code, because \texttt{vTaskDelay()} yields the CPU to other tasks without affecting them.
+
+\subsubsection{Task 3 --- Report Module (\texttt{task\_report})}
+
+The \texttt{task\_report} module implements the \texttt{vTaskReport()} function at priority~1 (lowest). It uses \texttt{vTaskDelayUntil()} to maintain a strict 10-second period, preventing the cumulative drift that \texttt{vTaskDelay()} would introduce if the printf() execution time varied. On each cycle, it acquires the mutex, copies the statistics to a local snapshot, resets the accumulators, releases the mutex, computes the average duration, and prints the formatted report. The critical section is kept minimal: only the copy and reset happen under the mutex, while the relatively slow \texttt{printf()} runs outside it.
+
+\subsubsection{Lab Entry Point (\texttt{lab2\_2\_main})}
+
+The \texttt{lab2\_2\_main} module provides the \texttt{lab2\_2Setup()} and \texttt{lab2\_2Loop()} functions called by the central \texttt{main.cpp} lab selector. Setup configures GPIO pins, initialises the STDIO serial at 9600 baud, prints a startup banner, creates the synchronization primitives via \texttt{sharedStateInit()}, and spawns the three FreeRTOS tasks with \texttt{xTaskCreate()}. After \texttt{setup()} returns, the FreeRTOS scheduler starts automatically and preemptive multitasking begins. The \texttt{lab2\_2Loop()} function merely calls \texttt{vTaskDelay(1000ms)} to yield the CPU, since all application logic runs inside the FreeRTOS tasks.

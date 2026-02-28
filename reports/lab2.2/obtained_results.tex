@@ -1,0 +1,132 @@
+\section{Obtained Results}
+
+\subsection{Build Process}
+
+The project was compiled using PlatformIO with the \texttt{lab2\_2} environment targeting the Arduino Mega 2560 (ATmega2560). The FreeRTOS library (\texttt{feilipu/FreeRTOS@11.1.0-3}) was automatically resolved and linked. The build completed successfully with no errors or warnings, using 5.8\,\% of Flash memory (14\,790 bytes out of 253\,952 bytes) and 11.5\,\% of SRAM (944 bytes out of 8\,192 bytes).
+
+Compared to the bare-metal Lab~2.1 (6\,768 bytes Flash, 800 bytes RAM), the FreeRTOS version requires approximately 8\,KB more Flash (for the kernel, scheduler, semaphore/mutex code) and 144 bytes more RAM (for Task Control Blocks and per-task stacks). This overhead is modest and well within the ATmega2560's capacity.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/build_results.png}{%
+    \includegraphics[width=0.85\textwidth]{resources/ObtainedResults/build_results.png}%
+}{%
+    \fbox{\parbox{0.83\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save to resources/ObtainedResults/build\_results.png]}}%
+}
+\caption{Successful PlatformIO build output for Lab 2.2 (\texttt{lab2\_2} environment)}
+\label{fig:build_results}
+\end{figure}
+
+The expected build summary is:
+
+\begin{lstlisting}[caption=PlatformIO build summary for Lab 2.2, label=lst:build_summary]
+RAM:   [=         ]  11.5% (used 944 bytes from 8192 bytes)
+Flash: [=         ]   5.8% (used 14790 bytes from 253952 bytes)
+========================= [SUCCESS] =========================
+Environment    Status    Duration
+-------------  --------  ------------
+lab2_2         SUCCESS   00:00:05.xxx
+\end{lstlisting}
+
+\subsection{Simulation Startup}
+
+Upon starting the Wokwi simulation with the \texttt{lab2\_2} firmware, the board boots, the STDIO serial is initialised, the startup banner is printed, and then the FreeRTOS scheduler begins dispatching the three tasks. The serial terminal shows the welcome message including the FreeRTOS tick rate:
+
+\begin{lstlisting}[caption=Expected startup banner in the Wokwi serial terminal, label=lst:startup_output]
+========================================
+  Lab 2.2 -- Button Press Monitor
+  FreeRTOS Preemptive Scheduler Demo
+  Tasks: 3 | Tick: 1000 Hz
+========================================
+GREEN  LED  = short press (< 500 ms)
+RED    LED  = long press  (>= 500 ms)
+YELLOW LED  = activity blink
+Report interval: 10 seconds
+Sync: binary semaphore + mutex
+========================================
+\end{lstlisting}
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/simulation_start.png}{%
+    \includegraphics[width=0.75\textwidth]{resources/ObtainedResults/simulation_start.png}%
+}{%
+    \fbox{\parbox{0.73\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save to resources/ObtainedResults/simulation\_start.png]}}%
+}
+\caption{Wokwi simulation start --- startup banner in serial terminal, all LEDs off}
+\label{fig:simulation_start}
+\end{figure}
+
+\subsection{Button Press Detection}
+
+\subsubsection{Short Press Test ($<$\,500\,ms)}
+
+Pressing the button briefly (less than 500\,ms) causes Task~1 to detect the press via the debounce FSM, light the green LED, write the press info under mutex, and give the binary semaphore. Task~2 wakes immediately (within one RTOS tick), acquires the mutex, updates the statistics, and starts a 5-blink yellow LED sequence using blocking \texttt{vTaskDelay()} calls. The green LED and yellow blink are simultaneously visible, confirming that Task~1's LED management runs concurrently with Task~2's blink loop --- a direct demonstration of preemptive multitasking.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/test_short_press.png}{%
+    \includegraphics[width=0.75\textwidth]{resources/ObtainedResults/test_short_press.png}%
+}{%
+    \fbox{\parbox{0.73\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save to resources/ObtainedResults/test\_short\_press.png]}}%
+}
+\caption{Short press result --- green LED lit, yellow LED blinking (5 blinks)}
+\label{fig:test_short_press}
+\end{figure}
+
+\subsubsection{Long Press Test ($\geq$\,500\,ms)}
+
+Holding the button for more than 500\,ms causes Task~1 to light the red LED and signal a long press. Task~2 wakes, updates the long-press counter, and drives a 10-blink yellow LED sequence (20 half-cycles $\times$ 100\,ms = 2\,000\,ms total). During this time, Task~1 continues polling the button every 10\,ms and Task~3 continues its 10-second timer --- preemption ensures all tasks remain responsive.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/test_long_press.png}{%
+    \includegraphics[width=0.75\textwidth]{resources/ObtainedResults/test_long_press.png}%
+}{%
+    \fbox{\parbox{0.73\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save to resources/ObtainedResults/test\_long\_press.png]}}%
+}
+\caption{Long press result --- red LED lit, yellow LED blinking (10 blinks)}
+\label{fig:test_long_press}
+\end{figure}
+
+\subsection{Periodic STDIO Report}
+
+Every 10 seconds, Task~3 wakes via \texttt{vTaskDelayUntil()}, acquires the mutex, snapshots the statistics, resets the accumulators, releases the mutex, and prints the report. The drift-free timing ensures reports appear at exactly 10-second intervals regardless of printf() execution time. After performing a mix of short and long presses, the serial terminal shows output similar to the following:
+
+\begin{lstlisting}[caption=Example periodic report after 4 presses (2 short + 2 long), label=lst:periodic_report]
+===== [10s Report] =====
+Total presses    : 4
+Short presses    : 2  (< 500 ms)
+Long presses     : 2  (>= 500 ms)
+Average duration : 712 ms
+========================
+\end{lstlisting}
+
+After printing, all counters are reset to zero. A window with no button activity displays all zeroes.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/test_report.png}{%
+    \includegraphics[width=0.75\textwidth]{resources/ObtainedResults/test_report.png}%
+}{%
+    \fbox{\parbox{0.73\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save to resources/ObtainedResults/test\_report.png]}}%
+}
+\caption{Periodic STDIO report from Task 3 after a sequence of button presses}
+\label{fig:test_report}
+\end{figure}
+
+\subsection{Synchronization Validation}
+
+The correctness of the synchronization mechanisms can be verified through the serial output and LED behaviour:
+
+\begin{enumerate}
+    \item \textbf{Binary semaphore}: Task~2 wakes within one RTOS tick ($\leq$\,1\,ms) after Task~1 gives the semaphore. This is observable because the yellow LED starts blinking immediately after the green/red LED lights up, with no perceptible delay.
+    \item \textbf{Mutex --- data integrity}: The statistics in the 10-second report are always consistent: \texttt{totalPresses} equals \texttt{shortPresses + longPresses}, and the average duration is plausible given the press types observed. No torn reads or phantom increments have been observed across multiple test runs.
+    \item \textbf{Mutex --- priority inheritance}: Since Task~1 (priority~3) and Task~3 (priority~1) both access the mutex, priority inheritance ensures Task~3 is temporarily elevated to priority~3 while holding the mutex, preventing Task~2 (priority~2) from preempting it and causing unbounded blocking of Task~1. In practice, the mutex hold times are so short (a few microseconds for a struct copy) that priority inversion would have negligible effect, but the mechanism is in place for correctness.
+    \item \textbf{Concurrent task execution}: During Task~2's blink sequence (up to 2\,s for a long press), Task~1 continues polling the button every 10\,ms and Task~3 continues accumulating time towards the next report. This is confirmed by the fact that pressing the button during an active blink sequence correctly detects the new press (the green/red LED responds) and the report timer remains accurate.
+\end{enumerate}

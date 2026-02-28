@@ -19,6 +19,8 @@
     #include "lab1_2_main.h"
 #elif defined(LAB2_1)
     #include "lab2_1_main.h"
+#elif defined(LAB2_2)
+    #include "lab2_2_main.h"
 #else
     #error "No lab selected! Add -DLABx_x to build_flags in platformio.ini"
 #endif
@@ -30,6 +32,8 @@ void setup() {
     lab1_2Setup();
 #elif defined(LAB2_1)
     lab2_1Setup();
+#elif defined(LAB2_2)
+    lab2_2Setup();
 #endif
 }
 
@@ -40,5 +44,7 @@ void loop() {
     lab1_2Loop();
 #elif defined(LAB2_1)
     lab2_1Loop();
+#elif defined(LAB2_2)
+    lab2_2Loop();
 #endif
 }

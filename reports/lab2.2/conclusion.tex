@@ -1,0 +1,27 @@
+\section{Conclusion}
+
+\subsection{Achievement of Objectives}
+
+All primary objectives of Laboratory Work 2.2 were successfully accomplished. The bare-metal cooperative application from Lab~2.1 was ported to FreeRTOS preemptive scheduling with minimal changes to the core application logic. Three FreeRTOS tasks implement the same button monitoring, statistics accumulation, and periodic reporting functionality, while the scheduling, timing, and inter-task communication mechanisms are now handled by the RTOS kernel. A binary semaphore provides efficient, zero-polling event signaling between the producer (Task~1) and consumer (Task~2). A mutex with priority inheritance protects all shared data structures from concurrent access, ensuring data integrity under preemptive scheduling.
+
+\subsection{Performance Analysis and System Limitations}
+
+The compiled firmware occupies approximately 14.8\,KB of Flash (5.8\,\%) and 944 bytes of SRAM (11.5\,\%) on the ATmega2560. The additional overhead compared to bare-metal (approximately 8\,KB Flash and 144 bytes RAM) is the cost of the FreeRTOS kernel, scheduler, synchronization primitives, and per-task stack allocations. This overhead is acceptable given the ATmega2560's generous 256\,KB Flash and 8\,KB SRAM, and it buys significant architectural benefits: deterministic preemption, priority-based scheduling, and clean blocking primitives.
+
+The button press detection latency is bounded by one Task~1 period (10\,ms) plus one RTOS tick (1\,ms) for semaphore wake-up plus context switch time ($\approx$\,20\,$\mu$s), giving a worst-case total of approximately 11\,ms --- well within the 100\,ms requirement specified in the lab. The drift-free \texttt{vTaskDelayUntil()} in Task~3 ensures the 10-second reporting interval is accurate to within one RTOS tick.
+
+The main limitation is the binary semaphore's behaviour under rapid consecutive presses: if Task~2 is executing a blink sequence (up to 2\,s for a long press) when another press occurs, the semaphore latches one event but discards any subsequent events until Task~2 processes the first. In practice this means extremely rapid button clicks during an active blink sequence may lose events. This could be addressed by replacing the binary semaphore with a counting semaphore or a FreeRTOS queue that buffers multiple press events.
+
+\subsection{Proposed Improvements}
+
+Several enhancements would strengthen the application. Replacing the binary semaphore with a FreeRTOS queue (\texttt{xQueueSend/xQueueReceive}) would allow Task~1 to enqueue multiple press events without loss, even if Task~2 is busy with a blink sequence. Adding runtime task stack high-water-mark monitoring via \texttt{uxTaskGetStackHighWaterMark()} would help tune the stack sizes and detect potential stack overflow conditions. The configurable press threshold discussed in Lab~2.1's improvements could be implemented as a FreeRTOS queue-based command interface, where a fourth task reads user commands from STDIO and updates configuration variables under mutex protection. Software timers (\texttt{xTimerCreate()}) could replace the manual LED auto-off timestamp checks in Task~1 for cleaner timer management.
+
+\subsection{Reflections on the Learning Experience}
+
+This laboratory work provided concrete insight into the trade-offs between cooperative and preemptive scheduling in embedded systems. The most striking observation was how FreeRTOS simplified the blink sequence implementation: the bare-metal version required a non-blocking state machine with step counters and last-toggle timestamps, while the FreeRTOS version expresses the same behaviour as a five-line blocking \texttt{for} loop. This reduction in complexity illustrates why preemptive scheduling is preferred in applications with complex task interactions, even at the cost of additional kernel overhead.
+
+The synchronization exercise reinforced the importance of protecting shared data in preemptive systems. In the bare-metal version, no locks were needed because the cooperative scheduler guaranteed single-task execution. Under preemptive scheduling, the same shared variables require explicit mutex protection to prevent torn reads and race conditions. The priority inheritance mechanism demonstrated how FreeRTOS automatically prevents priority inversion, a subtle bug that can cause catastrophic deadline misses in safety-critical systems.
+
+\subsection{Impact of Technology in Real-World Applications}
+
+FreeRTOS dominates the embedded RTOS market, powering over 40 billion devices across automotive, industrial, medical, and IoT domains. Amazon Web Services acquired FreeRTOS in 2017 and maintains it as an open-source project, integrating it with AWS IoT services for cloud-connected embedded devices. The synchronization patterns demonstrated in this laboratory --- semaphores for event signaling and mutexes for data protection --- are universal principles that apply to any concurrent system, from embedded controllers to multi-threaded server applications. Understanding these patterns at the microcontroller level provides a foundation for reasoning about concurrency in more complex systems, including multi-core processors, distributed computing, and real-time safety-critical controllers in automotive and aerospace applications.

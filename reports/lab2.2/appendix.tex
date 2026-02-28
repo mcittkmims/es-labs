@@ -1,0 +1,401 @@
+\section{Appendix}
+
+The complete source code for Laboratory Work 2.2 is organised below by module. The full project is available in the GitHub repository: \url{https://github.com/mcittkmims/es-labs}.
+
+\subsection{Shared State Module}
+
+\subsubsection{Interface}
+
+\begin{lstlisting}[language=C++, caption=lab/lab2\_2/shared\_state.h --- Shared data types and synchronization handles, label=lst:shared_state_h]
+#ifndef SHARED_STATE_H
+#define SHARED_STATE_H
+
+#include <Arduino.h>
+#include <Arduino_FreeRTOS.h>
+#include <semphr.h>
+
+// Hardware Pin Mapping (Arduino Mega 2560)
+static const uint8_t PIN_BUTTON     = 7;   // Push button (active-LOW, INPUT_PULLUP)
+static const uint8_t PIN_LED_GREEN  = 8;   // Green LED - short press indicator
+static const uint8_t PIN_LED_RED    = 9;   // Red LED   - long press indicator
+static const uint8_t PIN_LED_YELLOW = 10;  // Yellow LED - activity blink sequencer
+
+// Application Constants
+static const uint32_t SHORT_PRESS_THRESHOLD_MS  = 500;
+static const uint32_t LED_INDICATOR_DURATION_MS  = 1500;
+static const uint32_t BLINK_HALF_PERIOD_MS       = 100;
+static const uint8_t  BLINK_COUNT_SHORT          = 5;
+static const uint8_t  BLINK_COUNT_LONG           = 10;
+static const uint32_t DEBOUNCE_MS                = 50;
+
+// FreeRTOS Task Configuration
+static const uint32_t    TASK_MEASURE_PERIOD_MS = 10;
+static const UBaseType_t TASK_MEASURE_PRIORITY  = 3;
+static const configSTACK_DEPTH_TYPE TASK_MEASURE_STACK = 200;
+
+static const UBaseType_t TASK_STATS_PRIORITY = 2;
+static const configSTACK_DEPTH_TYPE TASK_STATS_STACK = 200;
+
+static const uint32_t    TASK_REPORT_PERIOD_MS = 10000;
+static const UBaseType_t TASK_REPORT_PRIORITY  = 1;
+static const configSTACK_DEPTH_TYPE TASK_REPORT_STACK = 300;
+
+// Press event info passed from Task 1 to Task 2
+typedef struct {
+    uint32_t duration;   // Duration of the completed press in ms
+    bool     isShort;    // True if duration < SHORT_PRESS_THRESHOLD_MS
+} PressInfo_t;
+
+// Cumulative statistics updated by Task 2, read/reset by Task 3
+typedef struct {
+    uint32_t totalPresses;
+    uint32_t shortPresses;
+    uint32_t longPresses;
+    uint32_t totalDurationMs;
+} Stats_t;
+
+extern PressInfo_t g_pressInfo;
+extern Stats_t g_stats;
+
+// Binary semaphore: Task 1 -> Task 2 event signaling
+extern SemaphoreHandle_t xNewPressSemaphore;
+
+// Mutex: protects g_pressInfo and g_stats
+extern SemaphoreHandle_t xSharedDataMutex;
+
+// Create synchronization primitives (call before task creation)
+void sharedStateInit();
+
+#endif // SHARED_STATE_H
+\end{lstlisting}
+
+\subsubsection{Implementation}
+
+\begin{lstlisting}[language=C++, caption=lab/lab2\_2/shared\_state.cpp --- Shared state definitions and sync init, label=lst:shared_state_cpp]
+#include "shared_state.h"
+
+PressInfo_t g_pressInfo = { 0, false };
+Stats_t g_stats = { 0, 0, 0, 0 };
+
+SemaphoreHandle_t xNewPressSemaphore = NULL;
+SemaphoreHandle_t xSharedDataMutex   = NULL;
+
+void sharedStateInit() {
+    // Binary semaphore starts empty - Task 2 blocks until Task 1 gives it
+    xNewPressSemaphore = xSemaphoreCreateBinary();
+
+    // Mutex provides priority inheritance to prevent priority inversion
+    xSharedDataMutex = xSemaphoreCreateMutex();
+}
+\end{lstlisting}
+
+\subsection{Task 1 --- Button Measurement Module}
+
+\subsubsection{Interface}
+
+\begin{lstlisting}[language=C++, caption=lab/lab2\_2/task\_measure.h --- Task 1 declaration, label=lst:task_measure_h]
+#ifndef TASK_MEASURE_H
+#define TASK_MEASURE_H
+
+// FreeRTOS task: button detection, duration measurement, LED signaling.
+// Runs every 10 ms with priority 3 (highest).
+void vTaskMeasure(void *pvParameters);
+
+#endif // TASK_MEASURE_H
+\end{lstlisting}
+
+\subsubsection{Implementation}
+
+\begin{lstlisting}[language=C++, caption=lab/lab2\_2/task\_measure.cpp --- Task 1: button FSM and LED signaling, label=lst:task_measure_cpp]
+#include "task_measure.h"
+#include "shared_state.h"
+#include <Arduino.h>
+#include <Arduino_FreeRTOS.h>
+#include <semphr.h>
+
+// Button FSM states
+typedef enum {
+    BTN_IDLE,
+    BTN_DEBOUNCE_DOWN,
+    BTN_PRESSED,
+    BTN_DEBOUNCE_UP
+} ButtonState_e;
+
+void vTaskMeasure(void *pvParameters) {
+    (void)pvParameters;
+
+    ButtonState_e btnState      = BTN_IDLE;
+    uint32_t      debounceStart = 0;
+    uint32_t      pressStart    = 0;
+    uint32_t      pressEnd      = 0;
+    uint32_t      greenLedOffAt = 0;
+    uint32_t      redLedOffAt   = 0;
+
+    for (;;) {
+        uint32_t now    = millis();
+        bool     btnLow = (digitalRead(PIN_BUTTON) == LOW);
+
+        // FSM update
+        switch (btnState) {
+            case BTN_IDLE:
+                if (btnLow) {
+                    debounceStart = now;
+                    btnState = BTN_DEBOUNCE_DOWN;
+                }
+                break;
+            case BTN_DEBOUNCE_DOWN:
+                if (!btnLow) {
+                    btnState = BTN_IDLE;
+                } else if ((now - debounceStart) >= DEBOUNCE_MS) {
+                    pressStart = now;
+                    btnState = BTN_PRESSED;
+                }
+                break;
+            case BTN_PRESSED:
+                if (!btnLow) {
+                    pressEnd = now;
+                    debounceStart = now;
+                    btnState = BTN_DEBOUNCE_UP;
+                }
+                break;
+            case BTN_DEBOUNCE_UP:
+                if (btnLow) {
+                    btnState = BTN_PRESSED;
+                } else if ((now - debounceStart) >= DEBOUNCE_MS) {
+                    uint32_t duration = pressEnd - pressStart;
+                    bool isShort = (duration < SHORT_PRESS_THRESHOLD_MS);
+
+                    // Write press info under mutex, then signal Task 2
+                    if (xSemaphoreTake(xSharedDataMutex, portMAX_DELAY)
+                        == pdTRUE) {
+                        g_pressInfo.duration = duration;
+                        g_pressInfo.isShort  = isShort;
+                        xSemaphoreGive(xSharedDataMutex);
+                    }
+                    xSemaphoreGive(xNewPressSemaphore);
+
+                    // Light indicator LED
+                    if (isShort) {
+                        digitalWrite(PIN_LED_GREEN, HIGH);
+                        greenLedOffAt = now + LED_INDICATOR_DURATION_MS;
+                    } else {
+                        digitalWrite(PIN_LED_RED, HIGH);
+                        redLedOffAt = now + LED_INDICATOR_DURATION_MS;
+                    }
+                    btnState = BTN_IDLE;
+                }
+                break;
+        }
+
+        // Auto-off for indicator LEDs
+        if (greenLedOffAt != 0 && now >= greenLedOffAt) {
+            digitalWrite(PIN_LED_GREEN, LOW);
+            greenLedOffAt = 0;
+        }
+        if (redLedOffAt != 0 && now >= redLedOffAt) {
+            digitalWrite(PIN_LED_RED, LOW);
+            redLedOffAt = 0;
+        }
+
+        // Yield CPU until next 10 ms tick
+        vTaskDelay(pdMS_TO_TICKS(TASK_MEASURE_PERIOD_MS));
+    }
+}
+\end{lstlisting}
+
+\subsection{Task 2 --- Statistics and Blink Module}
+
+\subsubsection{Interface}
+
+\begin{lstlisting}[language=C++, caption=lab/lab2\_2/task\_stats.h --- Task 2 declaration, label=lst:task_stats_h]
+#ifndef TASK_STATS_H
+#define TASK_STATS_H
+
+// FreeRTOS task: statistics update and yellow LED blink.
+// Event-driven (semaphore) with priority 2.
+void vTaskStats(void *pvParameters);
+
+#endif // TASK_STATS_H
+\end{lstlisting}
+
+\subsubsection{Implementation}
+
+\begin{lstlisting}[language=C++, caption=lab/lab2\_2/task\_stats.cpp --- Task 2: stats update and blocking blink, label=lst:task_stats_cpp]
+#include "task_stats.h"
+#include "shared_state.h"
+#include <Arduino.h>
+#include <Arduino_FreeRTOS.h>
+#include <semphr.h>
+
+void vTaskStats(void *pvParameters) {
+    (void)pvParameters;
+
+    PressInfo_t localInfo;
+    uint8_t     blinkCount;
+
+    for (;;) {
+        // Block until Task 1 signals a new press event
+        xSemaphoreTake(xNewPressSemaphore, portMAX_DELAY);
+
+        // Read press info and update statistics under mutex
+        if (xSemaphoreTake(xSharedDataMutex, portMAX_DELAY)
+            == pdTRUE) {
+            localInfo = g_pressInfo;
+            g_stats.totalPresses++;
+            g_stats.totalDurationMs += localInfo.duration;
+            if (localInfo.isShort) {
+                g_stats.shortPresses++;
+            } else {
+                g_stats.longPresses++;
+            }
+            xSemaphoreGive(xSharedDataMutex);
+        }
+
+        // Yellow LED blink sequence: 5 blinks (short) or 10 (long)
+        // Uses blocking vTaskDelay() - a key FreeRTOS advantage
+        // over the bare-metal state-machine approach
+        blinkCount = localInfo.isShort
+            ? BLINK_COUNT_SHORT : BLINK_COUNT_LONG;
+
+        for (uint8_t i = 0; i < blinkCount; i++) {
+            digitalWrite(PIN_LED_YELLOW, HIGH);
+            vTaskDelay(pdMS_TO_TICKS(BLINK_HALF_PERIOD_MS));
+            digitalWrite(PIN_LED_YELLOW, LOW);
+            vTaskDelay(pdMS_TO_TICKS(BLINK_HALF_PERIOD_MS));
+        }
+    }
+}
+\end{lstlisting}
+
+\subsection{Task 3 --- Report Module}
+
+\subsubsection{Interface}
+
+\begin{lstlisting}[language=C++, caption=lab/lab2\_2/task\_report.h --- Task 3 declaration, label=lst:task_report_h]
+#ifndef TASK_REPORT_H
+#define TASK_REPORT_H
+
+// FreeRTOS task: periodic STDIO statistics reporting.
+// Runs every 10 s using vTaskDelayUntil() with priority 1 (lowest).
+void vTaskReport(void *pvParameters);
+
+#endif // TASK_REPORT_H
+\end{lstlisting}
+
+\subsubsection{Implementation}
+
+\begin{lstlisting}[language=C++, caption=lab/lab2\_2/task\_report.cpp --- Task 3: periodic report with drift-free timing, label=lst:task_report_cpp]
+#include "task_report.h"
+#include "shared_state.h"
+#include <Arduino.h>
+#include <Arduino_FreeRTOS.h>
+#include <semphr.h>
+#include <stdio.h>
+
+void vTaskReport(void *pvParameters) {
+    (void)pvParameters;
+
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+    Stats_t snapshot;
+
+    for (;;) {
+        // Wait until next 10-second boundary (drift-free)
+        vTaskDelayUntil(&xLastWakeTime,
+            pdMS_TO_TICKS(TASK_REPORT_PERIOD_MS));
+
+        // Atomically read and reset statistics
+        if (xSemaphoreTake(xSharedDataMutex, portMAX_DELAY)
+            == pdTRUE) {
+            snapshot = g_stats;
+            g_stats.totalPresses    = 0;
+            g_stats.shortPresses    = 0;
+            g_stats.longPresses     = 0;
+            g_stats.totalDurationMs = 0;
+            xSemaphoreGive(xSharedDataMutex);
+        }
+
+        uint32_t avgMs = (snapshot.totalPresses > 0)
+            ? (snapshot.totalDurationMs / snapshot.totalPresses)
+            : 0;
+
+        printf("\r\n===== [10s Report] =====\r\n");
+        printf("Total presses    : %lu\r\n",
+            (unsigned long)snapshot.totalPresses);
+        printf("Short presses    : %lu  (< %u ms)\r\n",
+            (unsigned long)snapshot.shortPresses,
+            (unsigned int)SHORT_PRESS_THRESHOLD_MS);
+        printf("Long presses     : %lu  (>= %u ms)\r\n",
+            (unsigned long)snapshot.longPresses,
+            (unsigned int)SHORT_PRESS_THRESHOLD_MS);
+        printf("Average duration : %lu ms\r\n",
+            (unsigned long)avgMs);
+        printf("========================\r\n");
+    }
+}
+\end{lstlisting}
+
+\subsection{Application Entry Point}
+
+\begin{lstlisting}[language=C++, caption=lab/lab2\_2/lab2\_2\_main.cpp --- Lab 2.2 setup and task creation, label=lst:lab2_2_main]
+#include "lab2_2_main.h"
+#include "shared_state.h"
+#include "task_measure.h"
+#include "task_stats.h"
+#include "task_report.h"
+#include <Arduino.h>
+#include <Arduino_FreeRTOS.h>
+#include <stdio.h>
+#include "StdioSerial.h"
+
+void lab2_2Setup() {
+    // Configure hardware pins
+    pinMode(PIN_BUTTON,     INPUT_PULLUP);
+    pinMode(PIN_LED_GREEN,  OUTPUT);
+    pinMode(PIN_LED_RED,    OUTPUT);
+    pinMode(PIN_LED_YELLOW, OUTPUT);
+    digitalWrite(PIN_LED_GREEN,  LOW);
+    digitalWrite(PIN_LED_RED,    LOW);
+    digitalWrite(PIN_LED_YELLOW, LOW);
+
+    // Initialize STDIO serial
+    stdioSerialInit(9600);
+
+    // Startup banner
+    printf("\r\n========================================\r\n");
+    printf("  Lab 2.2 -- Button Press Monitor\r\n");
+    printf("  FreeRTOS Preemptive Scheduler Demo\r\n");
+    printf("========================================\r\n");
+
+    // Create synchronization primitives
+    sharedStateInit();
+
+    // Create FreeRTOS tasks
+    xTaskCreate(vTaskMeasure, "Measure",
+        TASK_MEASURE_STACK, NULL, TASK_MEASURE_PRIORITY, NULL);
+    xTaskCreate(vTaskStats, "Stats",
+        TASK_STATS_STACK, NULL, TASK_STATS_PRIORITY, NULL);
+    xTaskCreate(vTaskReport, "Report",
+        TASK_REPORT_STACK, NULL, TASK_REPORT_PRIORITY, NULL);
+    // Scheduler starts automatically after setup() returns
+}
+
+void lab2_2Loop() {
+    // All work handled by FreeRTOS tasks
+    vTaskDelay(pdMS_TO_TICKS(1000));
+}
+\end{lstlisting}
+
+\subsection{PlatformIO Configuration}
+
+\begin{lstlisting}[language={}, caption=platformio.ini --- Lab 2.2 environment (excerpt), label=lst:platformio_ini]
+; Lab 2.2 -- Button Press Monitor + FreeRTOS Preemptive Scheduler
+[env:lab2_2]
+platform = atmelavr
+board = megaatmega2560
+framework = arduino
+monitor_speed = 9600
+build_src_filter = +<*> +<../lab/lab2_2/*>
+build_flags = -I lab/lab2_2 -DLAB2_2
+lib_deps =
+    feilipu/FreeRTOS
+\end{lstlisting}
