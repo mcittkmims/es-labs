@@ -28,16 +28,15 @@
 void vTaskReport(void *pvParameters) {
     (void)pvParameters;  // Unused
 
-    // vTaskDelayUntil() requires the previous wake time to compute the
-    // next absolute deadline. Initialised to the current tick count.
-    TickType_t xLastWakeTime = xTaskGetTickCount();
-
     // Local snapshot of statistics — read under mutex, printed after release.
     Stats_t snapshot;
 
+    // Compute delay in ticks once (10 000 ms ≈ 620 ticks at 62 Hz WDT).
+    const TickType_t xReportPeriodTicks = pdMS_TO_TICKS(TASK_REPORT_PERIOD_MS);
+
     for (;;) {
-        // ── Wait until the next 10-second boundary ─────────────────────
-        vTaskDelayUntil(&xLastWakeTime, pdMS_TO_TICKS(TASK_REPORT_PERIOD_MS));
+        // ── Wait for the next 10-second interval ───────────────────────
+        vTaskDelay(xReportPeriodTicks > 0 ? xReportPeriodTicks : 1);
 
         // ── Atomically read and reset statistics ───────────────────────
         if (xSemaphoreTake(xSharedDataMutex, portMAX_DELAY) == pdTRUE) {

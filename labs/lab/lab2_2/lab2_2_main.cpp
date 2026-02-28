@@ -128,7 +128,11 @@ void lab2_2Setup() {
 }
 
 void lab2_2Loop() {
-    // All application logic runs inside FreeRTOS tasks.
-    // The loop() context runs at idle priority — yield CPU to real tasks.
-    vTaskDelay(pdMS_TO_TICKS(1000));
+    // In the feilipu/FreeRTOS Arduino library, loop() is called from
+    // vApplicationIdleHook(). Blocking functions (vTaskDelay, semaphore
+    // take, etc.) MUST NEVER be called here — doing so blocks the idle
+    // task and corrupts the FreeRTOS scheduler.
+    //
+    // All application logic runs inside the three FreeRTOS tasks.
+    // This function intentionally does nothing.
 }
