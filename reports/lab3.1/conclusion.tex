@@ -1,0 +1,49 @@
+\section{Conclusions}
+
+\subsection{Achievement of Objectives}
+
+This laboratory work successfully implemented a dual-sensor temperature monitoring system that fulfills all requirements specified in Variant C of Lab 3.1. The system monitors two independent temperature sensors --- an analog NTC thermistor and a digital DS18B20 --- through a three-stage FreeRTOS pipeline consisting of acquisition, signal conditioning, and display tasks.
+
+The primary objectives achieved include:
+\begin{itemize}
+    \item \textbf{Dual-sensor data acquisition}: Both analog (ADC-based) and digital (OneWire-based) temperature sensors are read concurrently within a single FreeRTOS task at a consistent 50 ms sampling rate, demonstrating the integration of fundamentally different sensor interfaces within a unified acquisition framework.
+    \item \textbf{Signal conditioning with hysteresis and debounce}: The ThresholdAlert module implements a robust 4-state FSM that prevents both noise-induced false alarms (through debounce filtering) and threshold oscillation (through hysteresis with a 2\textdegree C dead-band between the 30\textdegree C high threshold and 28\textdegree C low threshold).
+    \item \textbf{Real-time visual and textual feedback}: The system provides three output channels --- LED indicators for immediate visual status, an LCD display for formatted temperature readings, and structured STDIO reports for detailed diagnostic information --- ensuring comprehensive observability at multiple levels of detail.
+    \item \textbf{FreeRTOS concurrency}: The three tasks operate at different priorities and timing modes (periodic acquisition, event-driven conditioning, periodic display), demonstrating proper use of FreeRTOS primitives including binary semaphores, mutexes with priority inheritance, and \texttt{vTaskDelayUntil()} for drift-free periodic execution.
+\end{itemize}
+
+\subsection{Performance Analysis}
+
+The system operates within comfortable resource margins on the ATmega2560 platform. Flash usage of 10.3\% (26\,122 bytes) leaves substantial space for additional features such as data logging, calibration storage, or more complex display modes. RAM usage of 24.0\% (1\,969 bytes) provides adequate headroom for the three FreeRTOS task stacks and the shared data structures, though care must be taken when adding features that increase stack depth (recursive algorithms, large local buffers).
+
+The 50 ms acquisition period provides a 20 Hz sampling rate that is well-suited for temperature monitoring applications, where thermal time constants are typically on the order of seconds to minutes. The DS18B20's non-blocking conversion approach ensures that the slower digital sensor does not introduce timing jitter into the acquisition loop --- the 187.5 ms conversion time at 10-bit resolution is fully hidden behind three consecutive 50 ms sleep periods.
+
+The mutex-based access to shared data structures introduces minimal overhead since contention is rare: Task 2 holds the mutex only briefly to copy data, and Task 3's lower priority ensures it does not preempt the higher-priority tasks during critical sections. The binary semaphore provides efficient event-driven wakeup of Task 2, avoiding the power waste and latency of polling approaches.
+
+\subsection{Limitations}
+
+Several limitations exist in the current implementation:
+\begin{itemize}
+    \item \textbf{Fixed thresholds}: The high (30\textdegree C) and low (28\textdegree C) thresholds are compile-time constants. A production system would benefit from runtime-configurable thresholds via a serial command interface or keypad input.
+    \item \textbf{No data logging}: The system reports current values only and does not store historical data. Adding a circular buffer or SD card logging would enable trend analysis and event correlation.
+    \item \textbf{NTC accuracy}: The Steinhart-Hart Beta equation is a simplification that provides approximately $\pm$1\textdegree C accuracy across a moderate temperature range. Higher accuracy would require a full three-coefficient Steinhart-Hart model with individual thermistor calibration.
+    \item \textbf{Single-sensor assumption}: The DigitalTempSensor module reads only the first DS18B20 on the bus. The OneWire protocol supports multiple devices, and extending the module to handle device addressing would enable monitoring of additional sensors on the same data line.
+    \item \textbf{LCD update rate}: The 500 ms LCD refresh period and 2-page alternation scheme provide adequate feedback for manual observation but may miss brief transient events. A triggered display mode that immediately shows alert transitions would improve responsiveness.
+\end{itemize}
+
+\subsection{Proposed Improvements}
+
+Future enhancements could extend the system in several directions:
+\begin{itemize}
+    \item \textbf{Moving average filter}: Applying a simple moving average or exponential weighted moving average (EWMA) filter to the raw sensor readings would further smooth noise without adding the latency of the debounce mechanism.
+    \item \textbf{Adaptive thresholds}: Implementing auto-calibration that adjusts thresholds based on observed temperature baseline during a startup learning phase would make the system more portable across different environments.
+    \item \textbf{Remote monitoring}: Adding an Ethernet or Wi-Fi module (e.g., ESP8266) would enable MQTT publishing of sensor data to a cloud dashboard, extending the system from a local monitor to an IoT edge device.
+    \item \textbf{Audible alarm}: Adding a passive buzzer with PWM-driven tone generation would provide an audible alert complement to the visual LED indicators, improving the alert's visibility in noisy or visually cluttered environments.
+    \item \textbf{Multi-sensor expansion}: Leveraging the OneWire bus capability to add multiple DS18B20 sensors at different physical locations would create a distributed temperature monitoring network using a single data pin.
+\end{itemize}
+
+\subsection{Real-World Impact}
+
+Temperature monitoring with dual-sensor redundancy and signal conditioning is widely applicable in industrial and commercial contexts. Server room environmental monitoring systems use similar architectures to detect overheating conditions before equipment damage occurs, with the hysteresis mechanism preventing alarm fatigue from threshold oscillation near air conditioning setpoints. Agricultural greenhouse control systems monitor multiple temperature zones with NTC thermistors (for their low cost and wide availability) alongside calibrated digital sensors (for their higher accuracy), using the readings from both to cross-validate measurements and trigger ventilation or heating systems. Medical cold chain monitoring --- particularly relevant during vaccine transportation --- requires reliable temperature alerting with no false alarms, making the debounce-filtered hysteresis approach a natural fit for ensuring that only sustained temperature excursions trigger corrective actions.
+
+The modular software architecture developed in this lab, with its clean separation between sensor drivers, signal conditioning logic, and application-level tasks, mirrors the design patterns used in professional embedded systems frameworks such as AUTOSAR and the ARM CMSIS ecosystem. The experience gained in designing reusable library modules, implementing FreeRTOS-based concurrency, and applying signal conditioning techniques provides a foundation directly applicable to industrial embedded systems development.

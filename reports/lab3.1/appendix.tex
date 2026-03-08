@@ -1,0 +1,1124 @@
+\section{Appendix --- Source Code}
+
+The complete source code for Laboratory Work 3.1 is organized below by architectural layer. All source files are available in the project GitHub repository.
+
+\textbf{GitHub Repository:} \url{https://github.com/avremere/es-labs}
+
+% ══════════════════════════════════════════════════════════════════════════
+% DRIVER LAYER
+% ══════════════════════════════════════════════════════════════════════════
+
+\subsection{Driver Layer: AnalogTempSensor}
+
+\subsubsection{AnalogTempSensor.h}
+\begin{lstlisting}[language=C++, caption=AnalogTempSensor.h --- NTC Thermistor Driver Interface]
+/**
+ * @file AnalogTempSensor.h
+ * @brief NTC Thermistor Analog Temperature Sensor Driver Interface
+ *
+ * Provides a reusable abstraction for reading temperature from an NTC
+ * thermistor connected to an analog ADC pin through a voltage divider
+ * circuit. Converts raw ADC readings to temperature in degrees Celsius
+ * using the Steinhart-Hart Beta parameter equation.
+ *
+ * Circuit configuration (voltage divider):
+ *   VCC --- [R_series] --- ADC_PIN --- [NTC] --- GND
+ *
+ * The NTC resistance is calculated from the ADC reading and then
+ * converted to temperature using:
+ *   1/T = 1/T0 + (1/B) * ln(R_ntc / R0)
+ *
+ * Usage:
+ *   AnalogTempSensor ntc(A0, 10000, 10000, 3950);
+ *   ntc.init();
+ *   float tempC = ntc.readTemperatureC();
+ */
+
+#ifndef ANALOG_TEMP_SENSOR_H
+#define ANALOG_TEMP_SENSOR_H
+
+#include <Arduino.h>
+
+class AnalogTempSensor {
+public:
+    AnalogTempSensor(uint8_t adcPin, uint32_t seriesR,
+                     uint32_t nominalR, uint16_t betaCoeff,
+                     float nominalTempC = 25.0f,
+                     uint16_t adcResolution = 10);
+    void init();
+    uint16_t readRaw();
+    float readResistance();
+    float readTemperatureC();
+    float readTemperatureF();
+    bool isValid() const;
+    uint16_t getLastRaw() const;
+    float getLastTemperatureC() const;
+
+private:
+    uint8_t  _adcPin;
+    uint32_t _seriesR;
+    uint32_t _nominalR;
+    uint16_t _betaCoeff;
+    float    _nominalTempK;
+    uint16_t _adcMax;
+    uint16_t _lastRaw;
+    float    _lastTempC;
+    bool     _valid;
+};
+
+#endif // ANALOG_TEMP_SENSOR_H
+\end{lstlisting}
+
+\subsubsection{AnalogTempSensor.cpp}
+\begin{lstlisting}[language=C++, caption=AnalogTempSensor.cpp --- NTC Thermistor Driver Implementation]
+/**
+ * @file AnalogTempSensor.cpp
+ * @brief NTC Thermistor Analog Temperature Sensor Driver Implementation
+ *
+ * Implements the ADC-based temperature reading for an NTC thermistor
+ * connected through a voltage divider circuit. Uses the Steinhart-Hart
+ * Beta parameter equation for resistance-to-temperature conversion.
+ */
+
+#include "AnalogTempSensor.h"
+#include <math.h>
+
+// Constructor
+AnalogTempSensor::AnalogTempSensor(uint8_t adcPin, uint32_t seriesR,
+                                   uint32_t nominalR, uint16_t betaCoeff,
+                                   float nominalTempC, uint16_t adcResolution)
+    : _adcPin(adcPin),
+      _seriesR(seriesR),
+      _nominalR(nominalR),
+      _betaCoeff(betaCoeff),
+      _nominalTempK(nominalTempC + 273.15f),
+      _adcMax((1 << adcResolution) - 1),
+      _lastRaw(0),
+      _lastTempC(NAN),
+      _valid(false) {}
+
+void AnalogTempSensor::init() {
+    pinMode(_adcPin, INPUT);
+    _lastRaw  = 0;
+    _lastTempC = NAN;
+    _valid    = false;
+}
+
+uint16_t AnalogTempSensor::readRaw() {
+    _lastRaw = analogRead(_adcPin);
+    return _lastRaw;
+}
+
+float AnalogTempSensor::readResistance() {
+    uint16_t adc = readRaw();
+
+    // Guard against division by zero or open/short circuit.
+    if (adc == 0 || adc >= _adcMax) {
+        _valid = false;
+        return -1.0f;
+    }
+
+    // Voltage divider: R_ntc = R_series * ADC / (ADC_MAX - ADC)
+    float resistance = (float)_seriesR * (float)adc
+                       / (float)(_adcMax - adc);
+    _valid = true;
+    return resistance;
+}
+
+float AnalogTempSensor::readTemperatureC() {
+    float resistance = readResistance();
+    if (resistance < 0.0f) {
+        _lastTempC = NAN;
+        _valid = false;
+        return NAN;
+    }
+
+    // Steinhart-Hart Beta equation:
+    // 1/T = 1/T0 + (1/B) * ln(R / R0)
+    float steinhart = log(resistance / (float)_nominalR);
+    steinhart /= (float)_betaCoeff;
+    steinhart += 1.0f / _nominalTempK;
+    float tempK = 1.0f / steinhart;
+    _lastTempC = tempK - 273.15f;
+    _valid = true;
+    return _lastTempC;
+}
+
+float AnalogTempSensor::readTemperatureF() {
+    float tempC = readTemperatureC();
+    if (isnan(tempC)) return NAN;
+    return tempC * 9.0f / 5.0f + 32.0f;
+}
+
+bool AnalogTempSensor::isValid() const {
+    return _valid;
+}
+
+uint16_t AnalogTempSensor::getLastRaw() const {
+    return _lastRaw;
+}
+
+float AnalogTempSensor::getLastTemperatureC() const {
+    return _lastTempC;
+}
+\end{lstlisting}
+
+\subsection{Driver Layer: DigitalTempSensor}
+
+\subsubsection{DigitalTempSensor.h}
+\begin{lstlisting}[language=C++, caption=DigitalTempSensor.h --- DS18B20 OneWire Driver Interface]
+/**
+ * @file DigitalTempSensor.h
+ * @brief DS18B20 Digital Temperature Sensor Driver Interface (OneWire)
+ *
+ * Provides a reusable abstraction for reading temperature from a Dallas
+ * DS18B20 digital temperature sensor using the OneWire protocol.
+ *
+ * Circuit configuration:
+ *   VCC (5V) --+-- DS18B20 VDD
+ *              |
+ *           [4.7K]  (pull-up resistor)
+ *              |
+ *   DATA_PIN --+-- DS18B20 DQ
+ *   GND -------+-- DS18B20 GND
+ */
+
+#ifndef DIGITAL_TEMP_SENSOR_H
+#define DIGITAL_TEMP_SENSOR_H
+
+#include <Arduino.h>
+#include <OneWire.h>
+#include <DallasTemperature.h>
+
+class DigitalTempSensor {
+public:
+    DigitalTempSensor(uint8_t dataPin,
+                      uint8_t resolution = 10);
+    bool init();
+    void requestConversion();
+    bool isConversionComplete();
+    float readTemperatureC();
+    float getLastTemperatureC() const;
+    float readTemperatureF();
+    bool isConnected() const;
+    bool isValid() const;
+    uint8_t getDeviceCount() const;
+
+private:
+    OneWire           _oneWire;
+    DallasTemperature _sensors;
+    uint8_t           _resolution;
+    float             _lastTempC;
+    bool              _connected;
+    bool              _valid;
+    uint8_t           _deviceCount;
+};
+
+#endif // DIGITAL_TEMP_SENSOR_H
+\end{lstlisting}
+
+\subsubsection{DigitalTempSensor.cpp}
+\begin{lstlisting}[language=C++, caption=DigitalTempSensor.cpp --- DS18B20 OneWire Driver Implementation]
+/**
+ * @file DigitalTempSensor.cpp
+ * @brief DS18B20 Digital Temperature Sensor Driver Implementation
+ *
+ * Implements OneWire-based temperature reading from the DS18B20 sensor.
+ * Uses the DallasTemperature library for protocol handling and provides
+ * both blocking and non-blocking read modes.
+ */
+
+#include "DigitalTempSensor.h"
+
+static const float DISCONNECTED_TEMP = -127.0f;
+static const float POWER_ON_RESET_TEMP = 85.0f;
+
+DigitalTempSensor::DigitalTempSensor(uint8_t dataPin,
+                                     uint8_t resolution)
+    : _oneWire(dataPin),
+      _sensors(&_oneWire),
+      _resolution(resolution),
+      _lastTempC(NAN),
+      _connected(false),
+      _valid(false),
+      _deviceCount(0) {}
+
+bool DigitalTempSensor::init() {
+    _sensors.begin();
+    _deviceCount = _sensors.getDeviceCount();
+    if (_deviceCount == 0) {
+        _connected = false;
+        return false;
+    }
+    _connected = true;
+    _sensors.setResolution(_resolution);
+    _sensors.setWaitForConversion(false);
+    return true;
+}
+
+void DigitalTempSensor::requestConversion() {
+    if (_connected) {
+        _sensors.requestTemperatures();
+    }
+}
+
+bool DigitalTempSensor::isConversionComplete() {
+    if (!_connected) return false;
+    return _sensors.isConversionComplete();
+}
+
+float DigitalTempSensor::readTemperatureC() {
+    if (!_connected) {
+        _valid = false;
+        _lastTempC = NAN;
+        return NAN;
+    }
+    _sensors.setWaitForConversion(true);
+    _sensors.requestTemperatures();
+    _sensors.setWaitForConversion(false);
+
+    float tempC = _sensors.getTempCByIndex(0);
+
+    if (tempC == DEVICE_DISCONNECTED_C ||
+        tempC <= DISCONNECTED_TEMP) {
+        _valid = false;
+        _lastTempC = NAN;
+        return NAN;
+    }
+    if (tempC == POWER_ON_RESET_TEMP) {
+        _valid = false;
+        return _lastTempC;
+    }
+    _valid = true;
+    _lastTempC = tempC;
+    return _lastTempC;
+}
+
+float DigitalTempSensor::getLastTemperatureC() const {
+    return _lastTempC;
+}
+
+float DigitalTempSensor::readTemperatureF() {
+    float tempC = readTemperatureC();
+    if (isnan(tempC)) return NAN;
+    return tempC * 9.0f / 5.0f + 32.0f;
+}
+
+bool DigitalTempSensor::isConnected() const {
+    return _connected;
+}
+
+bool DigitalTempSensor::isValid() const {
+    return _valid;
+}
+
+uint8_t DigitalTempSensor::getDeviceCount() const {
+    return _deviceCount;
+}
+\end{lstlisting}
+
+% ══════════════════════════════════════════════════════════════════════════
+% SERVICE LAYER
+% ══════════════════════════════════════════════════════════════════════════
+
+\subsection{Service Layer: ThresholdAlert}
+
+\subsubsection{ThresholdAlert.h}
+\begin{lstlisting}[language=C++, caption=ThresholdAlert.h --- Hysteresis-Based Threshold Alert Interface]
+/**
+ * @file ThresholdAlert.h
+ * @brief Hysteresis-Based Threshold Alert Module Interface
+ *
+ * 4-state FSM: NORMAL -> DEBOUNCE_HIGH -> ALERT -> DEBOUNCE_LOW -> NORMAL
+ * Each transition requires N consecutive confirmations (debounce).
+ * Hysteresis band: [lowThreshold, highThreshold]
+ */
+
+#ifndef THRESHOLD_ALERT_H
+#define THRESHOLD_ALERT_H
+
+#include <Arduino.h>
+
+enum AlertState {
+    ALERT_NORMAL,
+    ALERT_DEBOUNCE_HIGH,
+    ALERT_ACTIVE,
+    ALERT_DEBOUNCE_LOW
+};
+
+class ThresholdAlert {
+public:
+    ThresholdAlert(float highThreshold, float lowThreshold,
+                   uint8_t debounceCount = 5);
+    void init();
+    AlertState update(float value);
+    AlertState getState() const;
+    bool isAlertActive() const;
+    bool isDebouncing() const;
+    uint8_t getDebounceCounter() const;
+    const char* getStateString() const;
+    void setThresholds(float high, float low);
+    void setDebounceCount(uint8_t count);
+    float getHighThreshold() const;
+    float getLowThreshold() const;
+
+private:
+    float      _highThreshold;
+    float      _lowThreshold;
+    uint8_t    _debounceMax;
+    uint8_t    _debounceCounter;
+    AlertState _state;
+};
+
+#endif // THRESHOLD_ALERT_H
+\end{lstlisting}
+
+\subsubsection{ThresholdAlert.cpp}
+\begin{lstlisting}[language=C++, caption=ThresholdAlert.cpp --- Hysteresis-Based Threshold Alert Implementation]
+/**
+ * @file ThresholdAlert.cpp
+ * @brief Hysteresis-Based Threshold Alert Module Implementation
+ *
+ * Implements the 4-state FSM for threshold detection with hysteresis
+ * and debounce filtering.
+ */
+
+#include "ThresholdAlert.h"
+
+static const char* STATE_NAMES[] = {
+    "NORMAL", "DEBOUNCE_HIGH", "ALERT", "DEBOUNCE_LOW"
+};
+
+ThresholdAlert::ThresholdAlert(float highThreshold,
+                               float lowThreshold,
+                               uint8_t debounceCount)
+    : _highThreshold(highThreshold),
+      _lowThreshold(lowThreshold),
+      _debounceMax(debounceCount),
+      _debounceCounter(0),
+      _state(ALERT_NORMAL) {}
+
+void ThresholdAlert::init() {
+    _state = ALERT_NORMAL;
+    _debounceCounter = 0;
+}
+
+AlertState ThresholdAlert::update(float value) {
+    switch (_state) {
+    case ALERT_NORMAL:
+        if (value > _highThreshold) {
+            _state = ALERT_DEBOUNCE_HIGH;
+            _debounceCounter = 1;
+        }
+        break;
+    case ALERT_DEBOUNCE_HIGH:
+        if (value > _highThreshold) {
+            _debounceCounter++;
+            if (_debounceCounter >= _debounceMax) {
+                _state = ALERT_ACTIVE;
+                _debounceCounter = 0;
+            }
+        } else {
+            _state = ALERT_NORMAL;
+            _debounceCounter = 0;
+        }
+        break;
+    case ALERT_ACTIVE:
+        if (value < _lowThreshold) {
+            _state = ALERT_DEBOUNCE_LOW;
+            _debounceCounter = 1;
+        }
+        break;
+    case ALERT_DEBOUNCE_LOW:
+        if (value < _lowThreshold) {
+            _debounceCounter++;
+            if (_debounceCounter >= _debounceMax) {
+                _state = ALERT_NORMAL;
+                _debounceCounter = 0;
+            }
+        } else {
+            _state = ALERT_ACTIVE;
+            _debounceCounter = 0;
+        }
+        break;
+    }
+    return _state;
+}
+
+AlertState ThresholdAlert::getState() const { return _state; }
+
+bool ThresholdAlert::isAlertActive() const {
+    return _state == ALERT_ACTIVE;
+}
+
+bool ThresholdAlert::isDebouncing() const {
+    return (_state == ALERT_DEBOUNCE_HIGH) ||
+           (_state == ALERT_DEBOUNCE_LOW);
+}
+
+uint8_t ThresholdAlert::getDebounceCounter() const {
+    return _debounceCounter;
+}
+
+const char* ThresholdAlert::getStateString() const {
+    return STATE_NAMES[_state];
+}
+
+void ThresholdAlert::setThresholds(float highThreshold,
+                                   float lowThreshold) {
+    _highThreshold = highThreshold;
+    _lowThreshold  = lowThreshold;
+    _state = ALERT_NORMAL;
+    _debounceCounter = 0;
+}
+
+void ThresholdAlert::setDebounceCount(uint8_t count) {
+    _debounceMax = count;
+    _debounceCounter = 0;
+}
+
+float ThresholdAlert::getHighThreshold() const {
+    return _highThreshold;
+}
+
+float ThresholdAlert::getLowThreshold() const {
+    return _lowThreshold;
+}
+\end{lstlisting}
+
+% ══════════════════════════════════════════════════════════════════════════
+% APPLICATION LAYER: SHARED DATA
+% ══════════════════════════════════════════════════════════════════════════
+
+\subsection{Application Layer: Shared Data and Synchronization}
+
+\subsubsection{sensor\_data.h}
+\begin{lstlisting}[language=C++, caption=sensor\_data.h --- Shared Data Structures and Pin Mapping]
+/**
+ * @file sensor_data.h
+ * @brief Lab 3.1 -- Shared Data Structures and Synchronization Primitives
+ *
+ * Declares the inter-task shared data structures, FreeRTOS synchronization
+ * handles, hardware pin mapping, and application constants.
+ */
+
+#ifndef SENSOR_DATA_H
+#define SENSOR_DATA_H
+
+#include <Arduino.h>
+#include <Arduino_FreeRTOS.h>
+#include <semphr.h>
+#include "ThresholdAlert.h"
+
+// === Hardware Pin Mapping (Arduino Mega 2560) ===
+static const uint8_t PIN_ANALOG_SENSOR  = A0;
+static const uint8_t PIN_DIGITAL_SENSOR = 2;
+static const uint8_t PIN_LED_GREEN      = 8;
+static const uint8_t PIN_LED_RED        = 9;
+static const uint8_t PIN_LED_YELLOW     = 10;
+static const uint8_t LCD_I2C_ADDRESS    = 0x27;
+static const uint8_t LCD_COLS           = 16;
+static const uint8_t LCD_ROWS           = 2;
+
+// === NTC Thermistor Parameters ===
+static const uint32_t NTC_SERIES_RESISTANCE  = 10000;
+static const uint32_t NTC_NOMINAL_RESISTANCE = 10000;
+static const uint16_t NTC_BETA_COEFFICIENT   = 3950;
+static const float    NTC_NOMINAL_TEMP_C     = 25.0f;
+
+// === DS18B20 Parameters ===
+static const uint8_t DS18B20_RESOLUTION = 10;
+
+// === Threshold Alert Parameters ===
+static const float   ANALOG_THRESHOLD_HIGH  = 30.0f;
+static const float   ANALOG_THRESHOLD_LOW   = 28.0f;
+static const float   DIGITAL_THRESHOLD_HIGH = 30.0f;
+static const float   DIGITAL_THRESHOLD_LOW  = 28.0f;
+static const uint8_t ALERT_DEBOUNCE_COUNT   = 5;
+
+// === FreeRTOS Task Configuration ===
+static const uint32_t TASK_ACQUISITION_PERIOD_MS  = 50;
+static const UBaseType_t TASK_ACQUISITION_PRIORITY = 3;
+static const configSTACK_DEPTH_TYPE TASK_ACQUISITION_STACK = 256;
+
+static const uint32_t TASK_CONDITIONING_PERIOD_MS  = 100;
+static const UBaseType_t TASK_CONDITIONING_PRIORITY = 2;
+static const configSTACK_DEPTH_TYPE TASK_CONDITIONING_STACK = 256;
+
+static const uint32_t TASK_DISPLAY_PERIOD_MS  = 500;
+static const UBaseType_t TASK_DISPLAY_PRIORITY = 1;
+static const configSTACK_DEPTH_TYPE TASK_DISPLAY_STACK = 512;
+
+// === Shared Data Structures ===
+typedef struct {
+    uint16_t   analogRaw;
+    float      analogResistance;
+    float      analogTempC;
+    bool       analogValid;
+    float      digitalTempC;
+    bool       digitalValid;
+    uint32_t   readingCount;
+    TickType_t timestamp;
+} SensorReadings_t;
+
+typedef struct {
+    AlertState analogAlertState;
+    uint8_t    analogDebounceCount;
+    float      analogFilteredTemp;
+    AlertState digitalAlertState;
+    uint8_t    digitalDebounceCount;
+    float      digitalFilteredTemp;
+    uint32_t   analogAlertCount;
+    uint32_t   digitalAlertCount;
+    uint32_t   conditioningCycles;
+} AlertStatus_t;
+
+// === External Declarations ===
+extern SensorReadings_t g_sensorData;
+extern AlertStatus_t    g_alertData;
+extern SemaphoreHandle_t xNewReadingSemaphore;
+extern SemaphoreHandle_t xSensorMutex;
+
+void sensorDataInit();
+
+#endif // SENSOR_DATA_H
+\end{lstlisting}
+
+\subsubsection{sensor\_data.cpp}
+\begin{lstlisting}[language=C++, caption=sensor\_data.cpp --- Shared State Definitions]
+/**
+ * @file sensor_data.cpp
+ * @brief Lab 3.1 -- Shared State Definitions and Synchronization Init
+ */
+
+#include "sensor_data.h"
+
+SensorReadings_t g_sensorData = {
+    0, 0.0f, 0.0f, false, 0.0f, false, 0, 0
+};
+
+AlertStatus_t g_alertData = {
+    ALERT_NORMAL, 0, 0.0f,
+    ALERT_NORMAL, 0, 0.0f,
+    0, 0, 0
+};
+
+SemaphoreHandle_t xNewReadingSemaphore = NULL;
+SemaphoreHandle_t xSensorMutex         = NULL;
+
+void sensorDataInit() {
+    xNewReadingSemaphore = xSemaphoreCreateBinary();
+    xSensorMutex = xSemaphoreCreateMutex();
+}
+\end{lstlisting}
+
+% ══════════════════════════════════════════════════════════════════════════
+% APPLICATION LAYER: TASKS
+% ══════════════════════════════════════════════════════════════════════════
+
+\subsection{Application Layer: Task 1 --- Sensor Acquisition}
+
+\subsubsection{task\_acquisition.h}
+\begin{lstlisting}[language=C++, caption=task\_acquisition.h --- Sensor Acquisition Task Interface]
+/**
+ * @file task_acquisition.h
+ * @brief Lab 3.1 -- Sensor Acquisition Task Interface (Task 1)
+ *
+ * Periodically reads both the analog NTC thermistor (via ADC) and
+ * the digital DS18B20 sensor (via OneWire) at 50 ms intervals.
+ */
+
+#ifndef TASK_ACQUISITION_H
+#define TASK_ACQUISITION_H
+
+#include <Arduino_FreeRTOS.h>
+
+void vTaskAcquisition(void *pvParameters);
+
+#endif // TASK_ACQUISITION_H
+\end{lstlisting}
+
+\subsubsection{task\_acquisition.cpp}
+\begin{lstlisting}[language=C++, caption=task\_acquisition.cpp --- Sensor Acquisition Task Implementation]
+/**
+ * @file task_acquisition.cpp
+ * @brief Lab 3.1 -- Sensor Acquisition Task Implementation (Task 1)
+ *
+ * Reads NTC thermistor via ADC and DS18B20 via OneWire at 50 ms
+ * intervals using vTaskDelayUntil() for drift-free timing.
+ */
+
+#include "task_acquisition.h"
+#include "sensor_data.h"
+#include "AnalogTempSensor.h"
+#include "DigitalTempSensor.h"
+
+static AnalogTempSensor s_ntcSensor(
+    PIN_ANALOG_SENSOR, NTC_SERIES_RESISTANCE,
+    NTC_NOMINAL_RESISTANCE, NTC_BETA_COEFFICIENT,
+    NTC_NOMINAL_TEMP_C);
+
+static DigitalTempSensor s_ds18b20(
+    PIN_DIGITAL_SENSOR, DS18B20_RESOLUTION);
+
+void vTaskAcquisition(void *pvParameters) {
+    (void)pvParameters;
+
+    s_ntcSensor.init();
+    bool ds18b20Found = s_ds18b20.init();
+
+    if (ds18b20Found) {
+        s_ds18b20.requestConversion();
+    }
+
+    bool firstConversion = true;
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+    const TickType_t xPeriod =
+        pdMS_TO_TICKS(TASK_ACQUISITION_PERIOD_MS);
+
+    uint16_t rawAdc;
+    float resistance, analogTemp, digitalTemp;
+    bool analogOk, digitalOk;
+
+    for (;;) {
+        vTaskDelayUntil(&xLastWakeTime, xPeriod);
+
+        // Read analog sensor (NTC thermistor)
+        analogTemp = s_ntcSensor.readTemperatureC();
+        rawAdc     = s_ntcSensor.getLastRaw();
+        resistance = s_ntcSensor.readResistance();
+        analogOk   = s_ntcSensor.isValid();
+
+        // Read digital sensor (DS18B20)
+        if (ds18b20Found) {
+            if (firstConversion) {
+                while (!s_ds18b20.isConversionComplete()) {
+                    vTaskDelay(pdMS_TO_TICKS(10));
+                }
+                firstConversion = false;
+            }
+            if (s_ds18b20.isConversionComplete()) {
+                digitalTemp = s_ds18b20.readTemperatureC();
+                digitalOk   = s_ds18b20.isValid();
+            } else {
+                digitalTemp = s_ds18b20.getLastTemperatureC();
+                digitalOk   = s_ds18b20.isValid();
+            }
+            s_ds18b20.requestConversion();
+        } else {
+            digitalTemp = NAN;
+            digitalOk   = false;
+        }
+
+        // Write to shared data under mutex
+        if (xSemaphoreTake(xSensorMutex,
+                           pdMS_TO_TICKS(10)) == pdTRUE) {
+            g_sensorData.analogRaw        = rawAdc;
+            g_sensorData.analogResistance = resistance;
+            g_sensorData.analogTempC      = analogTemp;
+            g_sensorData.analogValid      = analogOk;
+            g_sensorData.digitalTempC     = digitalTemp;
+            g_sensorData.digitalValid     = digitalOk;
+            g_sensorData.readingCount++;
+            g_sensorData.timestamp = xTaskGetTickCount();
+            xSemaphoreGive(xSensorMutex);
+        }
+
+        // Notify Task 2
+        xSemaphoreGive(xNewReadingSemaphore);
+    }
+}
+\end{lstlisting}
+
+\subsection{Application Layer: Task 2 --- Signal Conditioning}
+
+\subsubsection{task\_conditioning.h}
+\begin{lstlisting}[language=C++, caption=task\_conditioning.h --- Signal Conditioning Task Interface]
+/**
+ * @file task_conditioning.h
+ * @brief Lab 3.1 -- Signal Conditioning & Alert Task Interface (Task 2)
+ *
+ * Event-driven task: wakes on semaphore from Task 1, applies
+ * hysteresis-based threshold detection and controls alert LEDs.
+ */
+
+#ifndef TASK_CONDITIONING_H
+#define TASK_CONDITIONING_H
+
+#include <Arduino_FreeRTOS.h>
+
+void vTaskConditioning(void *pvParameters);
+
+#endif // TASK_CONDITIONING_H
+\end{lstlisting}
+
+\subsubsection{task\_conditioning.cpp}
+\begin{lstlisting}[language=C++, caption=task\_conditioning.cpp --- Signal Conditioning Task Implementation]
+/**
+ * @file task_conditioning.cpp
+ * @brief Lab 3.1 -- Signal Conditioning & Alert Task (Task 2)
+ *
+ * Applies threshold detection with hysteresis and debounce to both
+ * analog and digital temperature readings. Controls LED indicators.
+ */
+
+#include "task_conditioning.h"
+#include "sensor_data.h"
+#include "ThresholdAlert.h"
+#include "Led.h"
+
+static ThresholdAlert s_analogAlert(
+    ANALOG_THRESHOLD_HIGH, ANALOG_THRESHOLD_LOW,
+    ALERT_DEBOUNCE_COUNT);
+
+static ThresholdAlert s_digitalAlert(
+    DIGITAL_THRESHOLD_HIGH, DIGITAL_THRESHOLD_LOW,
+    ALERT_DEBOUNCE_COUNT);
+
+static Led s_greenLed(PIN_LED_GREEN);
+static Led s_redLed(PIN_LED_RED);
+static Led s_yellowLed(PIN_LED_YELLOW);
+
+void vTaskConditioning(void *pvParameters) {
+    (void)pvParameters;
+
+    s_analogAlert.init();
+    s_digitalAlert.init();
+    s_greenLed.init();
+    s_redLed.init();
+    s_yellowLed.init();
+
+    s_greenLed.turnOn();
+    s_redLed.turnOff();
+    s_yellowLed.turnOff();
+
+    float analogTemp, digitalTemp;
+    bool analogValid, digitalValid;
+    AlertState prevAnalogState  = ALERT_NORMAL;
+    AlertState prevDigitalState = ALERT_NORMAL;
+
+    for (;;) {
+        // Wait for new sensor data
+        if (xSemaphoreTake(xNewReadingSemaphore,
+                           portMAX_DELAY) != pdTRUE) {
+            continue;
+        }
+
+        // Read sensor data under mutex
+        if (xSemaphoreTake(xSensorMutex,
+                           pdMS_TO_TICKS(10)) == pdTRUE) {
+            analogTemp   = g_sensorData.analogTempC;
+            digitalTemp  = g_sensorData.digitalTempC;
+            analogValid  = g_sensorData.analogValid;
+            digitalValid = g_sensorData.digitalValid;
+            xSemaphoreGive(xSensorMutex);
+        } else {
+            continue;
+        }
+
+        // Apply threshold detection
+        AlertState analogState  = ALERT_NORMAL;
+        AlertState digitalState = ALERT_NORMAL;
+
+        if (analogValid && !isnan(analogTemp)) {
+            analogState = s_analogAlert.update(analogTemp);
+        }
+        if (digitalValid && !isnan(digitalTemp)) {
+            digitalState = s_digitalAlert.update(digitalTemp);
+        }
+
+        // Write alert status under mutex
+        if (xSemaphoreTake(xSensorMutex,
+                           pdMS_TO_TICKS(10)) == pdTRUE) {
+            g_alertData.analogAlertState    = analogState;
+            g_alertData.analogDebounceCount =
+                s_analogAlert.getDebounceCounter();
+            g_alertData.analogFilteredTemp  = analogTemp;
+            g_alertData.digitalAlertState    = digitalState;
+            g_alertData.digitalDebounceCount =
+                s_digitalAlert.getDebounceCounter();
+            g_alertData.digitalFilteredTemp  = digitalTemp;
+
+            if (analogState == ALERT_ACTIVE &&
+                prevAnalogState != ALERT_ACTIVE) {
+                g_alertData.analogAlertCount++;
+            }
+            if (digitalState == ALERT_ACTIVE &&
+                prevDigitalState != ALERT_ACTIVE) {
+                g_alertData.digitalAlertCount++;
+            }
+            g_alertData.conditioningCycles++;
+            xSemaphoreGive(xSensorMutex);
+        }
+
+        prevAnalogState  = analogState;
+        prevDigitalState = digitalState;
+
+        // Update LED indicators
+        bool anyAlert = (analogState == ALERT_ACTIVE) ||
+                        (digitalState == ALERT_ACTIVE);
+
+        if (anyAlert) s_greenLed.turnOff();
+        else          s_greenLed.turnOn();
+
+        if (analogState == ALERT_ACTIVE) {
+            s_redLed.turnOn();
+        } else if (analogState == ALERT_DEBOUNCE_HIGH ||
+                   analogState == ALERT_DEBOUNCE_LOW) {
+            s_redLed.toggle();  // Blink during debounce
+        } else {
+            s_redLed.turnOff();
+        }
+
+        if (digitalState == ALERT_ACTIVE) {
+            s_yellowLed.turnOn();
+        } else if (digitalState == ALERT_DEBOUNCE_HIGH ||
+                   digitalState == ALERT_DEBOUNCE_LOW) {
+            s_yellowLed.toggle();
+        } else {
+            s_yellowLed.turnOff();
+        }
+    }
+}
+\end{lstlisting}
+
+\subsection{Application Layer: Task 3 --- Display and Reporting}
+
+\subsubsection{task\_display.h}
+\begin{lstlisting}[language=C++, caption=task\_display.h --- Display and Reporting Task Interface]
+/**
+ * @file task_display.h
+ * @brief Lab 3.1 -- Display & Reporting Task Interface (Task 3)
+ *
+ * Periodically updates the LCD display and prints structured
+ * STDIO reports to the serial terminal at 500 ms intervals.
+ */
+
+#ifndef TASK_DISPLAY_H
+#define TASK_DISPLAY_H
+
+#include <Arduino_FreeRTOS.h>
+
+void vTaskDisplay(void *pvParameters);
+
+#endif // TASK_DISPLAY_H
+\end{lstlisting}
+
+\subsubsection{task\_display.cpp}
+\begin{lstlisting}[language=C++, caption=task\_display.cpp --- Display and Reporting Task Implementation]
+/**
+ * @file task_display.cpp
+ * @brief Lab 3.1 -- Display & Reporting Task Implementation (Task 3)
+ *
+ * Every 500 ms, reads sensor data and alert status, updates the LCD
+ * with a summary, and prints a structured STDIO report every 2 seconds.
+ */
+
+#include "task_display.h"
+#include "sensor_data.h"
+#include "LcdDisplay.h"
+#include <stdio.h>
+#include <string.h>
+#include <math.h>
+
+static LcdDisplay s_lcd(LCD_I2C_ADDRESS, LCD_COLS, LCD_ROWS);
+
+static void formatTemp(char *buf, size_t len, float temp) {
+    if (isnan(temp)) strncpy(buf, " -- ", len);
+    else             dtostrf(temp, 4, 1, buf);
+}
+
+static const char* alertFullLabel(AlertState state) {
+    switch (state) {
+        case ALERT_NORMAL:        return "NORMAL";
+        case ALERT_DEBOUNCE_HIGH: return "DEBOUNCE_HIGH";
+        case ALERT_ACTIVE:        return "ALERT";
+        case ALERT_DEBOUNCE_LOW:  return "DEBOUNCE_LOW";
+        default:                  return "UNKNOWN";
+    }
+}
+
+void vTaskDisplay(void *pvParameters) {
+    (void)pvParameters;
+
+    s_lcd.init();
+    s_lcd.backlight(true);
+    s_lcd.showTwoLines("Lab 3.1 Sensors", "Initializing...");
+    vTaskDelay(pdMS_TO_TICKS(1000));
+
+    TickType_t xLastWakeTime = xTaskGetTickCount();
+    const TickType_t xPeriod =
+        pdMS_TO_TICKS(TASK_DISPLAY_PERIOD_MS);
+
+    uint8_t displayCycle = 0;
+    uint32_t reportNumber = 0;
+    static const uint8_t REPORT_INTERVAL = 4;
+
+    SensorReadings_t localSensor;
+    AlertStatus_t    localAlert;
+    char line0[17], line1[17];
+
+    for (;;) {
+        vTaskDelayUntil(&xLastWakeTime, xPeriod);
+        displayCycle++;
+
+        // Read shared data under mutex
+        if (xSemaphoreTake(xSensorMutex,
+                           pdMS_TO_TICKS(20)) == pdTRUE) {
+            memcpy(&localSensor, &g_sensorData,
+                   sizeof(SensorReadings_t));
+            memcpy(&localAlert, &g_alertData,
+                   sizeof(AlertStatus_t));
+            xSemaphoreGive(xSensorMutex);
+        } else {
+            continue;
+        }
+
+        // Update LCD display
+        uint8_t page = (displayCycle / 4) % 2;
+        if (page == 0) {
+            char aT[8], dT[8];
+            formatTemp(aT, sizeof(aT),
+                       localSensor.analogTempC);
+            formatTemp(dT, sizeof(dT),
+                       localSensor.digitalTempC);
+            snprintf(line0, sizeof(line0),
+                     "A:%sC D:%sC", aT, dT);
+
+            bool aA = (localAlert.analogAlertState
+                       == ALERT_ACTIVE);
+            bool dA = (localAlert.digitalAlertState
+                       == ALERT_ACTIVE);
+            if (aA && dA)
+                snprintf(line1, sizeof(line1), "ALERT: A+D");
+            else if (aA)
+                snprintf(line1, sizeof(line1), "ALERT: Analog");
+            else if (dA)
+                snprintf(line1, sizeof(line1), "ALERT: Digital");
+            else
+                snprintf(line1, sizeof(line1), "System: OK");
+        } else {
+            snprintf(line0, sizeof(line0), "AH:%.0f AL:%.0f C",
+                     ANALOG_THRESHOLD_HIGH,
+                     ANALOG_THRESHOLD_LOW);
+            snprintf(line1, sizeof(line1), "DH:%.0f DL:%.0f C",
+                     DIGITAL_THRESHOLD_HIGH,
+                     DIGITAL_THRESHOLD_LOW);
+        }
+        s_lcd.showTwoLines(line0, line1);
+
+        // Structured STDIO report (every 2 seconds)
+        if ((displayCycle % REPORT_INTERVAL) == 0) {
+            reportNumber++;
+            char aTStr[8], dTStr[8];
+            formatTemp(aTStr, sizeof(aTStr),
+                       localSensor.analogTempC);
+            formatTemp(dTStr, sizeof(dTStr),
+                       localSensor.digitalTempC);
+
+            printf("\r\n");
+            printf("=== SENSOR REPORT #%lu ===\r\n",
+                   (unsigned long)reportNumber);
+            printf("Analog:  %s C (raw=%u, R=%.0f) [%s]\r\n",
+                   aTStr, localSensor.analogRaw,
+                   localSensor.analogResistance,
+                   alertFullLabel(
+                       localAlert.analogAlertState));
+            printf("Digital: %s C [%s]\r\n",
+                   dTStr,
+                   alertFullLabel(
+                       localAlert.digitalAlertState));
+            printf("Alerts: A=%lu D=%lu Cycles=%lu\r\n",
+                   (unsigned long)
+                       localAlert.analogAlertCount,
+                   (unsigned long)
+                       localAlert.digitalAlertCount,
+                   (unsigned long)
+                       localAlert.conditioningCycles);
+            printf("========================\r\n");
+        }
+    }
+}
+\end{lstlisting}
+
+% ══════════════════════════════════════════════════════════════════════════
+% APPLICATION LAYER: ENTRY POINT
+% ══════════════════════════════════════════════════════════════════════════
+
+\subsection{Application Layer: Lab 3.1 Entry Point}
+
+\subsubsection{lab3\_1\_main.h}
+\begin{lstlisting}[language=C++, caption=lab3\_1\_main.h --- Lab 3.1 Entry Point Interface]
+/**
+ * @file lab3_1_main.h
+ * @brief Lab 3.1 Entry Point Interface
+ *
+ * Declares setup and loop for the dual-sensor temperature
+ * monitoring system with FreeRTOS preemptive scheduling.
+ */
+
+#ifndef LAB3_1_MAIN_H
+#define LAB3_1_MAIN_H
+
+void lab3_1Setup();
+void lab3_1Loop();
+
+#endif // LAB3_1_MAIN_H
+\end{lstlisting}
+
+\subsubsection{lab3\_1\_main.cpp}
+\begin{lstlisting}[language=C++, caption=lab3\_1\_main.cpp --- Lab 3.1 Entry Point Implementation]
+/**
+ * @file lab3_1_main.cpp
+ * @brief Lab 3.1 -- Dual-Sensor Temperature Monitoring
+ *
+ * Initializes STDIO, creates synchronization primitives, spawns
+ * three FreeRTOS tasks, and starts the scheduler.
+ */
+
+#include "lab3_1_main.h"
+#include "sensor_data.h"
+#include "task_acquisition.h"
+#include "task_conditioning.h"
+#include "task_display.h"
+
+#include <Arduino.h>
+#include <Arduino_FreeRTOS.h>
+#include <stdio.h>
+#include "StdioSerial.h"
+
+void lab3_1Setup() {
+    stdioSerialInit(9600);
+
+    printf("\r\n");
+    printf("========================================\r\n");
+    printf("  Lab 3.1 -- Dual-Sensor Temp Monitor\r\n");
+    printf("  FreeRTOS | Tasks: 3 | Tick: %u Hz\r\n",
+           (unsigned int)configTICK_RATE_HZ);
+    printf("========================================\r\n");
+    printf("Sensors: NTC(A0) + DS18B20(D2)\r\n");
+    printf("Thresholds: HIGH=%.1f LOW=%.1f\r\n",
+           ANALOG_THRESHOLD_HIGH, ANALOG_THRESHOLD_LOW);
+    printf("Debounce: %u confirmations\r\n",
+           (unsigned int)ALERT_DEBOUNCE_COUNT);
+    printf("========================================\r\n\r\n");
+
+    sensorDataInit();
+
+    xTaskCreate(vTaskAcquisition, "Acquire",
+        TASK_ACQUISITION_STACK, NULL,
+        TASK_ACQUISITION_PRIORITY, NULL);
+
+    xTaskCreate(vTaskConditioning, "Cond",
+        TASK_CONDITIONING_STACK, NULL,
+        TASK_CONDITIONING_PRIORITY, NULL);
+
+    xTaskCreate(vTaskDisplay, "Display",
+        TASK_DISPLAY_STACK, NULL,
+        TASK_DISPLAY_PRIORITY, NULL);
+}
+
+void lab3_1Loop() {
+    // All logic runs in FreeRTOS tasks.
+}
+\end{lstlisting}

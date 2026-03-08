@@ -128,11 +128,7 @@ void lab2_2Setup() {
 }
 
 void lab2_2Loop() {
-    // In the feilipu/FreeRTOS Arduino library, loop() is called from
-    // vApplicationIdleHook(). Blocking functions (vTaskDelay, semaphore
-    // take, etc.) MUST NEVER be called here — doing so blocks the idle
-    // task and corrupts the FreeRTOS scheduler.
-    //
+
     // All application logic runs inside the three FreeRTOS tasks.
     // This function intentionally does nothing.
 }
