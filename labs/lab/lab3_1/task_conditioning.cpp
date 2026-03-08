@@ -95,8 +95,11 @@ void vTaskConditioning(void *pvParameters) {
         }
 
         // ── 3. Apply threshold detection with hysteresis ──────────────
-        AlertState analogState  = ALERT_NORMAL;
-        AlertState digitalState = ALERT_NORMAL;
+        // If reading is invalid, preserve the FSM's current state rather
+        // than defaulting to ALERT_NORMAL (which would cause false green
+        // flicker when the DS18B20 is mid-conversion and returns NAN).
+        AlertState analogState  = s_analogAlert.getState();
+        AlertState digitalState = s_digitalAlert.getState();
 
         if (analogValid && !isnan(analogTemp)) {
             analogState = s_analogAlert.update(analogTemp);
@@ -134,11 +137,13 @@ void vTaskConditioning(void *pvParameters) {
         prevDigitalState = digitalState;
 
         // ── 5. Update LED indicators ──────────────────────────────────
-        bool anyAlert = (analogState == ALERT_ACTIVE) ||
-                        (digitalState == ALERT_ACTIVE);
+        // Green turns off as soon as any sensor leaves NORMAL (including
+        // during DEBOUNCE_HIGH / DEBOUNCE_LOW), not just when ALERT_ACTIVE.
+        bool anyNonNormal = (analogState  != ALERT_NORMAL) ||
+                            (digitalState != ALERT_NORMAL);
 
-        // Green LED: ON when no alerts, OFF when any alert active.
-        if (anyAlert) {
+        // Green LED: ON only when both sensors are fully NORMAL.
+        if (anyNonNormal) {
             s_greenLed.turnOff();
         } else {
             s_greenLed.turnOn();
