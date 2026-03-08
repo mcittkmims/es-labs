@@ -39,6 +39,9 @@
 
 % Additional useful packages
 \usepackage{graphicx}
+% Global image size limits: images never exceed page width or 85% of page height.
+% Individual \includegraphics[width=...] calls inherit the height ceiling automatically.
+\setkeys{Gin}{height=0.85\textheight,keepaspectratio=true}
 \usepackage{hyperref}
 \usepackage{caption}
 \usepackage{float}
@@ -71,7 +74,10 @@
     frame=single,
     aboveskip=1.0em,
     belowskip=0em,
-    columns=flexible
+    columns=flexible,
+    linewidth=\linewidth,
+    xleftmargin=0pt,
+    xrightmargin=0pt
 }
 
 \lstset{style=mystyle}
@@ -87,6 +93,9 @@
     breaklines=true,
     frame=single,
     backgroundcolor=\color{backcolour},
+    linewidth=\linewidth,
+    xleftmargin=0pt,
+    xrightmargin=0pt,
     string=[s]{"}{"},
     stringstyle=\color{codepurple},
     comment=[l]{:},
