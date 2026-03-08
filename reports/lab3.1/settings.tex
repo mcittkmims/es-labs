@@ -39,6 +39,9 @@
 
 % Additional useful packages
 \usepackage{graphicx}
+% Global image size limits: images never exceed page width or 85% of page height.
+% Individual \includegraphics[width=...] calls inherit the height ceiling automatically.
+\setkeys{Gin}{height=0.85\textheight,keepaspectratio=true}
 \usepackage{hyperref}
 \usepackage{caption}
 \usepackage{float}
