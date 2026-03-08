@@ -29,6 +29,7 @@ AnalogTempSensor::AnalogTempSensor(uint8_t adcPin, uint32_t seriesR,
       _nominalTempK(nominalTempC + 273.15f),
       _adcMax((1 << adcResolution) - 1),
       _lastRaw(0),
+      _lastResistance(-1.0f),
       _lastTempC(NAN),
       _valid(false) {}
 
@@ -40,9 +41,10 @@ void AnalogTempSensor::init() {
     // On AVR, analog pins are automatically configured when analogRead()
     // is called, but we set the pin mode explicitly for clarity.
     pinMode(_adcPin, INPUT);
-    _lastRaw  = 0;
-    _lastTempC = NAN;
-    _valid    = false;
+    _lastRaw        = 0;
+    _lastResistance = -1.0f;
+    _lastTempC      = NAN;
+    _valid          = false;
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -65,6 +67,7 @@ float AnalogTempSensor::readResistance() {
     // ADC = 0 means NTC is shorted (R → 0).
     // ADC = ADC_MAX means NTC is open circuit (R → ∞).
     if (adc == 0 || adc >= _adcMax) {
+        _lastResistance = -1.0f;
         _valid = false;
         return -1.0f;
     }
@@ -73,6 +76,7 @@ float AnalogTempSensor::readResistance() {
     // V_adc / VCC = R_ntc / (R_series + R_ntc)
     // => R_ntc = R_series * ADC / (ADC_MAX - ADC)
     float resistance = (float)_seriesR * (float)adc / (float)(_adcMax - adc);
+    _lastResistance = resistance;
     _valid = true;
     return resistance;
 }
@@ -128,4 +132,8 @@ uint16_t AnalogTempSensor::getLastRaw() const {
 
 float AnalogTempSensor::getLastTemperatureC() const {
     return _lastTempC;
+}
+
+float AnalogTempSensor::getLastResistance() const {
+    return _lastResistance;
 }

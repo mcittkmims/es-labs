@@ -103,6 +103,12 @@ public:
      */
     float getLastTemperatureC() const;
 
+    /**
+     * @brief Get the last computed resistance without performing a new reading.
+     * @return float Last NTC resistance in ohms, or -1.0 if last read was invalid.
+     */
+    float getLastResistance() const;
+
 private:
     uint8_t  _adcPin;          /**< Analog input pin number.                */
     uint32_t _seriesR;         /**< Series resistor value (ohms).           */
@@ -111,6 +117,7 @@ private:
     float    _nominalTempK;    /**< Nominal temperature in Kelvin.          */
     uint16_t _adcMax;          /**< Maximum ADC value (2^resolution - 1).   */
     uint16_t _lastRaw;         /**< Last raw ADC reading.                   */
+    float    _lastResistance;  /**< Last computed NTC resistance (ohms).    */
     float    _lastTempC;       /**< Last computed temperature (°C).         */
     bool     _valid;           /**< Validity flag for last reading.         */
 };

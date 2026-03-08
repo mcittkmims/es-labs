@@ -26,14 +26,6 @@
       "left": -260,
       "attrs": { "temperature": "25", "beta": "3950" }
     },
-    {
-      "type": "wokwi-resistor",
-      "id": "r_ntc",
-      "top": 230,
-      "left": -130,
-      "rotate": 0,
-      "attrs": { "resistance": "10000" }
-    },
 
     {
       "type": "wokwi-ds18b20",
@@ -107,8 +99,7 @@
 
     ["ntc1:VCC",   "mega:5V",       "red",    ["v-40", "h200"]],
     ["ntc1:GND",   "mega:GND.2",    "black",  ["v40", "h200"]],
-    ["ntc1:OUT",   "r_ntc:1",       "orange", ["h0"]],
-    ["r_ntc:2",    "mega:A0",       "orange", ["h40", "v-50"]],
+    ["ntc1:OUT",   "mega:A0",       "orange", ["v-60", "h280"]],
 
     ["ds1:VCC",    "mega:5V",       "red",    ["v20", "h-120", "v180"]],
     ["ds1:GND",    "mega:GND.3",    "black",  ["v40", "h-140", "v200"]],

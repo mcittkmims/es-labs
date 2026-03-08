@@ -74,9 +74,12 @@ void vTaskAcquisition(void *pvParameters) {
         vTaskDelayUntil(&xLastWakeTime, xPeriod);
 
         // ── 1. Read analog sensor (NTC thermistor) ────────────────────
+        // readTemperatureC() internally calls readResistance() → readRaw().
+        // Cache all results from that single ADC acquisition to avoid a
+        // second analogRead() (which could return a different value).
         analogTemp  = s_ntcSensor.readTemperatureC();
         rawAdc      = s_ntcSensor.getLastRaw();
-        resistance  = s_ntcSensor.readResistance();
+        resistance  = s_ntcSensor.getLastResistance();
         analogOk    = s_ntcSensor.isValid();
 
         // ── 2. Read digital sensor (DS18B20) ──────────────────────────
