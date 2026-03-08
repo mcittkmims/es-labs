@@ -93,9 +93,10 @@ void vTaskAcquisition(void *pvParameters) {
             }
 
             if (s_ds18b20.isConversionComplete()) {
-                // Read the result of the previous conversion.
-                // DallasTemperature stores the last result internally.
-                digitalTemp = s_ds18b20.readTemperatureC();
+                // Read the result of the already-completed conversion.
+                // readLastConversionC() does NOT trigger a new conversion,
+                // avoiding a ~188ms blocking stall inside this task.
+                digitalTemp = s_ds18b20.readLastConversionC();
                 digitalOk   = s_ds18b20.isValid();
             } else {
                 // Conversion not yet complete — use last known value.

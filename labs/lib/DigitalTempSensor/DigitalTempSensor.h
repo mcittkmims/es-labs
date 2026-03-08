@@ -86,8 +86,18 @@ public:
     float readTemperatureC();
 
     /**
-     * @brief Read the last converted temperature without starting a new conversion.
-     * @return float Last temperature in °C.
+     * @brief Read the result of the last completed non-blocking conversion.
+     *
+     * Call this after isConversionComplete() returns true. Does NOT trigger
+     * a new conversion. Validates the result and updates _valid / _lastTempC.
+     *
+     * @return float Temperature in °C. Returns NAN if reading is invalid.
+     */
+    float readLastConversionC();
+
+    /**
+     * @brief Get the cached temperature from the previous valid read.
+     * @return float Last temperature in °C (NAN if no valid read yet).
      */
     float getLastTemperatureC() const;
 

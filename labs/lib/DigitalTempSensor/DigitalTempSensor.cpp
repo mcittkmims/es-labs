@@ -109,6 +109,36 @@ float DigitalTempSensor::readTemperatureC() {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
+// Non-blocking result read
+// ──────────────────────────────────────────────────────────────────────────
+
+float DigitalTempSensor::readLastConversionC() {
+    if (!_connected) {
+        _valid = false;
+        _lastTempC = NAN;
+        return NAN;
+    }
+
+    float tempC = _sensors.getTempCByIndex(0);
+
+    // Validate: disconnected or power-on-reset sentinel values.
+    if (tempC == DEVICE_DISCONNECTED_C || tempC <= DISCONNECTED_TEMP) {
+        _valid = false;
+        _lastTempC = NAN;
+        return NAN;
+    }
+
+    if (tempC == POWER_ON_RESET_TEMP) {
+        _valid = false;
+        return _lastTempC;  // Keep last known-good value.
+    }
+
+    _valid = true;
+    _lastTempC = tempC;
+    return _lastTempC;
+}
+
+// ──────────────────────────────────────────────────────────────────────────
 // Accessors
 // ──────────────────────────────────────────────────────────────────────────
 
