@@ -113,31 +113,52 @@ void vTaskConditioning(void *pvParameters) {
         }
 
         // ── 3. Apply signal conditioning pipeline ───────────────────────
-        // The conditioner handles NAN internally (replaces with midpoint).
-        AlertState analogState  = s_analogAlert.getState();
-        AlertState digitalState = s_digitalAlert.getState();
+        AlertState analogState  = ALERT_NORMAL;
+        AlertState digitalState = ALERT_NORMAL;
 
         if (analogValid && !isnan(analogTemp)) {
             analogConditioned = s_analogConditioner.process(analogTemp);
             analogState = s_analogAlert.update(analogConditioned);
+        } else {
+            // Sensor invalid: flush stale window and reset alert FSM.
+            s_analogConditioner.reset();
+            s_analogAlert.init();
+            analogConditioned = NAN;
         }
 
         if (digitalValid && !isnan(digitalTemp)) {
             digitalConditioned = s_digitalConditioner.process(digitalTemp);
             digitalState = s_digitalAlert.update(digitalConditioned);
+        } else {
+            // Sensor invalid: flush stale window and reset alert FSM.
+            s_digitalConditioner.reset();
+            s_digitalAlert.init();
+            digitalConditioned = NAN;
         }
 
         // ── 4. Write conditioned values and alert status under mutex ────
         if (xSemaphoreTake(xSensorMutex, pdMS_TO_TICKS(10)) == pdTRUE) {
             // Conditioning intermediates for analog sensor.
-            g_sensorData.analogMedian      = s_analogConditioner.getLastMedian();
-            g_sensorData.analogEwma        = s_analogConditioner.getLastEwma();
-            g_sensorData.analogConditioned = s_analogConditioner.isValid();
+            if (analogValid) {
+                g_sensorData.analogMedian      = s_analogConditioner.getLastMedian();
+                g_sensorData.analogEwma        = s_analogConditioner.getLastEwma();
+                g_sensorData.analogConditioned = s_analogConditioner.isValid();
+            } else {
+                g_sensorData.analogMedian      = NAN;
+                g_sensorData.analogEwma        = NAN;
+                g_sensorData.analogConditioned = false;
+            }
 
             // Conditioning intermediates for digital sensor.
-            g_sensorData.digitalMedian      = s_digitalConditioner.getLastMedian();
-            g_sensorData.digitalEwma        = s_digitalConditioner.getLastEwma();
-            g_sensorData.digitalConditioned = s_digitalConditioner.isValid();
+            if (digitalValid) {
+                g_sensorData.digitalMedian      = s_digitalConditioner.getLastMedian();
+                g_sensorData.digitalEwma        = s_digitalConditioner.getLastEwma();
+                g_sensorData.digitalConditioned = s_digitalConditioner.isValid();
+            } else {
+                g_sensorData.digitalMedian      = NAN;
+                g_sensorData.digitalEwma        = NAN;
+                g_sensorData.digitalConditioned = false;
+            }
 
             // Alert status.
             g_alertData.analogAlertState    = analogState;

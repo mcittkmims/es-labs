@@ -90,13 +90,13 @@ void vTaskAcquisition(void *pvParameters) {
             if (s_ds18b20.isConversionComplete()) {
                 digitalTemp = s_ds18b20.readLastConversionC();
                 digitalOk   = s_ds18b20.isValid();
+                // Conversion is done — start the next one.
+                s_ds18b20.requestConversion();
             } else {
+                // Still converting — keep last known-good value, don't restart.
                 digitalTemp = s_ds18b20.getLastTemperatureC();
                 digitalOk   = s_ds18b20.isValid();
             }
-
-            // Start the next conversion (non-blocking).
-            s_ds18b20.requestConversion();
         } else {
             digitalTemp = NAN;
             digitalOk   = false;
