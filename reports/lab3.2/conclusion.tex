@@ -1,0 +1,54 @@
+\section{Conclusions}
+
+\subsection{Achievement of Objectives}
+
+This laboratory work successfully implemented a dual-sensor temperature monitoring system with a three-stage signal conditioning pipeline, fulfilling all requirements specified for Lab 3.2. The system extends Lab 3.1 by interposing a configurable conditioning pipeline --- saturation, median filtering, and exponentially weighted moving average (EWMA) --- between the raw sensor acquisition and the threshold alert detection, resulting in significantly improved noise resilience and measurement stability.
+
+The primary objectives achieved include:
+\begin{itemize}
+    \item \textbf{Three-stage conditioning pipeline}: The SignalConditioner module implements a complete signal processing chain (saturation $\rightarrow$ median filter $\rightarrow$ EWMA) as a reusable library. Each stage addresses a distinct noise characteristic: saturation rejects physically impossible values, the median filter removes impulsive spikes, and the EWMA smooths high-frequency fluctuations. All intermediate values are accessible through getter methods, enabling full diagnostic visibility.
+    \item \textbf{Dual-sensor signal conditioning}: Both the analog NTC thermistor and the digital DS18B20 sensor have independent SignalConditioner instances, ensuring that noise characteristics specific to each sensor type are handled separately. The analog channel benefits particularly from the median filter (ADC readings are prone to electrical interference), while the digital channel benefits from the EWMA (the DS18B20's quantization steps are smoothed into continuous transitions).
+    \item \textbf{Conditioned threshold alerting}: The ThresholdAlert FSM receives the EWMA output rather than the raw sensor reading, ensuring that alert decisions are based on the smoothed, validated signal rather than instantaneous noise. This architectural change eliminates the false debounce triggers that could occur in Lab 3.1 when a transient spike crossed the threshold.
+    \item \textbf{FreeRTOS task architecture}: The three-task pipeline (acquisition, conditioning, display) operates with the same priority and synchronization structure as Lab 3.1, demonstrating that the conditioning pipeline integrates seamlessly into the existing real-time architecture without altering task timing or inter-task communication patterns.
+\end{itemize}
+
+\subsection{Performance Analysis and System Limitations}
+
+The system operates within comfortable resource margins on the ATmega2560 platform. RAM usage of 29.7\% (2\,431 bytes of 8\,192 bytes available) represents a moderate increase over Lab 3.1's 24.0\% (1\,969 bytes), with the additional consumption attributable to the two SignalConditioner instances maintaining circular buffers and EWMA state. The increase of approximately 462 bytes is consistent with the per-instance memory footprint: each SignalConditioner stores a 9-element float array (36 bytes), several float state variables, and index counters.
+
+The median filter introduces a fill latency of 5 samples $\times$ 50 ms = 250 ms before the pipeline is fully primed. During this startup period, the median is computed over a partial window and the ``Conditioned'' flag in the STDIO report shows ``FILLING''. Once the window is full, the pipeline transitions to steady-state operation with no additional latency per sample --- the median computation (insertion sort on 5 elements) completes in microseconds, well within the 50 ms acquisition period.
+
+The EWMA convergence time depends on the alpha parameter. With alpha = 0.3, the effective time constant is approximately $\tau \approx T_s / \alpha \approx 167$ ms, meaning the filter reaches 63\% of a step change within roughly 3--4 acquisition cycles. Full convergence (within 1\% of the final value) requires approximately $5\tau \approx 835$ ms. This responsiveness is appropriate for temperature monitoring where thermal time constants are on the order of seconds.
+
+The LCD update rate of 500 ms remains adequate for human perception of temperature trends, and the 2-second STDIO report interval provides sufficient diagnostic resolution for verifying conditioning behavior during testing.
+
+A notable limitation of the current implementation is that the conditioning parameters (median window size, EWMA alpha, saturation bounds) are compile-time constants defined in \texttt{sensor\_data.h}. Changing these values requires recompilation and reflashing, which prevents runtime experimentation with different filter configurations. Additionally, the same conditioning parameters are applied to both sensor channels, whereas in practice the analog and digital sensors may benefit from different alpha values due to their distinct noise characteristics.
+
+\subsection{Proposed Improvements}
+
+Several enhancements could extend the system's capabilities and flexibility:
+\begin{itemize}
+    \item \textbf{Runtime-adjustable parameters}: Implementing a serial command interface to modify the EWMA alpha and median window size at runtime would enable in-situ tuning without recompilation. Commands such as \texttt{SET ALPHA 0.5} or \texttt{SET WINDOW 7} could be parsed by a command handler task, allowing the operator to observe the effect of parameter changes on the conditioned output in real time.
+    \item \textbf{Additional filter types}: The modular pipeline architecture could be extended with more sophisticated filters such as a Kalman filter (optimal for Gaussian noise when the process model is known), a Butterworth low-pass filter (for well-defined frequency-domain noise rejection), or an adaptive median filter that adjusts its window size based on detected noise levels.
+    \item \textbf{Sensor fusion}: Combining the analog and digital sensor readings through a weighted averaging or voting scheme could improve overall measurement accuracy. When both sensors report similar temperatures, the fused estimate benefits from reduced variance; when they diverge significantly, the system could flag a sensor fault condition.
+    \item \textbf{Data logging}: Adding an SD card module or circular buffer in EEPROM would enable offline analysis of temperature trends, conditioning pipeline behavior, and alert event history. Time-stamped logs would support post-hoc analysis of system performance and facilitate correlation of temperature events with external conditions.
+    \item \textbf{Adaptive thresholds}: Rather than using fixed high and low thresholds, the system could implement a learning phase during startup that establishes a baseline temperature and automatically sets thresholds relative to this baseline (e.g., baseline + 5\textdegree C for the high threshold). This would make the system portable across different operating environments without manual threshold configuration.
+\end{itemize}
+
+\subsection{Reflections on the Learning Experience}
+
+This laboratory work provided valuable insights into the importance of signal conditioning in embedded sensor systems. Working with raw sensor data in Lab 3.1 revealed the challenges of noise, quantization effects, and transient anomalies that can degrade measurement quality and trigger false alerts. The systematic application of a multi-stage conditioning pipeline in Lab 3.2 demonstrated how each processing stage addresses a specific class of signal impairment, and how the stages compose to produce a robust measurement chain.
+
+The experience of implementing the median filter highlighted an important design trade-off: while the filter effectively removes impulsive noise, it introduces latency proportional to the window size and cannot track rapid legitimate changes faster than the window can shift. Similarly, the EWMA implementation illustrated the fundamental tension between responsiveness and stability --- a trade-off that has no universal optimal solution but must be tuned for the specific application's requirements.
+
+Designing the SignalConditioner as a reusable library with diagnostic getters for every pipeline stage proved essential for debugging and verification. Without the ability to inspect intermediate values (saturated, median, EWMA), it would have been difficult to determine whether unexpected behavior originated in the saturation bounds, the median window, or the EWMA tracking. This experience reinforces the principle that observability is a first-class design concern in embedded systems, not an afterthought.
+
+\subsection{Impact of Technology in Real-World Applications}
+
+Signal conditioning pipelines similar to the one implemented in this lab are fundamental to virtually all real-world sensor-based systems. Industrial process control systems apply multi-stage filtering to pressure, flow, and temperature transducers before feeding measurements to PID controllers, where noisy inputs would cause actuator chatter and mechanical wear. The pharmaceutical industry mandates validated signal conditioning for temperature sensors in clean rooms and autoclaves, where false readings could compromise product sterility or trigger unnecessary batch rejections.
+
+Medical device monitoring represents a particularly critical application domain. Patient vital signs monitors apply sophisticated filtering to ECG, pulse oximetry, and temperature signals, where the consequences of both false alarms (alarm fatigue leading clinicians to ignore warnings) and missed alarms (undetected deterioration) can be life-threatening. The median-then-EWMA architecture implemented in this lab mirrors the general approach used in such systems, though production medical devices employ additional stages such as baseline wander removal and artifact detection.
+
+Automotive sensor systems provide another compelling example. Engine management units process signals from dozens of analog and digital sensors (throttle position, coolant temperature, manifold pressure) through conditioning pipelines that must balance rapid response for engine control with noise rejection for stable operation. The saturation stage is particularly relevant in automotive applications, where sensor faults (open circuit, short to ground) produce rail-voltage ADC readings that must be detected and clamped before downstream processing.
+
+Environmental monitoring stations deployed for climate research or air quality assessment use signal conditioning to produce reliable long-term datasets from sensors exposed to harsh conditions. EWMA filtering with carefully chosen time constants enables these systems to capture meaningful environmental trends while rejecting measurement artifacts caused by precipitation, solar heating of sensor housings, or electromagnetic interference from nearby equipment. The techniques practiced in this laboratory work provide a solid foundation for understanding and implementing such real-world signal processing systems.

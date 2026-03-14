@@ -1,0 +1,256 @@
+\section{Appendix --- Source Code}
+
+The complete source code for Laboratory Work 3.2 is organized below by architectural layer. All source files are available in the project GitHub repository.
+
+\textbf{GitHub Repository:} \url{https://github.com/mcittkmims/es-labs}
+
+% ══════════════════════════════════════════════════════════════════════════
+% APPLICATION LAYER: ENTRY POINT
+% ══════════════════════════════════════════════════════════════════════════
+
+\subsection{Application Layer: Lab 3.2 Entry Point}
+
+\subsubsection{lab3\_2\_main.h}
+\begin{lstlisting}[language=C++, caption=lab3\_2\_main.h --- Lab 3.2 Entry Point Interface, label=lst:appendix_lab3_2_main_h]
+% [Full source code - see GitHub repository]
+% File: labs/lab/lab3_2/lab3_2_main.h
+% Declares setup and loop functions for the dual-sensor temperature
+% monitoring system with signal conditioning pipeline.
+\end{lstlisting}
+
+\subsubsection{lab3\_2\_main.cpp}
+\begin{lstlisting}[language=C++, caption=lab3\_2\_main.cpp --- Lab 3.2 Entry Point Implementation, label=lst:appendix_lab3_2_main_cpp]
+% [Full source code - see GitHub repository]
+% File: labs/lab/lab3_2/lab3_2_main.cpp
+% Initializes STDIO, creates synchronization primitives, spawns
+% three FreeRTOS tasks (acquisition, conditioning, display),
+% and starts the scheduler.
+\end{lstlisting}
+
+% ══════════════════════════════════════════════════════════════════════════
+% TASK LAYER
+% ══════════════════════════════════════════════════════════════════════════
+
+\subsection{Task Layer: Sensor Acquisition}
+
+\subsubsection{task\_acquisition.h}
+\begin{lstlisting}[language=C++, caption=task\_acquisition.h --- Sensor Acquisition Task Interface, label=lst:appendix_task_acquisition_h]
+% [Full source code - see GitHub repository]
+% File: labs/lab/lab3_2/task_acquisition.h
+% Declares the vTaskAcquisition() function for periodic sensor reading.
+\end{lstlisting}
+
+\subsubsection{task\_acquisition.cpp}
+\begin{lstlisting}[language=C++, caption=task\_acquisition.cpp --- Sensor Acquisition Task Implementation, label=lst:appendix_task_acquisition_cpp]
+% [Full source code - see GitHub repository]
+% File: labs/lab/lab3_2/task_acquisition.cpp
+% Periodically reads NTC thermistor (ADC) and DS18B20 (OneWire) at
+% 50 ms intervals using vTaskDelayUntil(). Writes raw readings to
+% shared g_sensorData under mutex and signals Task 2 via semaphore.
+\end{lstlisting}
+
+\subsection{Task Layer: Signal Conditioning}
+
+\subsubsection{task\_conditioning.h}
+\begin{lstlisting}[language=C++, caption=task\_conditioning.h --- Signal Conditioning Task Interface, label=lst:appendix_task_conditioning_h]
+% [Full source code - see GitHub repository]
+% File: labs/lab/lab3_2/task_conditioning.h
+% Declares the vTaskConditioning() function for event-driven
+% signal conditioning and threshold alerting.
+\end{lstlisting}
+
+\subsubsection{task\_conditioning.cpp}
+\begin{lstlisting}[language=C++, caption=task\_conditioning.cpp --- Signal Conditioning Task Implementation, label=lst:appendix_task_conditioning_cpp]
+% [Full source code - see GitHub repository]
+% File: labs/lab/lab3_2/task_conditioning.cpp
+% Applies three-stage conditioning pipeline (saturate -> median -> EWMA)
+% to both sensor channels, feeds conditioned values to ThresholdAlert
+% FSM, and controls LED indicators based on alert states.
+\end{lstlisting}
+
+\subsection{Task Layer: Display and Reporting}
+
+\subsubsection{task\_display.h}
+\begin{lstlisting}[language=C++, caption=task\_display.h --- Display and Reporting Task Interface, label=lst:appendix_task_display_h]
+% [Full source code - see GitHub repository]
+% File: labs/lab/lab3_2/task_display.h
+% Declares the vTaskDisplay() function for periodic LCD and
+% STDIO report updates.
+\end{lstlisting}
+
+\subsubsection{task\_display.cpp}
+\begin{lstlisting}[language=C++, caption=task\_display.cpp --- Display and Reporting Task Implementation, label=lst:appendix_task_display_cpp]
+% [Full source code - see GitHub repository]
+% File: labs/lab/lab3_2/task_display.cpp
+% Updates LCD with conditioned EWMA values and alert status (Page 0)
+% and conditioning configuration (Page 1). Prints structured STDIO
+% reports every 2 seconds showing raw, median, and EWMA values for
+% both sensors along with alert states and system statistics.
+\end{lstlisting}
+
+% ══════════════════════════════════════════════════════════════════════════
+% SERVICE LAYER
+% ══════════════════════════════════════════════════════════════════════════
+
+\subsection{Service Layer: Shared Data and Synchronization}
+
+\subsubsection{sensor\_data.h}
+\begin{lstlisting}[language=C++, caption=sensor\_data.h --- Shared Data Structures and Pin Mapping, label=lst:appendix_sensor_data_h]
+% [Full source code - see GitHub repository]
+% File: labs/lab/lab3_2/sensor_data.h
+% Declares SensorReadings_t (with raw + conditioned fields),
+% AlertStatus_t, FreeRTOS synchronization handles, hardware pin
+% mapping, NTC/DS18B20 parameters, signal conditioning parameters
+% (median window, EWMA alpha, saturation bounds), threshold alert
+% parameters, and FreeRTOS task configuration constants.
+\end{lstlisting}
+
+\subsubsection{sensor\_data.cpp}
+\begin{lstlisting}[language=C++, caption=sensor\_data.cpp --- Shared State Definitions, label=lst:appendix_sensor_data_cpp]
+% [Full source code - see GitHub repository]
+% File: labs/lab/lab3_2/sensor_data.cpp
+% Defines g_sensorData, g_alertData, xNewReadingSemaphore,
+% xSensorMutex, and the sensorDataInit() function that creates
+% the binary semaphore and mutex.
+\end{lstlisting}
+
+\subsection{Service Layer: SignalConditioner}
+
+\subsubsection{SignalConditioner.h}
+\begin{lstlisting}[language=C++, caption=SignalConditioner.h --- Signal Conditioning Pipeline Interface, label=lst:appendix_signal_conditioner_h]
+% [Full source code - see GitHub repository]
+% File: labs/lib/SignalConditioner/SignalConditioner.h
+% Declares the SignalConditioner class implementing a three-stage
+% pipeline: saturation (clamping), median filter (sliding window
+% with insertion sort), and EWMA (first-order IIR filter).
+% All intermediate values accessible via getters for diagnostics.
+% Maximum window size: 9 samples (fixed array, no heap allocation).
+\end{lstlisting}
+
+\subsubsection{SignalConditioner.cpp}
+\begin{lstlisting}[language=C++, caption=SignalConditioner.cpp --- Signal Conditioning Pipeline Implementation, label=lst:appendix_signal_conditioner_cpp]
+% [Full source code - see GitHub repository]
+% File: labs/lib/SignalConditioner/SignalConditioner.cpp
+% Implements process(), reset(), saturate(), computeMedian(),
+% and all getter methods. The median computation uses insertion
+% sort on a local copy of the circular buffer contents.
+% EWMA initializes to the first sample on first call.
+\end{lstlisting}
+
+\subsection{Service Layer: ThresholdAlert}
+
+\subsubsection{ThresholdAlert.h}
+\begin{lstlisting}[language=C++, caption=ThresholdAlert.h --- Hysteresis-Based Threshold Alert Interface, label=lst:appendix_threshold_alert_h]
+% [Full source code - see GitHub repository]
+% File: labs/lib/ThresholdAlert/ThresholdAlert.h
+% Declares the ThresholdAlert class implementing a 4-state FSM:
+% NORMAL -> DEBOUNCE_HIGH -> ALERT_ACTIVE -> DEBOUNCE_LOW -> NORMAL
+% with configurable high/low thresholds and debounce count.
+\end{lstlisting}
+
+\subsubsection{ThresholdAlert.cpp}
+\begin{lstlisting}[language=C++, caption=ThresholdAlert.cpp --- Hysteresis-Based Threshold Alert Implementation, label=lst:appendix_threshold_alert_cpp]
+% [Full source code - see GitHub repository]
+% File: labs/lib/ThresholdAlert/ThresholdAlert.cpp
+% Implements the 4-state FSM for threshold detection with
+% hysteresis and debounce filtering. Each transition requires
+% N consecutive confirmations before state change.
+\end{lstlisting}
+
+% ══════════════════════════════════════════════════════════════════════════
+% DRIVER LAYER
+% ══════════════════════════════════════════════════════════════════════════
+
+\subsection{Driver Layer: AnalogTempSensor}
+
+\subsubsection{AnalogTempSensor.h}
+\begin{lstlisting}[language=C++, caption=AnalogTempSensor.h --- NTC Thermistor Driver Interface, label=lst:appendix_analog_temp_h]
+% [Full source code - see GitHub repository]
+% File: labs/lib/AnalogTempSensor/AnalogTempSensor.h
+% Declares the AnalogTempSensor class for reading temperature from
+% an NTC thermistor via ADC with Steinhart-Hart Beta equation.
+% Circuit: VCC --- [R_series] --- ADC_PIN --- [NTC] --- GND
+\end{lstlisting}
+
+\subsubsection{AnalogTempSensor.cpp}
+\begin{lstlisting}[language=C++, caption=AnalogTempSensor.cpp --- NTC Thermistor Driver Implementation, label=lst:appendix_analog_temp_cpp]
+% [Full source code - see GitHub repository]
+% File: labs/lib/AnalogTempSensor/AnalogTempSensor.cpp
+% Implements ADC reading, resistance calculation from voltage
+% divider equation, and temperature conversion using the
+% Steinhart-Hart Beta parameter equation.
+\end{lstlisting}
+
+\subsection{Driver Layer: DigitalTempSensor}
+
+\subsubsection{DigitalTempSensor.h}
+\begin{lstlisting}[language=C++, caption=DigitalTempSensor.h --- DS18B20 OneWire Driver Interface, label=lst:appendix_digital_temp_h]
+% [Full source code - see GitHub repository]
+% File: labs/lib/DigitalTempSensor/DigitalTempSensor.h
+% Declares the DigitalTempSensor class for reading temperature
+% from a DS18B20 sensor via the OneWire protocol.
+\end{lstlisting}
+
+\subsubsection{DigitalTempSensor.cpp}
+\begin{lstlisting}[language=C++, caption=DigitalTempSensor.cpp --- DS18B20 OneWire Driver Implementation, label=lst:appendix_digital_temp_cpp]
+% [Full source code - see GitHub repository]
+% File: labs/lib/DigitalTempSensor/DigitalTempSensor.cpp
+% Implements OneWire-based temperature reading with non-blocking
+% conversion support, device detection, and error handling for
+% disconnected and power-on-reset conditions.
+\end{lstlisting}
+
+\subsection{Driver Layer: LcdDisplay}
+
+\subsubsection{LcdDisplay.h}
+\begin{lstlisting}[language=C++, caption=LcdDisplay.h --- LCD Display Driver Interface, label=lst:appendix_lcd_display_h]
+% [Full source code - see GitHub repository]
+% File: labs/lib/LcdDisplay/LcdDisplay.h
+% Declares the LcdDisplay class wrapping the LiquidCrystal_I2C
+% library with convenience methods for two-line updates.
+\end{lstlisting}
+
+\subsubsection{LcdDisplay.cpp}
+\begin{lstlisting}[language=C++, caption=LcdDisplay.cpp --- LCD Display Driver Implementation, label=lst:appendix_lcd_display_cpp]
+% [Full source code - see GitHub repository]
+% File: labs/lib/LcdDisplay/LcdDisplay.cpp
+% Implements LCD initialization, backlight control, and
+% showTwoLines() method for atomic two-line display updates.
+\end{lstlisting}
+
+\subsection{Driver Layer: Led}
+
+\subsubsection{Led.h}
+\begin{lstlisting}[language=C++, caption=Led.h --- LED Driver Interface, label=lst:appendix_led_h]
+% [Full source code - see GitHub repository]
+% File: labs/lib/Led/Led.h
+% Declares the Led class for controlling a single LED with
+% init(), turnOn(), turnOff(), and toggle() methods.
+\end{lstlisting}
+
+\subsubsection{Led.cpp}
+\begin{lstlisting}[language=C++, caption=Led.cpp --- LED Driver Implementation, label=lst:appendix_led_cpp]
+% [Full source code - see GitHub repository]
+% File: labs/lib/Led/Led.cpp
+% Implements LED control using digitalWrite() with internal
+% state tracking for toggle functionality.
+\end{lstlisting}
+
+\subsection{Driver Layer: StdioSerial}
+
+\subsubsection{StdioSerial.h}
+\begin{lstlisting}[language=C++, caption=StdioSerial.h --- STDIO Serial Redirect Interface, label=lst:appendix_stdio_serial_h]
+% [Full source code - see GitHub repository]
+% File: labs/lib/StdioSerial/StdioSerial.h
+% Declares stdioSerialInit() for redirecting C stdio (printf)
+% to the Arduino Serial interface.
+\end{lstlisting}
+
+\subsubsection{StdioSerial.cpp}
+\begin{lstlisting}[language=C++, caption=StdioSerial.cpp --- STDIO Serial Redirect Implementation, label=lst:appendix_stdio_serial_cpp]
+% [Full source code - see GitHub repository]
+% File: labs/lib/StdioSerial/StdioSerial.cpp
+% Implements STDIO redirection by assigning a custom putchar
+% function to the AVR FILE stream, enabling printf() output
+% over the hardware UART.
+\end{lstlisting}

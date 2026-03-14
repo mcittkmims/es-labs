@@ -1,0 +1,122 @@
+{
+  "version": 1,
+  "author": "Vremere Adrian",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "wokwi-arduino-mega",
+      "id": "mega",
+      "top": 0,
+      "left": 0,
+      "attrs": {}
+    },
+
+    {
+      "type": "wokwi-lcd1602",
+      "id": "lcd1",
+      "top": -340,
+      "left": 100,
+      "attrs": { "pins": "i2c" }
+    },
+
+    {
+      "type": "wokwi-ntc-temperature-sensor",
+      "id": "ntc1",
+      "top": 240,
+      "left": -260,
+      "attrs": { "temperature": "25", "beta": "3950" }
+    },
+
+    {
+      "type": "wokwi-ds18b20",
+      "id": "ds1",
+      "top": -280,
+      "left": 600,
+      "attrs": { "temperature": "24" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r_ds_pullup",
+      "top": -200,
+      "left": 660,
+      "rotate": 90,
+      "attrs": { "resistance": "4700" }
+    },
+
+    {
+      "type": "wokwi-led",
+      "id": "led_green",
+      "top": 280,
+      "left": 180,
+      "attrs": { "color": "green", "label": "Normal" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r_green",
+      "top": 245,
+      "left": 160,
+      "rotate": 90,
+      "attrs": { "resistance": "220" }
+    },
+
+    {
+      "type": "wokwi-led",
+      "id": "led_red",
+      "top": 280,
+      "left": 290,
+      "attrs": { "color": "red", "label": "Analog Alert" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r_red",
+      "top": 245,
+      "left": 270,
+      "rotate": 90,
+      "attrs": { "resistance": "220" }
+    },
+
+    {
+      "type": "wokwi-led",
+      "id": "led_yellow",
+      "top": 280,
+      "left": 400,
+      "attrs": { "color": "yellow", "label": "Digital Alert" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r_yellow",
+      "top": 245,
+      "left": 380,
+      "rotate": 90,
+      "attrs": { "resistance": "220" }
+    }
+  ],
+  "connections": [
+    ["lcd1:VCC",   "mega:5V",       "red",    ["v20", "h-60", "v200"]],
+    ["lcd1:GND",   "mega:GND.1",    "black",  ["v20", "h-40", "v200"]],
+    ["lcd1:SDA",   "mega:20",       "cyan",   ["v40", "h100", "v140"]],
+    ["lcd1:SCL",   "mega:21",       "darkgreen", ["v60", "h120", "v120"]],
+
+    ["ntc1:VCC",   "mega:5V",       "red",    ["v-40", "h200"]],
+    ["ntc1:GND",   "mega:GND.2",    "black",  ["v40", "h200"]],
+    ["ntc1:OUT",   "mega:A0",       "orange", ["v-60", "h280"]],
+
+    ["ds1:VCC",    "mega:5V",       "red",    ["v20", "h-120", "v180"]],
+    ["ds1:GND",    "mega:GND.3",    "black",  ["v40", "h-140", "v200"]],
+    ["ds1:DQ",     "r_ds_pullup:2", "blue",   ["h0"]],
+    ["r_ds_pullup:1","mega:5V",     "red",    ["h-100", "v130"]],
+    ["ds1:DQ",     "mega:2",        "blue",   ["v60", "h-200", "v120"]],
+
+    ["mega:8",     "r_green:1",     "green",  ["v60", "h-40", "v80"]],
+    ["r_green:2",  "led_green:A",   "green",  ["v0"]],
+    ["led_green:C","mega:GND.4",    "black",  ["v30", "h-120", "v-200"]],
+
+    ["mega:9",     "r_red:1",       "orange", ["v60", "h20", "v80"]],
+    ["r_red:2",    "led_red:A",     "orange", ["v0"]],
+    ["led_red:C",  "mega:GND.5",    "black",  ["v30", "h-160", "v-200"]],
+
+    ["mega:10",    "r_yellow:1",    "gold",   ["v60", "h80", "v80"]],
+    ["r_yellow:2", "led_yellow:A",  "gold",   ["v0"]],
+    ["led_yellow:C","mega:GND.6",   "black",  ["v30", "h-200", "v-200"]]
+  ]
+}
