@@ -1,0 +1,29 @@
+\section{Conclusion}
+
+\subsection{Achievement of Objectives}
+
+The laboratory work successfully delivered all three required functional areas. The command interface correctly accepts ON and OFF strings from the serial terminal, echoes them back for confirmation, and rejects unrecognized input without disrupting the system state. The signal conditioning pipeline — implemented as a standalone reusable \texttt{BinaryConditioner} library — applies saturation, debouncing, and persistent state validation in sequence, ensuring that only stable and repeatedly confirmed commands reach the hardware output. The LCD display and STDIO periodic report provide continuous feedback about both the conditioned actuator state and the current conditioning phase (stable or debouncing), meeting the display and reporting requirement at the 500 ms recurrence.
+
+The three-task FreeRTOS architecture cleanly separates the input parsing, signal conditioning, and reporting concerns. Each task runs at an independently configured period and communicates exclusively through a mutex-protected shared structure, demonstrating the correct use of preemptive multitasking for a multi-rate embedded control system.
+
+\subsection{Performance Analysis and System Limitations}
+
+The main performance characteristic of the system is the introduced conditioning latency. A command is applied to the hardware after a minimum of approximately two actuator task periods (150 ms) plus the debounce window (100 ms), for a total worst-case delay of roughly 225 ms. This is acceptable for a lighting relay application but would be too slow for latency-sensitive control scenarios. The parameters are configurable via the constants in \texttt{actuator\_data.h}; reducing \texttt{DEBOUNCE\_PERIOD\_MS} and \texttt{PERSIST\_COUNT} trades noise rejection for lower latency.
+
+A current limitation is that the input parser accepts commands only via UART serial. The requirement mentions keypad input as an alternative; this would require integrating the existing \texttt{KeypadInput} library and a command-mapping layer, but the signal conditioning and actuator control modules would remain unchanged since they operate on abstract boolean values.
+
+The \texttt{lib\_ldf\_mode = deep+} setting added for this lab causes PlatformIO to scan all files in the \texttt{lib/} directory when building, which adds a few milliseconds to the build time. This is necessary because \texttt{actuator\_data.h} includes \texttt{ActuatorControl.h} transitively; the default \texttt{chain} mode does not follow includes through non-source header files.
+
+\subsection{Proposed Improvements}
+
+Several enhancements could extend the current system. First, adding keypad support would allow standalone control without a PC connection, using the \texttt{KeypadInput} library to map specific keys (e.g., \texttt{*} for ON, \texttt{\#} for OFF). Second, exposing the debounce period and persistence count as runtime-configurable parameters via serial commands (e.g., \texttt{SET DEBOUNCE 200}) would allow tuning without recompiling. Third, adding a toggle command (\texttt{TOGGLE}) would complement ON and OFF for applications where a pushbutton-style interaction is more natural. Fourth, replacing the LED with a relay module driven via a transistor or MOSFET gate would extend the system to control real mains-voltage loads, requiring only a pin mapping change in \texttt{actuator\_data.h}.
+
+\subsection{Reflections on the Learning Experience}
+
+The most instructive aspect of this lab was understanding why a purely software-based signal conditioning pipeline is necessary even for simple boolean inputs. It is tempting to assume that a typed serial command is inherently clean and requires no conditioning; in practice, accidental double-sends, copy-paste artifacts in the terminal, and serial buffer overflows all produce spurious command events that must be filtered. The persistent-validation stage provides a particularly elegant solution: because it requires the input to be confirmed multiple times, it naturally handles the case of a burst of identical commands without relying on wall-clock debouncing alone.
+
+Working with multiple FreeRTOS tasks and a shared mutex also reinforced the importance of keeping critical sections as short as possible. Each task holds the mutex only for the time needed to read or write the specific fields it requires, which minimises the chance of priority inversion.
+
+\subsection{Impact of Technology in Real-World Applications}
+
+Binary actuator control with software signal conditioning is one of the most widely deployed embedded systems patterns across industries. In industrial automation, PLCs use identical debounce and filter logic on all digital input channels to prevent relay chatter and electromagnetic interference from causing false transitions in machine-state controllers. Smart home gateways apply persistence-based validation to occupancy sensor inputs before actuating HVAC dampers or lighting circuits, reducing energy waste from flickering states. In medical devices, binary outputs such as pump enable signals are validated through persistence counting to ensure that a single-bit memory error or bus glitch cannot inadvertently start or stop a critical drug delivery mechanism. The combination of a clearly defined signal processing pipeline with separation of hardware and application logic — as demonstrated in this laboratory — is a foundational design principle for all these safety-relevant systems.

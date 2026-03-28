@@ -1,0 +1,135 @@
+\section{Domain Analysis}
+
+\subsection{Objective of the Laboratory Work}
+
+The objective of this laboratory work is to design and implement a binary actuator control system on the Arduino Mega 2560 microcontroller that accepts commands from the user via a serial terminal, applies a multi-stage signal conditioning pipeline to eliminate spurious transitions, and drives a physical output while continuously reporting the system state on both an LCD display and the serial monitor.
+
+The core learning objectives are to understand the concepts of binary actuator control, software-based signal conditioning for discrete signals (saturation, debouncing, and persistent state validation), and preemptive task scheduling with FreeRTOS. The lab also reinforces the principle of separating concerns across modular software layers, from raw input parsing through signal processing to hardware actuation and reporting.
+
+\subsection{Problem Definition}
+
+The task, as specified by the laboratory instructor, is reproduced below:
+
+\begin{quote}
+\textit{Control Actuator Binar}
+
+\textit{Pentru un actuator binar (ex.: bec de iluminare prin releu sau alt actuator convenit cu mentorul), se va realiza o aplicație pentru MCU care:}
+\begin{itemize}
+    \item \textit{interpretează comenzi de control de la utilizator prin STDIO (serial sau keypad)}
+    \item \textit{controlează actuatorul}
+    \item \textit{afișează starea curentă pe un display LCD}
+\end{itemize}
+
+\textit{Aplicația va implementa:}
+\begin{itemize}
+    \item \textbf{Control actuator binar:} Primește comenzi ON/OFF prin STDIO. Aplică debouncing. Controlează starea la o recurență configurabilă (50–100 ms). Expune starea printr-o interfață internă.
+    \item \textbf{Condiționare semnal:} Aplică saturare, debouncing software, și validare persistentă a stării.
+    \item \textbf{Afișare și raportare:} Afișează pe LCD sau STDIO un raport structurat la 500 ms.
+\end{itemize}
+\end{quote}
+
+The system therefore requires three distinct processing stages. The user sends the string \texttt{ON} or \texttt{OFF} via the serial terminal. That raw command passes through a conditioning pipeline that first saturates the value to a strict boolean, then requires the value to remain stable for a minimum debounce window, and finally confirms it with a minimum number of consecutive identical samples before the hardware output is actually toggled. The conditioned state is displayed on the LCD and reported periodically on the serial monitor.
+
+\subsection{Used Technologies}
+
+\subsubsection{UART Serial Communication and STDIO Redirection}
+
+UART (Universal Asynchronous Receiver-Transmitter) is the hardware serial interface used to connect the Arduino Mega 2560 to the host PC. The microcontroller's UART0 peripheral is connected to a USB-to-serial converter, making it accessible as a virtual COM port on the host. The application configures the interface at 9600 baud with the standard 8N1 framing (8 data bits, no parity, 1 stop bit).
+
+Rather than using the Arduino-specific \texttt{Serial.print()} API at the application level, the \texttt{StdioSerial} library redirects the C standard I/O streams — \texttt{stdout} and \texttt{stdin} — to the hardware serial port using the AVR libc \texttt{fdev\_setup\_stream()} mechanism. This allows all formatted output to use the portable \texttt{printf()} function and all input to be read through \texttt{Serial.available()} / \texttt{Serial.read()}, keeping the application layer independent of hardware-specific serial APIs.
+
+\subsubsection{Binary Actuator Control and Signal Conditioning}
+
+A binary actuator is any device that operates in exactly two discrete states: active (ON) and inactive (OFF). Common examples include relays driving mains loads, solenoid valves, indicator LEDs, and buzzers. In this laboratory the actuator is simulated by a red LED connected to a current-limiting resistor on pin D7.
+
+Control of a binary actuator from a user interface introduces the risk of spurious state changes caused by rapid repeated commands, communication noise, or accidental double-presses. A signal conditioning pipeline addresses this by introducing three filtering stages. Saturation maps any raw input value to a strict element of the set \{false, true\}. Software debouncing prevents the actuator state from changing unless the input has been stable for a minimum duration; this mirrors hardware debouncing used for mechanical pushbuttons and relay contacts. Persistent state validation requires the input to be confirmed by a minimum number of consecutive identical samples, providing an additional layer of filtering against transient glitches.
+
+\subsubsection{FreeRTOS Preemptive Task Scheduler}
+
+FreeRTOS is a real-time operating system kernel that provides preemptive multitasking on microcontrollers. On the Arduino Mega 2560, the \texttt{feilipu/FreeRTOS} library ports the kernel to the AVR ATmega2560 architecture with a default tick rate of 200 Hz. Each task has its own stack, a priority level, and runs a while-forever loop using \texttt{vTaskDelayUntil()} for accurate period control.
+
+Preemptive scheduling ensures that higher-priority tasks (input reading at priority 3) can interrupt lower-priority ones (display at priority 1), guaranteeing responsive user interaction regardless of display rendering time. Shared state between tasks is protected by FreeRTOS mutexes to prevent race conditions.
+
+\subsubsection{I2C Protocol and LCD Display}
+
+The Inter-Integrated Circuit (I2C) protocol is a two-wire synchronous serial bus that connects the microcontroller to the LCD module through a PCF8574 I/O expander. The Arduino Mega 2560 provides hardware I2C on pins SDA (D20) and SCL (D21). The standard 7-bit I2C address of 0x27 is used for the LCD backpack module. The \texttt{LcdDisplay} library wraps the \texttt{LiquidCrystal\_I2C} driver, providing a clean line-based API that automatically pads shorter strings to clear residual characters.
+
+\subsection{Hardware Components}
+
+\subsubsection{Arduino Mega 2560}
+
+The Arduino Mega 2560 is a microcontroller development board built around the 8-bit AVR ATmega2560 running at 16 MHz. It provides 256 KB of Flash program memory, 8 KB of SRAM for runtime data, 54 digital I/O pins, and 16 analog inputs. Four hardware UART ports enable simultaneous serial communication with the host PC and other peripherals. The on-board USB-to-serial converter allows programming and monitoring over a standard USB cable. In this laboratory the board acts as the system's central processing unit, executing the FreeRTOS kernel and all three application tasks.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/DomainAnalysis/HardwareComponents/arduino_mega_2560.png}{%
+    \includegraphics[width=0.65\textwidth]{resources/DomainAnalysis/HardwareComponents/arduino_mega_2560.png}%
+}{%
+    \fbox{\parbox{0.63\textwidth}{\centering\color{gray}\small
+        [Photo pending --- save to resources/DomainAnalysis/HardwareComponents/arduino\_mega\_2560.png]}}%
+}
+\caption{Arduino Mega 2560 development board}
+\label{fig:arduino_mega_2560}
+\end{figure}
+
+\subsubsection{LED and Current-Limiting Resistor}
+
+A standard 5 mm red LED is used to simulate the binary actuator output. An LED requires a current-limiting resistor in series to prevent excessive current from damaging the device. With a supply of 5 V, a typical LED forward voltage of 2.0 V, and a desired current of approximately 14 mA, the required resistance is $(5.0 - 2.0) / 0.014 \approx 214\,\Omega$, so a standard 220 $\Omega$ resistor is used. In a real-world application the LED and resistor would be replaced by a relay module driving a mains load; the software interface and signal conditioning pipeline remain identical regardless of the actual load type.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/DomainAnalysis/HardwareComponents/led.png}{%
+    \includegraphics[width=0.35\textwidth]{resources/DomainAnalysis/HardwareComponents/led.png}%
+}{%
+    \fbox{\parbox{0.33\textwidth}{\centering\color{gray}\small
+        [Photo pending --- save to resources/DomainAnalysis/HardwareComponents/led.png]}}%
+}
+\caption{5 mm red LED (simulates binary actuator output)}
+\label{fig:led}
+\end{figure}
+
+\subsection{Software Components}
+
+\subsubsection{PlatformIO}
+
+PlatformIO is an open-source embedded development ecosystem integrated into VS Code. It manages board configurations, toolchain installation, library dependency resolution, and project building. Each lab is defined as a named environment in \texttt{platformio.ini} with its own build flags, source filter, and library list. Switching between labs requires only selecting a different environment in the IDE — no source files need to be modified. The \texttt{pio run -e lab4\_1} command compiles the firmware for this lab.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/DomainAnalysis/SoftwareComponents/platformio.png}{%
+    \includegraphics[width=0.75\textwidth]{resources/DomainAnalysis/SoftwareComponents/platformio.png}%
+}{%
+    \fbox{\parbox{0.73\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save to resources/DomainAnalysis/SoftwareComponents/platformio.png]}}%
+}
+\caption{PlatformIO IDE in VS Code with Lab 4.1 environment}
+\label{fig:platformio}
+\end{figure}
+
+\subsubsection{Wokwi}
+
+Wokwi is a browser-based and VS Code-integrated simulator for embedded systems that supports the Arduino Mega 2560. It loads the compiled PlatformIO firmware directly from \texttt{.pio/build/lab4\_1/firmware.hex}, simulating both the microcontroller execution and the virtual serial terminal. This allows functional testing — sending ON/OFF commands and observing the LED and LCD behaviour — without physical hardware.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/DomainAnalysis/SoftwareComponents/wokwi.png}{%
+    \includegraphics[width=0.75\textwidth]{resources/DomainAnalysis/SoftwareComponents/wokwi.png}%
+}{%
+    \fbox{\parbox{0.73\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save to resources/DomainAnalysis/SoftwareComponents/wokwi.png]}}%
+}
+\caption{Wokwi simulator running the Lab 4.1 circuit}
+\label{fig:wokwi}
+\end{figure}
+
+\subsection{System Architecture and Justification}
+
+The system follows a layered hardware-abstraction architecture divided into five tiers. The hardware tier consists of the physical GPIO pin, resistor, and LED. The MCAL (Microcontroller Abstraction Layer) tier is represented by the \texttt{Led} driver, which encapsulates all \texttt{pinMode()} and \texttt{digitalWrite()} calls behind a stable API. The ECAL (ECU Abstraction Layer) tier contains the \texttt{BinaryConditioner}, which implements the signal processing logic independent of any specific hardware. The service tier is represented by \texttt{ActuatorControl}, which combines the conditioner with the LED driver to form a self-contained actuator module. The application tier consists of the three FreeRTOS tasks and the shared state structure that orchestrate the overall system behaviour.
+
+FreeRTOS is chosen over a simple cooperative scheduler because it provides true preemption and priority enforcement — the input reader task at priority 3 will always preempt the display task at priority 1, ensuring that serial input is never missed regardless of how long the display update takes. The mutex on the shared state structure prevents partially-written structs from being read by another task mid-update.
+
+\subsection{Case Study — Relevant Applicability of the Solution}
+
+Binary actuator control with signal conditioning is ubiquitous in industrial automation. A programmable logic controller (PLC) controlling a conveyor-belt drive motor, a solenoid valve in a pneumatic system, or a contactor in a motor control centre all employ debounce and persistence logic to prevent spurious state transitions from noisy digital inputs or momentary command spikes. The same pattern appears in building management systems where light relays and HVAC damper actuators must not cycle rapidly in response to transient occupancy sensor readings, since relay contact wear increases with switching frequency.
+
+In consumer electronics, smart home relay modules use software debouncing to prevent a user's voice command from being applied multiple times due to repeated speech recognition events. In automotive body-control modules, door-lock actuators are controlled through validated discrete inputs to prevent uncommanded locking caused by electromagnetic interference on vehicle wiring harnesses. The laboratory's three-stage pipeline — saturation, debounce, persistence — directly mirrors the input processing found in safety-critical embedded systems described by the ISO 26262 and IEC 61508 functional-safety standards.

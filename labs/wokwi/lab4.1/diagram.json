@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "author": "Vremere Adrian",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "wokwi-arduino-mega",
+      "id": "mega",
+      "top": 0,
+      "left": 0,
+      "attrs": {}
+    },
+
+    {
+      "type": "wokwi-lcd1602",
+      "id": "lcd1",
+      "top": -320,
+      "left": 100,
+      "attrs": { "pins": "i2c" }
+    },
+
+    {
+      "type": "wokwi-led",
+      "id": "led_act",
+      "top": 280,
+      "left": 220,
+      "attrs": { "color": "red", "label": "Actuator" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r_act",
+      "top": 245,
+      "left": 200,
+      "rotate": 90,
+      "attrs": { "resistance": "220" }
+    }
+  ],
+  "connections": [
+    ["lcd1:VCC",   "mega:5V",      "red",      ["v20", "h-60", "v200"]],
+    ["lcd1:GND",   "mega:GND.1",   "black",    ["v20", "h-40", "v200"]],
+    ["lcd1:SDA",   "mega:20",      "cyan",     ["v40", "h100", "v140"]],
+    ["lcd1:SCL",   "mega:21",      "darkgreen",["v60", "h120", "v120"]],
+
+    ["mega:7",     "r_act:1",      "orange",   ["v60", "h0", "v80"]],
+    ["r_act:2",    "led_act:A",    "orange",   ["v0"]],
+    ["led_act:C",  "mega:GND.2",   "black",    ["v30", "h-160", "v-200"]]
+  ]
+}

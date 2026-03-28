@@ -1,0 +1,341 @@
+\section{Design}
+
+\subsection{System Architecture Diagrams}
+
+\subsubsection{Component-Level Architecture}
+
+The system is composed of four hardware-connected components and one host interface, orchestrated by the Arduino Mega 2560. The serial terminal provides the user input path; the LED on D7 is the binary actuator output; the I2C LCD provides continuous state feedback; and all components share a common ground and the 5 V supply from the board.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    comp/.style={draw, rectangle, rounded corners, minimum width=3.2cm,
+                 minimum height=0.85cm, text centered, align=center, fill=blue!10},
+    hw/.style={draw, rectangle, rounded corners, minimum width=3.0cm,
+               minimum height=0.85cm, text centered, align=center, fill=orange!15}
+]
+    \node[comp] (mcu)    at (0,    0)    {Arduino Mega 2560};
+    \node[comp] (pc)     at (-5.5,  0)   {Serial Terminal\\(USB/UART0)};
+    \node[hw]   (led)    at ( 4.8,  1.5) {LED + 220\,\si{\ohm}\\(Pin D7)};
+    \node[hw]   (lcd)    at ( 4.8, -1.5) {LCD 1602 I2C\\(SDA/SCL)};
+
+    \draw[<-] (mcu.west) -- node[above, font=\small]{ON/OFF cmds} (pc.east);
+    \draw[->] (mcu.east) -- node[above, font=\small]{GPIO} (led.west);
+    \draw[->] (mcu.east) -- node[below, font=\small]{I2C} (lcd.west);
+    \draw[->] (mcu.west) -- node[below, font=\small]{status report} (pc.east);
+\end{tikzpicture}
+\caption{System component-level architecture for Lab 4.1}
+\label{fig:system_component_diagram}
+\end{figure}
+
+\subsubsection{Layered System Architecture}
+
+The software is organized into five layers following the automotive-inspired AUTOSAR-like architecture used throughout the lab series.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    box/.style={draw, rectangle, minimum width=10cm, minimum height=0.85cm,
+                text centered, align=center, fill=blue!10},
+    node distance=0.45cm]
+    \node[box] (app)  {Application Layer (APP) — FreeRTOS Tasks: Input Reader, Actuator Control, Display};
+    \node[box] (srv)  [below=of app]  {Service Layer (SRV) — ActuatorControl (conditioning + hardware bridge)};
+    \node[box] (ecal) [below=of srv]  {ECU Abstraction (ECAL) — BinaryConditioner (signal pipeline)};
+    \node[box] (mcal) [below=of ecal] {Driver Layer (MCAL) — Led (GPIO abstraction)};
+    \node[box] (hw)   [below=of mcal] {Hardware (HW) — ATmega2560 GPIO, I2C bus, UART0};
+    \foreach \a/\b in {app/srv, srv/ecal, ecal/mcal, mcal/hw}
+        \draw[<->] (\a) -- (\b);
+\end{tikzpicture}
+\caption{Layered software architecture of the Lab 4.1 system}
+\label{fig:layered_architecture}
+\end{figure}
+
+Each layer communicates only with the layer immediately above or below it through well-defined interfaces declared in header files. The \texttt{Led} driver isolates all \texttt{pinMode()} and \texttt{digitalWrite()} calls; the \texttt{BinaryConditioner} works purely on boolean values with no hardware knowledge; the \texttt{ActuatorControl} service wires those together; and the application tasks orchestrate timing and inter-task communication.
+
+\subsection{Block Diagrams}
+
+\subsubsection{System Data Flow and FreeRTOS Task Architecture}
+
+The three FreeRTOS tasks communicate through a mutex-protected shared structure \texttt{g\_actuator}. The arrows below show the direction of data flow between tasks.
+
+\tikzset{
+    startstop/.style={rectangle, rounded corners, minimum width=2.8cm,
+        minimum height=0.75cm, text centered, align=center, draw=black, fill=gray!15},
+    process/.style={rectangle, minimum width=2.8cm,
+        minimum height=0.75cm, text centered, align=center, draw=black, fill=blue!10},
+    decision/.style={diamond, aspect=2.5, minimum width=2.2cm,
+        minimum height=0.75cm, text centered, align=center, draw=black, fill=orange!15},
+    io/.style={trapezium, trapezium left angle=70, trapezium right angle=110,
+        minimum width=2.8cm, minimum height=0.75cm, text centered, align=center,
+        draw=black, fill=green!10},
+    arrow/.style={thick,->,>=Stealth}
+}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    task/.style={draw, rectangle, rounded corners, minimum width=3.5cm,
+                 minimum height=2.8cm, text centered, align=center, fill=blue!8,
+                 font=\small},
+    shared/.style={draw, rectangle, minimum width=3.8cm, minimum height=1.2cm,
+                   text centered, align=center, fill=yellow!20, font=\small}
+]
+    \node[task] (t1) at (-5, 0) {Task 1\\Input Reader\\10 ms, prio 3\\\\polls Serial\\parses ON/OFF};
+    \node[shared] (sh) at (0, 0) {g\_actuator\\(mutex-protected)\\pendingCmd\\actuatorState};
+    \node[task] (t2) at (5, 1.5) {Task 2\\Actuator Control\\75 ms, prio 2\\\\BinaryConditioner\\LED GPIO};
+    \node[task] (t3) at (5, -1.5) {Task 3\\Display/Report\\500 ms, prio 1\\\\LCD + printf};
+
+    \draw[arrow] (t1.east) -- node[above, font=\tiny]{pendingCmd} (sh.west);
+    \draw[arrow] (sh.east) -- node[above, font=\tiny]{read cmd} (t2.west);
+    \draw[arrow] (t2.west) -- node[below right, font=\tiny]{write state} (sh.east);
+    \draw[arrow] (sh.east) -- node[below, font=\tiny]{read state} (t3.west);
+\end{tikzpicture}
+\caption{FreeRTOS task data-flow diagram for Lab 4.1}
+\label{fig:task_dataflow}
+\end{figure}
+
+\subsubsection{BinaryConditioner Pipeline Flowchart}
+
+The \texttt{BinaryConditioner::process()} function runs on every Actuator Control task tick. It implements the three conditioning stages in sequence.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+    \node (start)  [startstop] at (0,   0.0)  {process(rawInput)};
+    \node (sat)    [process]   at (0,  -1.8)  {Stage 1: Saturate\\rawInput ? true : false};
+    \node (d1)     [decision]  at (0,  -4.5)  {saturated\\== pending?};
+    \node (restart)[process]   at (-3.5, -4.5) {Restart debounce\\pendingState = saturated\\confirmCount = 1};
+    \node (d2)     [decision]  at (0,  -7.5)  {pending\\!= conditioned?};
+    \node (incr)   [process]   at (3.5, -7.5) {confirmCount++};
+    \node (d3)     [decision]  at (0, -10.5)  {count$\geq$N AND\\elapsed$\geq$Tms?};
+    \node (commit) [process]   at (0, -13.0)  {Commit: conditioned\\= pending};
+    \node (ret)    [startstop] at (0, -14.8)  {return conditioned};
+
+    \draw [arrow] (start)  -- (sat);
+    \draw [arrow] (sat)    -- (d1);
+    \draw [arrow] (d1)     -- node[above, font=\small]{No} (restart);
+    \draw [arrow] (d1)     -- node[right, font=\small]{Yes} (d2);
+    \draw [arrow] (restart.south) -- ++(0,-0.5) -| (0,-6.5) -- (d2.north);
+    \draw [arrow] (d2)     -- node[above, font=\small]{Yes} (incr);
+    \draw [arrow] (incr.south) -- ++(0,-0.4) -| (0,-9.5) -- (d3.north);
+    \draw [arrow] (d2)     -- node[right, font=\small]{No} (d3);
+    \draw [arrow] (d3)     -- node[right, font=\small]{Yes} (commit);
+    \draw [arrow] (d3.west) -- ++(-2.0,0) |- node[left, font=\small]{No} (ret.west);
+    \draw [arrow] (commit) -- (ret);
+\end{tikzpicture}
+\caption{Flowchart of \texttt{BinaryConditioner::process()}}
+\label{fig:conditioner_flowchart}
+\end{figure}
+
+\subsubsection{Actuator Control Task Flowchart}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+    \node (start)  [startstop] at (0,  0.0)  {vTaskActuator starts};
+    \node (init)   [process]   at (0, -1.8)  {s\_actuator.init()\\LED = OFF};
+    \node (loop)   [startstop] at (0, -3.6)  {Task loop};
+    \node (read)   [process]   at (0, -5.4)  {Take mutex\\read pendingCmd\\give mutex};
+    \node (cond)   [process]   at (0, -7.2)  {setRawCommand(cmd)\\update() — run pipeline};
+    \node (write)  [process]   at (0, -9.0)  {Take mutex\\write state, debouncing\\confirmCount, toggles\\give mutex};
+    \node (delay)  [process]   at (0,-10.8)  {vTaskDelayUntil\\75 ms};
+
+    \draw [arrow] (start) -- (init);
+    \draw [arrow] (init)  -- (loop);
+    \draw [arrow] (loop)  -- (read);
+    \draw [arrow] (read)  -- (cond);
+    \draw [arrow] (cond)  -- (write);
+    \draw [arrow] (write) -- (delay);
+    \draw [arrow] (delay.west) -- ++(-2.2,0) |- (loop.west);
+\end{tikzpicture}
+\caption{Flowchart of the Actuator Control task (\texttt{vTaskActuator})}
+\label{fig:task_actuator_flowchart}
+\end{figure}
+
+\subsection{Electrical Schematics}
+
+\subsubsection{Component Specification}
+
+The circuit uses three components beyond the Arduino Mega 2560 itself. The red LED on pin D7 serves as the binary actuator output; its anode is connected to D7 through a series 220\,\si{\ohm} current-limiting resistor, and its cathode to GND. The 16x2 LCD module with PCF8574 I2C backpack is powered from the 5 V rail and communicates via the I2C bus on pins D20 (SDA) and D21 (SCL). The PCF8574 I2C address is 0x27. No pull-up resistors are required for the I2C lines as they are provided internally by the LCD backpack module.
+
+\subsubsection{Circuit Connections}
+
+\begin{figure}[H]
+\centering
+\begin{circuitikz}[scale=0.85, transform shape]
+    % Actuator LED branch
+    \draw (0, 0) node[anchor=east]{\small Pin D7}
+        to[R, l=220\,\si{\ohm}] (2.5, 0)
+        to[leD*, color=red]     (4.5, 0)
+        node[ground] {};
+
+    % I2C LCD connections
+    \draw (0, -1.6) node[anchor=east]{\small SDA (Pin D20)}
+        to[short] (4.5, -1.6) node[anchor=west]{\small LCD SDA};
+    \draw (0, -2.4) node[anchor=east]{\small SCL (Pin D21)}
+        to[short] (4.5, -2.4) node[anchor=west]{\small LCD SCL};
+    \draw (0, -3.2) node[anchor=east]{\small 5\,V}
+        to[short] (4.5, -3.2) node[anchor=west]{\small LCD VCC};
+    \draw (0, -4.0) node[anchor=east]{\small GND}
+        to[short] (4.5, -4.0) node[anchor=west]{\small LCD GND};
+\end{circuitikz}
+\caption{Electrical schematic for Lab 4.1 (actuator LED and I2C LCD)}
+\label{fig:electrical_schematic}
+\end{figure}
+
+\subsubsection{Hardware Configuration}
+
+The complete Wokwi simulation is defined in \texttt{labs/wokwi/lab4.1/diagram.json} and loaded via \texttt{wokwi.toml}. The configuration below lists all components and connections.
+
+\begin{lstlisting}[language=json, caption=Wokwi hardware configuration (\texttt{diagram.json}), label=lst:wokwi_json]
+{
+  "parts": [
+    { "type": "wokwi-arduino-mega", "id": "mega" },
+    { "type": "wokwi-lcd1602", "id": "lcd1", "attrs": { "pins": "i2c" } },
+    { "type": "wokwi-led",      "id": "led_act",
+      "attrs": { "color": "red", "label": "Actuator" } },
+    { "type": "wokwi-resistor", "id": "r_act",
+      "attrs": { "resistance": "220" } }
+  ],
+  "connections": [
+    ["lcd1:SDA",  "mega:20", "cyan"],
+    ["lcd1:SCL",  "mega:21", "darkgreen"],
+    ["mega:7",    "r_act:1", "orange"],
+    ["r_act:2",   "led_act:A", "orange"],
+    ["led_act:C", "mega:GND.2", "black"]
+  ]
+}
+\end{lstlisting}
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/Design/ElectricalSchematics/wokwi_circuit.png}{%
+    \includegraphics[width=0.85\textwidth]{resources/Design/ElectricalSchematics/wokwi_circuit.png}%
+}{%
+    \fbox{\parbox{0.83\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- run the Wokwi simulation and save to\\
+        resources/Design/ElectricalSchematics/wokwi\_circuit.png]}}%
+}
+\caption{Wokwi simulation circuit (active run — LED lit, LCD showing state)}
+\label{fig:wokwi_circuit}
+\end{figure}
+
+\subsection{Project Structure}
+
+The lab4\_1 code is organized in the PlatformIO project under \texttt{labs/}, following the convention established in previous labs.
+
+\begin{lstlisting}[caption=Lab 4.1 project structure, label=lst:project_structure]
+labs/
+|-- platformio.ini          (env:lab4_1 with lib_ldf_mode=deep+)
+|-- src/main.cpp            (lab selector via #ifdef LAB4_1)
+|-- lab/lab4_1/
+|   |-- actuator_data.h/.cpp  (shared state, timing constants, mutex)
+|   |-- task_input.h/.cpp     (input reader task)
+|   |-- task_actuator.h/.cpp  (signal conditioning + hardware task)
+|   |-- task_display.h/.cpp   (LCD + STDIO reporting task)
+|   |-- lab4_1_main.h/.cpp    (entry point, task creation)
+|-- lib/
+|   |-- BinaryConditioner/    (3-stage binary signal conditioner)
+|   |-- ActuatorControl/      (actuator + conditioner service)
+|   |-- Led/                  (GPIO LED driver)
+|   |-- LcdDisplay/           (I2C LCD driver)
+|   |-- StdioSerial/          (STDIO -> UART redirection)
+|-- wokwi/lab4.1/
+    |-- diagram.json          (circuit definition)
+    |-- wokwi.toml            (firmware path)
+\end{lstlisting}
+
+\subsection{Modular Implementation}
+
+\subsubsection{MCAL Layer: Led Driver}
+
+The \texttt{Led} driver provides a stable GPIO abstraction. It wraps a single pin identifier and tracks the current state in a \texttt{bool} field, so callers never need to use \texttt{digitalRead()} to query the state. The \texttt{init()} method configures the pin as an output and guarantees an initial OFF state, preventing the LED from flickering at boot.
+
+\begin{lstlisting}[language=C++, caption=Led driver interface (\texttt{Led.h} excerpt), label=lst:led_h]
+class Led {
+public:
+    Led(uint8_t pin);
+    void init();      // Set OUTPUT, initial OFF
+    void turnOn();    // Set HIGH
+    void turnOff();   // Set LOW
+    void toggle();
+    bool isOn() const;
+private:
+    uint8_t ledPin;
+    bool    state;
+};
+\end{lstlisting}
+
+\subsubsection{ECAL Layer: BinaryConditioner}
+
+The \texttt{BinaryConditioner} implements the signal processing pipeline. It operates entirely on boolean values, making it hardware-independent. The \texttt{process()} method is called once per actuator task tick with the current raw command.
+
+\begin{lstlisting}[language=C++, caption=BinaryConditioner key logic (\texttt{BinaryConditioner.cpp}), label=lst:conditioner_cpp]
+bool BinaryConditioner::process(bool rawInput) {
+    bool saturated = rawInput ? true : false;  // Stage 1: Saturation
+    _rawState = saturated;
+
+    if (saturated != _pendingState) {
+        // New value: restart validation
+        _pendingState    = saturated;
+        _debounceStartMs = millis();
+        _confirmCount    = 1;
+    } else if (_pendingState != _conditionedState) {
+        _confirmCount++;  // Stage 3: accumulate confirmations
+    }
+
+    if (_pendingState != _conditionedState) {
+        _inDebounce = true;
+        uint32_t elapsed = millis() - _debounceStartMs;
+        // Stage 2+3: accept only when BOTH conditions satisfied
+        if (_confirmCount >= _persistCount && elapsed >= _debouncePeriodMs) {
+            _conditionedState = _pendingState;
+            _inDebounce       = false;
+            _confirmCount     = 0;
+        }
+    } else {
+        _inDebounce = false;
+    }
+    return _conditionedState;
+}
+\end{lstlisting}
+
+The key design choice is that stages 2 (debounce) and 3 (persistence) must both be satisfied simultaneously before a transition is committed. Requiring only the persistence count would fail against very rapid repeated commands; requiring only the debounce period would fail against periodic glitches spaced further apart than the window.
+
+\subsubsection{Service Layer: ActuatorControl}
+
+\texttt{ActuatorControl} is the service-layer module that wires the \texttt{BinaryConditioner} to the \texttt{Led} driver. Its \texttt{update()} method feeds the current raw command into the conditioner pipeline and drives the LED output only when the conditioned state changes. This avoids unnecessary \texttt{digitalWrite()} calls on every tick.
+
+\begin{lstlisting}[language=C++, caption=ActuatorControl::update() implementation, label=lst:actuator_update]
+void ActuatorControl::update() {
+    bool rawBool     = (_rawCommand == State::ON);
+    bool conditioned = _conditioner.process(rawBool);
+
+    State newState = conditioned ? State::ON : State::OFF;
+    if (newState != _currentState) {
+        _currentState = newState;
+        if (_currentState == State::ON) {
+            _led.turnOn();
+        } else {
+            _led.turnOff();
+        }
+    }
+}
+\end{lstlisting}
+
+\subsubsection{Application Layer: FreeRTOS Tasks and Shared State}
+
+The three tasks communicate through \texttt{g\_actuator}, a global \texttt{ActuatorShared} struct protected by a FreeRTOS mutex. Every read or write to the shared fields is surrounded by \texttt{xSemaphoreTake()} / \texttt{xSemaphoreGive()} calls with a 5–10 ms timeout. The short timeout ensures that if a task somehow stalls, other tasks are not blocked indefinitely.
+
+\begin{lstlisting}[language=C++, caption=Shared state structure (\texttt{actuator\_data.h}), label=lst:shared_state]
+typedef struct {
+    ActuatorControl::State pendingCmd;     // from input task
+    ActuatorControl::State actuatorState;  // from actuator task
+    bool                   isDebouncing;
+    uint8_t                confirmCount;
+    uint32_t               toggleCount;
+    SemaphoreHandle_t      mutex;
+} ActuatorShared;
+\end{lstlisting}
+
+The input reader task polls \texttt{Serial.available()} every 10 ms rather than blocking on \texttt{fgets()}. This non-blocking approach is essential in FreeRTOS: a blocking read would consume the task's CPU slice while waiting, preventing lower-priority tasks from running under some scheduler configurations. The 10 ms polling granularity is more than adequate for human-speed terminal input.

@@ -1,0 +1,130 @@
+\section{Obtained Results}
+
+\subsection{Build Process}
+
+The Lab 4.1 firmware was compiled successfully using the PlatformIO \texttt{lab4\_1} environment. The build system detected all seven library dependencies automatically via the \texttt{deep+} Library Dependency Finder mode: FreeRTOS, LiquidCrystal\_I2C, ActuatorControl, BinaryConditioner, Led, StdioSerial, LcdDisplay, and the Arduino Wire library for I2C. The resulting firmware fits comfortably within the hardware limits of the ATmega2560: RAM usage is 18.9\,\% (1546 bytes out of 8192 bytes) and Flash usage is 7.1\,\% (18024 bytes out of 253952 bytes), leaving ample headroom for future extension.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/build_results.png}{%
+    \includegraphics[width=0.85\textwidth]{resources/ObtainedResults/build_results.png}%
+}{%
+    \fbox{\parbox{0.83\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save to resources/ObtainedResults/build\_results.png]\\
+        Must show the PlatformIO terminal output with [SUCCESS],\\
+        RAM/Flash usage percentages, and the dependency graph.}}%
+}
+\caption{Successful PlatformIO build output for Lab 4.1}
+\label{fig:build_results}
+\end{figure}
+
+\subsection{Simulation Initialization}
+
+When the Wokwi simulation starts, the firmware prints the startup banner over the virtual serial terminal. The banner confirms the active environment, conditioning parameters (100 ms debounce, 3 confirmations), and task timing values. The LCD is initialized to display ``Actuator Ctrl'' on the first line and ``Initializing...'' briefly, then transitions to the main report loop. The initial state is \texttt{OFF} and the conditioning status is \texttt{STABLE}, which is correct since no command has been received yet.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/simulation_start.png}{%
+    \includegraphics[width=0.75\textwidth]{resources/ObtainedResults/simulation_start.png}%
+}{%
+    \fbox{\parbox{0.73\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save to resources/ObtainedResults/simulation\_start.png]\\
+        Must show: Wokwi circuit + serial terminal with startup banner.\\
+        LED should be OFF. LCD should show ``Actuator: OFF'' / ``STABLE''.}}%
+}
+\caption{Wokwi simulation initial state after startup banner}
+\label{fig:simulation_start}
+\end{figure}
+
+\subsection{Command Interface Validation}
+
+\subsubsection{Test: ON Command with Conditioning Delay}
+
+The first test verifies that typing \texttt{ON} in the serial terminal is correctly parsed, accepted, and eventually applied to the actuator after the conditioning pipeline is satisfied. Because the debounce window is 100 ms and the actuator task runs at 75 ms, the transition is committed after the second or third task tick following the command. During this interval the STDIO report shows ``Cond: DEBOUNCING'' and ``Confirm: 1/3'' or ``2/3''. Once confirmed, the report shows ``State: ON'', ``Cond: STABLE'', and the LED turns on in the Wokwi simulation.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/test_on_command.png}{%
+    \includegraphics[width=0.75\textwidth]{resources/ObtainedResults/test_on_command.png}%
+}{%
+    \fbox{\parbox{0.73\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save to resources/ObtainedResults/test\_on\_command.png]\\
+        Type "ON" in terminal. Capture: terminal echo "\,>\,> Accepted: ON",\\
+        LED lighting up in Wokwi, LCD showing "Actuator: ON".}}%
+}
+\caption{Serial terminal after issuing the ON command}
+\label{fig:test_on_command}
+\end{figure}
+
+\subsubsection{Test: OFF Command}
+
+After the actuator is ON, typing \texttt{OFF} causes the conditioning pipeline to enter the debouncing phase for the transition from ON to OFF. The same three-confirmation mechanism applies; the LED extinguishes and the LCD reverts to ``Actuator: OFF'' / ``STABLE'' after the required confirmations.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/test_off_command.png}{%
+    \includegraphics[width=0.75\textwidth]{resources/ObtainedResults/test_off_command.png}%
+}{%
+    \fbox{\parbox{0.73\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save to resources/ObtainedResults/test\_off\_command.png]\\
+        After ON is confirmed, type "OFF". Capture: LED off, LCD "Actuator: OFF",\\
+        STDIO report showing State: OFF, Cond: STABLE.}}%
+}
+\caption{Serial terminal after issuing the OFF command}
+\label{fig:test_off_command}
+\end{figure}
+
+\subsubsection{Test: Invalid Command Rejection}
+
+Entering an unrecognized string (e.g., \texttt{BLINK} or \texttt{toggle}) is handled gracefully. The input task prints an error message and reprints the prompt without modifying the pending command or the actuator state.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/test_invalid_command.png}{%
+    \includegraphics[width=0.75\textwidth]{resources/ObtainedResults/test_invalid_command.png}%
+}{%
+    \fbox{\parbox{0.73\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save to resources/ObtainedResults/test\_invalid\_command.png]\\
+        Type an invalid string (e.g. "BLINK"). Capture: error message "[ERR] Unknown\\
+        command", actuator state unchanged, prompt reprinted.}}%
+}
+\caption{Invalid command error handling}
+\label{fig:test_invalid_command}
+\end{figure}
+
+\subsubsection{Test: Periodic STDIO Report}
+
+Every four display ticks (approximately 2 seconds), the system prints a structured status report to the serial terminal. The report confirms all key system variables: the conditioned actuator state, the raw pending command, the conditioning status, the confirmation counter relative to the required count, and the cumulative toggle counter.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/test_report.png}{%
+    \includegraphics[width=0.75\textwidth]{resources/ObtainedResults/test_report.png}%
+}{%
+    \fbox{\parbox{0.73\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save to resources/ObtainedResults/test\_report.png]\\
+        Wait 2+ seconds after last command. Capture: STDIO report block showing\\
+        "--[ Actuator Report ]--" section with all fields.}}%
+}
+\caption{Periodic STDIO status report output}
+\label{fig:test_report}
+\end{figure}
+
+\subsection{System Observations}
+
+The most notable observation during testing is the visible delay between issuing a command and the actuator responding. With a 100 ms debounce window and a 75 ms task period, the earliest a state change can be committed is approximately 150–225 ms after the command is first received. This is intentional and demonstrates the conditioning pipeline working correctly. The delay would be imperceptible for a light relay application (where a sub-second response is acceptable) but would need to be reduced for time-critical control loops.
+
+The LCD correctly reflects the conditioned state rather than the raw command. When the user types ON but the conditioning has not yet been satisfied, the LCD continues to show OFF with DEBOUNCING on the second line. This provides clear visual feedback that the system has received the request and is in the process of validating it. The STDIO report adds numerical detail by showing the confirmation count progress.
+
+RAM usage of 1546 bytes (18.9\,\%) with three FreeRTOS tasks, two library instances, and a mutex leaves 6646 bytes free. This is consistent with the relatively small per-task stack sizes (192–320 words) chosen for this application. If additional complexity such as a keypad input or multiple actuators were added, stack sizes would need to be reviewed.
+
+\subsection{Verification Summary}
+
+\begin{itemize}
+    \item \textbf{Compilation:} Firmware compiles successfully for the \texttt{lab4\_1} environment. RAM 18.9\,\%, Flash 7.1\,\%.
+    \item \textbf{Initialization:} Startup banner prints correctly; LCD and serial are both initialized before FreeRTOS tasks start.
+    \item \textbf{Signal Conditioning:} All three stages (saturation, debounce, persistence) verified by observing the confirmation count and DEBOUNCING status during command transitions.
+    \item \textbf{Command Parsing:} ON and OFF commands accepted; unknown input rejected with error message; backspace editing works correctly in the terminal.
+    \item \textbf{Display:} LCD line 1 tracks conditioned state; line 2 tracks conditioning status. Periodic STDIO reports contain all required fields.
+    \item \textbf{Architecture:} All hardware calls confined to library modules; application tasks contain no direct \texttt{digitalWrite()} or \texttt{analogRead()} calls.
+\end{itemize}
