@@ -27,10 +27,10 @@
 #define TASK_DISPLAY_PERIOD_MS   500U   ///< Display/reporting recurrence (ms)
 #define STDIO_REPORT_EVERY_N       4U   ///< Print STDIO report every N display ticks
 
-// ── Task stack sizes (words) ──────────────────────────────────────────────────
-#define TASK_INPUT_STACK         192U
+// ── Task stack sizes (bytes on AVR — portSTACK_TYPE is uint8_t) ───────────────
+#define TASK_INPUT_STACK         256U
 #define TASK_ACTUATOR_STACK      256U
-#define TASK_DISPLAY_STACK       320U
+#define TASK_DISPLAY_STACK       512U
 
 // ── Task priorities ───────────────────────────────────────────────────────────
 #define TASK_INPUT_PRIORITY        3

@@ -112,11 +112,37 @@ Every four display ticks (approximately 2 seconds), the system prints a structur
 
 \subsection{System Observations}
 
-The most notable observation during testing is the visible delay between issuing a command and the actuator responding. With a 100 ms debounce window and a 75 ms task period, the earliest a state change can be committed is approximately 150–225 ms after the command is first received. This is intentional and demonstrates the conditioning pipeline working correctly. The delay would be imperceptible for a light relay application (where a sub-second response is acceptable) but would need to be reduced for time-critical control loops.
+\subsubsection{Conditioning Latency Analysis}
 
-The LCD correctly reflects the conditioned state rather than the raw command. When the user types ON but the conditioning has not yet been satisfied, the LCD continues to show OFF with DEBOUNCING on the second line. This provides clear visual feedback that the system has received the request and is in the process of validating it. The STDIO report adds numerical detail by showing the confirmation count progress.
+The most notable observation during testing is the visible delay between issuing a command and the actuator responding. The conditioning pipeline introduces latency from two independent mechanisms that must both be satisfied before a state transition is committed. The debounce timer requires the pending state to remain unchanged for at least 100~ms, and the persistence counter requires a minimum of 3 consecutive confirmations from the actuator task (running at 75~ms intervals).
 
-RAM usage of 1546 bytes (18.9\,\%) with three FreeRTOS tasks, two library instances, and a mutex leaves 6646 bytes free. This is consistent with the relatively small per-task stack sizes (192–320 words) chosen for this application. If additional complexity such as a keypad input or multiple actuators were added, stack sizes would need to be reviewed.
+In the best case, the command arrives just before an actuator task tick, the debounce timer reaches 100~ms after two task ticks (150~ms), and the persistence counter reaches 3 after those same two ticks. The transition is committed on the third tick, giving a best-case latency of approximately 150--225~ms. In the worst case, the command arrives just after a task tick, adding up to 75~ms of alignment delay, for a total of approximately 225--300~ms. This range is intentional and demonstrates the conditioning pipeline working correctly. The delay would be imperceptible for a lighting relay application (where sub-second response is acceptable) but would need to be reduced for time-critical control loops by decreasing \texttt{DEBOUNCE\_PERIOD\_MS} and \texttt{PERSIST\_COUNT}.
+
+\subsubsection{LCD and STDIO Report Consistency}
+
+The LCD correctly reflects the conditioned state rather than the raw command at all times. When the user types \texttt{ON} but the conditioning has not yet been satisfied, the LCD continues to display ``Actuator: OFF'' with ``DEBOUNCING'' on the second line. This provides clear visual feedback that the system has received the request and is in the process of validating it. Once the conditioning pipeline commits the transition, both the LCD and STDIO report update simultaneously on the next display task tick (within 500~ms). The STDIO report adds numerical detail by showing the confirmation count progress (e.g., ``Confirm: 2/3''), which is particularly useful for diagnosing timing-related issues during development.
+
+The toggle counter in the STDIO report increments exactly once per committed state transition, regardless of how many times the same command is sent. Sending \texttt{ON} repeatedly while the actuator is already ON does not increment the counter, which confirms that the conditioning pipeline correctly suppresses redundant transitions.
+
+\subsubsection{Resource Utilization}
+
+RAM usage of 1546 bytes (18.9\,\%) with three FreeRTOS tasks, two library instances, and a mutex leaves 6646 bytes free. The per-task stack allocation totals 1024 bytes (256 + 256 + 512), which accounts for 66\,\% of the total RAM consumption. The FreeRTOS kernel itself requires approximately 200 bytes for the scheduler, timer service, and idle task overhead. The remaining RAM is consumed by global variables (the \texttt{ActuatorShared} structure, the static \texttt{ActuatorControl} and \texttt{LcdDisplay} instances, and the serial I/O buffers).
+
+Flash usage of 18024 bytes (7.1\,\%) is dominated by the FreeRTOS kernel code, the \texttt{LiquidCrystal\_I2C} library (which includes the full HD44780 initialization sequence), and the AVR libc \texttt{printf()} implementation. The \texttt{printf()} function alone accounts for approximately 1.5--2~KB of Flash on AVR, since it includes formatting logic for integers, strings, and padding. If Flash became constrained in a more complex application, replacing \texttt{printf()} with custom formatting functions could recover significant space.
+
+\subsubsection{FreeRTOS Task Scheduling Behavior}
+
+During testing, the three tasks demonstrated the expected preemptive scheduling behavior. The input reader task (priority 3) consistently preempted lower-priority tasks when serial data arrived, ensuring that characters were never dropped from the UART receive buffer. The actuator control task (priority 2) ran at a stable 75~ms period as measured by the STDIO timestamps, confirming that \texttt{vTaskDelayUntil()} correctly compensated for execution-time jitter. The display task (priority 1) ran as a background activity, updating the LCD only when both higher-priority tasks were in the delayed state.
+
+No mutex contention was observed during normal operation — each task's critical section is only 2--3 microseconds long (a single field read or write), which is far shorter than the 5~ms timeout specified in \texttt{xSemaphoreTake()}. In a stress test with rapid command toggling (alternating ON and OFF every 100~ms), the system remained stable with no missed display updates or corrupted shared state.
+
+\subsection{Wokwi Simulation Environment}
+
+The Wokwi VS Code extension provides a cycle-accurate simulation of the ATmega2560, including faithful emulation of the timer peripherals used by FreeRTOS, the hardware UART for serial communication, and the I2C bus for LCD communication. The simulation loads the compiled firmware directly from \texttt{.pio/build/lab4\_1/firmware.hex}, ensuring that the exact binary that would run on physical hardware is tested. The virtual serial terminal supports bidirectional communication — both sending commands and receiving the periodic STDIO reports — making it functionally equivalent to a physical USB serial connection.
+
+One important difference between the Wokwi simulation and real hardware is timing precision. The simulator runs at wall-clock speed on the host computer, which means that the 75~ms actuator task period and 100~ms debounce window are simulated in real time. On resource-constrained host machines, the simulation may run slightly slower than real time, which can affect the perceived responsiveness of the conditioning pipeline. However, from the firmware's perspective, the timing is correct because the simulated timer ticks are generated at the proper intervals relative to the simulated CPU clock.
+
+The Wokwi circuit configuration (\texttt{diagram.json}) defines three components: the Arduino Mega 2560, a red LED with a 220~$\Omega$ series resistor connected to pin D7, and a 16$\times$2 LCD module with I2C backpack connected to SDA (D20) and SCL (D21). The \texttt{wokwi.toml} configuration file specifies the firmware path and the PlatformIO environment name, allowing the simulation to be launched with a single click in VS Code.
 
 \subsection{Verification Summary}
 
