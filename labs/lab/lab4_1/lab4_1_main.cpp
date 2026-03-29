@@ -34,6 +34,7 @@
 #include "LcdDisplay.h"
 #include "Led.h"
 #include "StdioSerial.h"
+#include "SerialInput.h"
 
 // ── Hardware Instances ──────────────────────────────────────────────────
 static Relay         relay(PIN_RELAY, true);
@@ -41,6 +42,7 @@ static PwmActuator   pwmAct(PIN_PWM_ACTUATOR);
 static Led           ledBinary(PIN_LED_BINARY);
 static Led           ledAnalog(PIN_LED_ANALOG);
 static LcdDisplay    lcd(LCD_I2C_ADDR, LCD_COLS, LCD_ROWS);
+static SerialInput   serialIn(31);
 
 // ── Signal Conditioners ─────────────────────────────────────────────────
 static BinaryConditioner binCond(BINARY_DEBOUNCE_COUNT);
@@ -90,11 +92,16 @@ static void toUpper(char *s) {
  *   SPEED N  — set analog actuator to N% (0-100)
  *   STATUS   — print current state (handled in-line)
  */
-static void parseAndApplyCommand(char *cmd) {
+static void parseAndApplyCommand(const char *rawCmd) {
+    // Copy to mutable buffer for processing
+    char cmd[32];
+    strncpy(cmd, rawCmd, sizeof(cmd) - 1);
+    cmd[sizeof(cmd) - 1] = '\0';
+
     trimLeading(cmd);
-    // Strip trailing newline/CR
+    // Strip trailing whitespace
     size_t len = strlen(cmd);
-    while (len > 0 && (cmd[len - 1] == '\n' || cmd[len - 1] == '\r')) {
+    while (len > 0 && isspace((unsigned char)cmd[len - 1])) {
         cmd[--len] = '\0';
     }
     if (len == 0) return;
@@ -147,25 +154,12 @@ static void parseAndApplyCommand(char *cmd) {
  */
 static void commandTask(void *pvParameters) {
     (void)pvParameters;
-    static char buf[32];
-    static uint8_t idx = 0;
 
     for (;;) {
-        // Read all available serial characters
-        while (Serial.available() > 0) {
-            char c = (char)Serial.read();
-            // Echo character back
-            Serial.write(c);
-
-            if (c == '\n' || c == '\r') {
-                if (idx > 0) {
-                    buf[idx] = '\0';
-                    parseAndApplyCommand(buf);
-                    idx = 0;
-                }
-            } else if (idx < sizeof(buf) - 1) {
-                buf[idx++] = c;
-            }
+        // SerialInput handles all low-level Serial I/O and echo
+        const char *line = serialIn.readLine();
+        if (line) {
+            parseAndApplyCommand(line);
         }
         vTaskDelay(pdMS_TO_TICKS(TASK_COMMAND_PERIOD_MS));
     }
@@ -241,7 +235,7 @@ static void analogTask(void *pvParameters) {
         // Drive PWM actuator
         pwmAct.setDutyCycle(conditioned);
 
-        // Update analog status LED brightness (approximate with on/off threshold)
+        // Update analog status LED (on when duty > 1%)
         if (conditioned > 1.0f) {
             ledAnalog.turnOn();
         } else {
@@ -307,6 +301,7 @@ static void displayTask(void *pvParameters) {
 void lab4_1Setup() {
     // Initialize serial with STDIO redirection
     stdioSerialInit(SERIAL_BAUD);
+    serialIn.init();
 
     printf("\r\n=== Lab 4.1: Dual Actuator Control (Varianta C) ===\r\n");
     printf("Commands: ON, OFF, SPEED <0-100>, STATUS\r\n\r\n");
