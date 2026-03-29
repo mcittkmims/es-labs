@@ -2184,7 +2184,7 @@ ESP32), LED-uri (verde, roșu sau galben) cu rezistență de limitare, actuator 
 9. Sa se realizeze diagramele de comportament pentru functionalitatile Componentelor cu diagrame de de flux stari sau de secvență, dupa caz, ca in A.1.5
 10. sa se elaboreze schita electrica a aplicatiei intr-un mediu de simulare, vezi A.1.6.
 11. sa se creeze structura de directoare și fisiere pentru implementarea aplicatiei care va reflecta arhitectura definita de sistemși de interfata hardware Software vezi A.1.7.
-12. Sa se implementeze driverele de interfata hardware-software pentru fiecare componenta electronica utilizata in aplicatie acoperind nivelele ECAL și SRV dupa cazA.1.7.
+12. Sa se implementeze driverele de interfata hardware-software pentru fiecare componenta electronica utilizata in aplicatie acoperind nivelele ECAL și SRV dupa caz A.1.7.
 13. Sa se implementeze comportamentul aplicatiei urmand diagrama de flux definita,
 A.1.7.
 14. Sa se simuleze functionare aplicatia in medii precum Wokwi sau PlatformIO. cu o eventuala rulare pe hardware real.
