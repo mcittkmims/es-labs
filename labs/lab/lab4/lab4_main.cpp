@@ -54,13 +54,18 @@ void lab4Setup() {
     // Initialize shared state + mutex
     sharedStateInit();
 
-    // Create FreeRTOS tasks
-    xTaskCreate(vTaskInput,   "Input",   TASK_INPUT_STACK,
-                NULL, TASK_INPUT_PRIORITY, NULL);
-    xTaskCreate(vTaskControl, "Control", TASK_CONTROL_STACK,
-                NULL, TASK_CONTROL_PRIORITY, NULL);
-    xTaskCreate(vTaskDisplay, "Display", TASK_DISPLAY_STACK,
-                NULL, TASK_DISPLAY_PRIORITY, NULL);
+    // Create FreeRTOS tasks (report creation failures explicitly)
+    BaseType_t okInput = xTaskCreate(vTaskInput, "Input", TASK_INPUT_STACK,
+                                     NULL, TASK_INPUT_PRIORITY, NULL);
+    BaseType_t okControl = xTaskCreate(vTaskControl, "Control", TASK_CONTROL_STACK,
+                                       NULL, TASK_CONTROL_PRIORITY, NULL);
+    BaseType_t okDisplay = xTaskCreate(vTaskDisplay, "Display", TASK_DISPLAY_STACK,
+                                       NULL, TASK_DISPLAY_PRIORITY, NULL);
+
+    if (okInput != pdPASS || okControl != pdPASS || okDisplay != pdPASS) {
+        printf("[ERROR] Task creation failed: Input=%ld Control=%ld Display=%ld\r\n",
+               (long)okInput, (long)okControl, (long)okDisplay);
+    }
 }
 
 void lab4Loop() {

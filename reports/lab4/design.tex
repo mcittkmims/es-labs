@@ -54,9 +54,261 @@ The software is organized into five layers following the AUTOSAR-inspired embedd
 
 The APP layer contains the three FreeRTOS tasks and the lab entry point. The SRV layer provides the ActuatorConditioner (which wraps the SignalConditioner with ramping logic) and the SharedState module (mutex-protected data exchange). The ECAL layer implements the SignalConditioner pipeline and ThresholdAlert FSM as reusable, hardware-independent modules. The MCAL layer contains all hardware drivers that directly call Arduino GPIO, I2C, and PWM functions. The HW layer represents the physical components.
 
-\subsection{Block Diagrams}
+% =====================================================================
+% PART 1 — BINARY ACTUATOR CONTROL (RELAY)
+% =====================================================================
+\subsection{Part 1 --- Binary Actuator Control (Relay)}
 
-\subsubsection{Application Main Flowchart}
+This subsection covers the design aspects specific to the binary actuator: the relay-driven load controlled via keypad toggle commands with software debouncing.
+
+\subsubsection{Binary Actuator Data Flow}
+
+The binary actuator control path is straightforward: the user presses key A on the keypad, which sets a boolean command flag in the shared state. The control task reads this flag, applies software debouncing (3 consecutive confirmations at 100\,ms intervals), and drives the relay GPIO pin accordingly. The relay module switches the load circuit through its Normally Open contact.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    block/.style={draw, rectangle, rounded corners, minimum width=2.8cm,
+                  minimum height=0.8cm, text centered, align=center, fill=blue!10},
+    arrow/.style={thick,->,>=Stealth}]
+    \node[block] (key)  at (0,   0)    {Keypad\\(Key A)};
+    \node[block] (cmd)  at (3.8, 0)    {Shared State\\relayCommandOn};
+    \node[block] (deb)  at (7.6, 0)    {Software\\Debounce};
+    \node[block] (rel)  at (11.4, 0)   {Relay\\Driver};
+    \node[block] (load) at (11.4, -1.8){Load\\(White LED)};
+    \draw [arrow] (key)  -- (cmd);
+    \draw [arrow] (cmd)  -- (deb);
+    \draw [arrow] (deb)  -- (rel);
+    \draw [arrow] (rel)  -- (load);
+\end{tikzpicture}
+\caption{Binary actuator data flow --- from keypad to relay load}
+\label{fig:binary_data_flow}
+\end{figure}
+
+\subsubsection{Relay Debounce Algorithm}
+
+The debounce algorithm prevents false relay toggles caused by noisy keypad contacts or accidental double-presses. Rather than debouncing the keypad itself (which the Keypad library already handles), this debounce operates on the \emph{command signal} to ensure that the relay only changes state after the command has been stable for a configurable number of control cycles.
+
+\tikzset{
+    startstop/.style={rectangle, rounded corners, minimum width=3cm,
+        minimum height=0.7cm, text centered, align=center, draw=black, fill=gray!15},
+    process/.style={rectangle, minimum width=3cm,
+        minimum height=0.7cm, text centered, align=center, draw=black, fill=blue!10},
+    decision/.style={diamond, aspect=2.5, minimum width=2cm,
+        minimum height=0.7cm, text centered, align=center, draw=black, fill=orange!15},
+    arrow/.style={thick,->,>=Stealth}
+}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+    \node (start) [startstop] at (0,    0.0) {Read relay\\command};
+    \node (dec1)  [decision]  at (0,   -2.5) {Command\\== lastCmd?};
+    \node (inc)   [process]   at (-3.5,-5.0) {Increment\\debounce counter};
+    \node (reset) [process]   at (3.5, -5.0) {Reset counter\\to 0};
+    \node (dec2)  [decision]  at (0,   -7.5) {Counter $\geq$\\threshold?};
+    \node (apply) [process]   at (-3.5,-10.0){Apply command\\to relay};
+    \node (skip)  [process]   at (3.5, -10.0){Keep current\\relay state};
+    \node (done)  [startstop] at (0,   -12.0){Update shared\\state};
+    \draw [arrow] (start) -- (dec1);
+    \draw [arrow] (dec1)  -- node[above, font=\scriptsize]{Yes} (inc);
+    \draw [arrow] (dec1)  -- node[above, font=\scriptsize]{No} (reset);
+    \draw [arrow] (inc)   -- ++(0, -1.0) -| ($(dec2) + (-1.5, 1.0)$) -- (dec2);
+    \draw [arrow] (reset) -- ++(0, -1.0) -| ($(dec2) + (1.5, 1.0)$) -- (dec2);
+    \draw [arrow] (dec2)  -- node[above, font=\scriptsize]{Yes} (apply);
+    \draw [arrow] (dec2)  -- node[above, font=\scriptsize]{No} (skip);
+    \draw [arrow] (apply) -- ++(0, -0.8) -| ($(done) + (-1.5, 0.6)$) -- (done);
+    \draw [arrow] (skip)  -- ++(0, -0.8) -| ($(done) + (1.5, 0.6)$) -- (done);
+\end{tikzpicture}
+\caption{Relay command debounce algorithm flowchart}
+\label{fig:relay_debounce_flowchart}
+\end{figure}
+
+The debounce threshold is set to 3 confirmations. Since the control task runs every 100\,ms, the relay state changes 300\,ms after a stable command is received. This delay is imperceptible for human-initiated control while being effective at filtering transient command changes.
+
+\subsubsection{Binary Actuator Electrical Schematic}
+
+The relay module is connected to pin D7 of the Arduino Mega. When the pin is driven HIGH, the optocoupler inside the module activates the electromagnetic coil, switching the COM terminal from NC to NO. The load LED is connected between COM and ground, with 5V supplied through the NC terminal (which connects to COM when the relay is energized).
+
+\begin{figure}[H]
+\centering
+\begin{circuitikz}[scale=0.9, transform shape]
+    % Relay control signal
+    \draw (0,0) node[anchor=east]{\footnotesize Pin D7 (GPIO)}
+        to[short, -o] (2,0)
+        node[anchor=west]{\footnotesize Relay IN};
+
+    % Relay module representation
+    \draw[dashed, gray] (3.5,-1.5) rectangle (7.5,1.5);
+    \node[font=\footnotesize, gray] at (5.5, 1.2) {Relay Module};
+
+    % Coil
+    \draw (4,0) to[cute inductor, l=\footnotesize Coil] (6,0);
+
+    % Switch contacts
+    \draw (4,-1) node[anchor=east]{\footnotesize NC}
+        to[short] (5,-1);
+    \draw (5,-1) to[short] (5.5, -0.3);
+    \draw (6,-1) node[anchor=west]{\footnotesize COM}
+        to[short] (5.5,-1);
+
+    % Load circuit
+    \draw (7.5,-1) node[anchor=east]{\footnotesize COM}
+        to[leD*, color=white, l=\footnotesize Load LED] (10,-1)
+        node[ground] {};
+
+    % Power
+    \draw (3.5,-1) node[anchor=east]{\footnotesize 5V}
+        to[short, -o] (4,-1);
+
+    % VCC/GND for relay module
+    \draw (4, 1) node[anchor=south]{\footnotesize VCC (5V)};
+    \draw (6, 1) node[anchor=south]{\footnotesize GND};
+\end{circuitikz}
+\caption{Binary actuator circuit --- relay module with load LED}
+\label{fig:binary_circuit}
+\end{figure}
+
+% =====================================================================
+% PART 2 — ANALOG ACTUATOR CONTROL (PWM)
+% =====================================================================
+\subsection{Part 2 --- Analog Actuator Control (PWM)}
+
+This subsection covers the design aspects specific to the analog actuator: the PWM-driven load controlled via keypad numeric entry with a four-stage signal conditioning pipeline and overload alerting.
+
+\subsubsection{Analog Actuator Data Flow}
+
+The analog actuator control path is more complex than the binary path. The user enters a target percentage (0--100) using keys B (enter mode), 0--9 (digits), and \# (confirm). The raw command value passes through a four-stage conditioning pipeline before reaching the PWM output. An overload alert FSM monitors the conditioned output and controls the status LEDs.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    block/.style={draw, rectangle, rounded corners, minimum width=2.2cm,
+                  minimum height=0.8cm, text centered, align=center, fill=blue!10, font=\scriptsize},
+    cond/.style={draw, rectangle, rounded corners, minimum width=2.2cm,
+                 minimum height=0.8cm, text centered, align=center, fill=orange!10, font=\scriptsize},
+    arrow/.style={thick,->,>=Stealth}]
+    \node[block] (key)  at (0,    0)   {Keypad\\(B+digits+\#)};
+    \node[block] (cmd)  at (2.8,  0)   {Shared\\State};
+    \node[cond]  (sat)  at (5.6,  0)   {Saturate\\{[0,100]}};
+    \node[cond]  (med)  at (8.2,  0)   {Median\\Filter};
+    \node[cond]  (ewma) at (10.8, 0)   {EWMA\\$\alpha$=0.4};
+    \node[cond]  (ramp) at (13.4, 0)   {Ramp\\$\leq$5\%/cyc};
+    \node[block] (pwm)  at (13.4,-1.8) {PWM\\Driver};
+    \node[block] (led)  at (13.4,-3.6) {Blue\\LED};
+    \node[block] (alrt) at (8.2, -1.8) {Overload\\Alert FSM};
+    \node[block] (leds) at (8.2, -3.6) {Status\\LEDs};
+    \draw [arrow] (key)  -- (cmd);
+    \draw [arrow] (cmd)  -- (sat);
+    \draw [arrow] (sat)  -- (med);
+    \draw [arrow] (med)  -- (ewma);
+    \draw [arrow] (ewma) -- (ramp);
+    \draw [arrow] (ramp) -- (pwm);
+    \draw [arrow] (pwm)  -- (led);
+    \draw [arrow] (ramp.south) -- ++(0,-0.4) -| (alrt.north);
+    \draw [arrow] (alrt) -- (leds);
+\end{tikzpicture}
+\caption{Analog actuator data flow --- four-stage conditioning pipeline}
+\label{fig:analog_data_flow}
+\end{figure}
+
+\subsubsection{Signal Conditioning Pipeline Flowchart}
+
+The conditioning pipeline processes each raw command value through four sequential stages. The saturation stage clamps the input to the physical actuator limits (0--100\%). The median filter maintains a sliding window of the 5 most recent values and selects the middle one, removing impulsive outliers. The EWMA stage applies exponential smoothing with $\alpha = 0.4$, balancing responsiveness and stability. Finally, the ramping stage limits the output change to 5\% per 100\,ms cycle, ensuring gradual actuator transitions.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+    \tikzset{
+        startstop/.style={rectangle, rounded corners, minimum width=3.2cm,
+            minimum height=0.7cm, text centered, align=center, draw=black, fill=gray!15},
+        process/.style={rectangle, minimum width=3.2cm,
+            minimum height=0.7cm, text centered, align=center, draw=black, fill=blue!10},
+        decision/.style={diamond, aspect=2.5, minimum width=2cm,
+            minimum height=0.7cm, text centered, align=center, draw=black, fill=orange!15},
+        arrow/.style={thick,->,>=Stealth}
+    }
+    \node (start) [startstop] at (0,    0.0)  {Receive raw\\command value};
+    \node (sat)   [process]   at (0,   -1.8)  {Stage 1: Saturate\\clamp to [0, 100]};
+    \node (med)   [process]   at (0,   -3.6)  {Stage 2: Median Filter\\window = 5 samples};
+    \node (ewma)  [process]   at (0,   -5.4)  {Stage 3: EWMA\\$\alpha = 0.4$};
+    \node (dec1)  [decision]  at (0,   -7.9)  {$|\Delta| >$\\rampStep?};
+    \node (limit) [process]   at (-3.8,-10.4) {Limit change\\to $\pm$5\%};
+    \node (snap)  [process]   at (3.8, -10.4) {Snap to\\target};
+    \node (out)   [startstop] at (0,   -12.4) {Output ramped\\value to PWM};
+    \draw [arrow] (start) -- (sat);
+    \draw [arrow] (sat)   -- (med);
+    \draw [arrow] (med)   -- (ewma);
+    \draw [arrow] (ewma)  -- (dec1);
+    \draw [arrow] (dec1)  -- node[above, font=\scriptsize]{Yes} (limit);
+    \draw [arrow] (dec1)  -- node[above, font=\scriptsize]{No}  (snap);
+    \draw [arrow] (limit) -- ++(0, -0.8) -| ($(out) + (-1.5, 0.6)$) -- (out);
+    \draw [arrow] (snap)  -- ++(0, -0.8) -| ($(out) + (1.5, 0.6)$) -- (out);
+\end{tikzpicture}
+\caption{Signal conditioning pipeline flowchart for the analog actuator}
+\label{fig:conditioning_pipeline_flowchart}
+\end{figure}
+
+\subsubsection{Overload Alert FSM}
+
+The overload detection uses a 4-state hysteresis FSM with debounce confirmation. An alert triggers when the conditioned PWM output exceeds 90\% for 3 consecutive evaluations, and clears when it drops below 80\% for 3 consecutive evaluations. The hysteresis band (80\%--90\%) prevents the alert from oscillating when the actuator operates near the threshold boundary.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[>=Stealth, auto, node distance=3.5cm,
+        every state/.style={draw, circle, minimum size=1.5cm, font=\scriptsize}]
+    \node[state, initial]   (normal)  {NORMAL};
+    \node[state]            (debH)    [right of=normal]  {DEB\_H};
+    \node[state]            (alert)   [right of=debH]    {ALERT};
+    \node[state]            (debL)    [below of=debH]    {DEB\_L};
+    \path[->]
+        (normal) edge              node[font=\tiny] {val $>$ 90\%}    (debH)
+        (debH)   edge              node[font=\tiny] {3 confirms}      (alert)
+        (debH)   edge [bend right] node[font=\tiny, below] {val $\leq$ 90\%} (normal)
+        (alert)  edge              node[font=\tiny, right] {val $<$ 80\%}     (debL)
+        (debL)   edge              node[font=\tiny] {3 confirms}      (normal)
+        (debL)   edge [bend right] node[font=\tiny, right] {val $\geq$ 80\%} (alert);
+\end{tikzpicture}
+\caption{Overload alert FSM state diagram with hysteresis}
+\label{fig:overload_fsm}
+\end{figure}
+
+When the FSM enters the ALERT state, the red LED turns on and the green LED turns off. The LCD display shows \texttt{!ALERT} to indicate the overload condition. Reducing the PWM target below 80\% initiates a transition through the DEBOUNCE\_LOW state, requiring 3 consecutive sub-threshold readings before returning to NORMAL and restoring the green LED.
+
+\subsubsection{Analog Actuator Electrical Schematic}
+
+The PWM output on pin D3 drives a blue LED through a 220\,$\Omega$ current-limiting resistor. The LED brightness varies proportionally to the duty cycle, visually representing the analog actuator output level. In a real application, the same PWM signal would drive a motor controller (e.g., L298N H-bridge) or a proportional valve driver.
+
+\begin{figure}[H]
+\centering
+\begin{circuitikz}[scale=0.9, transform shape]
+    % PWM LED circuit
+    \draw (0,0) node[anchor=east]{\footnotesize Pin D3 (PWM)}
+        to[R, l=220\,\si{\ohm}] (3,0)
+        to[leD*, color=blue, l=\footnotesize PWM LED] (5.5,0)
+        node[ground] {};
+
+    % Status LEDs
+    \draw (0,-2.0) node[anchor=east]{\footnotesize Pin D8 (Status)}
+        to[R, l=220\,\si{\ohm}] (3,-2.0)
+        to[leD*, color=green, l=\footnotesize Green] (5.5,-2.0)
+        node[ground] {};
+
+    \draw (0,-4.0) node[anchor=east]{\footnotesize Pin D9 (Alert)}
+        to[R, l=220\,\si{\ohm}] (3,-4.0)
+        to[leD*, color=red, l=\footnotesize Red] (5.5,-4.0)
+        node[ground] {};
+\end{circuitikz}
+\caption{Analog actuator and status LED circuit schematic}
+\label{fig:analog_circuit}
+\end{figure}
+
+% =====================================================================
+% SHARED DESIGN ELEMENTS
+% =====================================================================
+\subsection{Shared Design Elements}
+
+\subsubsection{Application Initialization Flowchart}
 
 The application starts by initializing the serial interface, shared state, and spawning three FreeRTOS tasks. Once the scheduler starts, each task runs independently at its configured period.
 
@@ -87,7 +339,7 @@ The application starts by initializing the serial interface, shared state, and s
 
 \subsubsection{Input Task Flowchart}
 
-The input task scans the keypad every 50\,ms and interprets the pressed key to update the shared actuator command state.
+The input task scans the keypad every 50\,ms and interprets the pressed key. Key A controls the binary actuator, keys B/0--9/\# control the analog actuator, C is emergency stop, and D requests an on-demand status report. All key processing is performed inside a mutex-protected critical section to ensure atomicity of shared state updates.
 
 \begin{figure}[H]
 \centering
@@ -119,9 +371,11 @@ The input task scans the keypad every 50\,ms and interprets the pressed key to u
 \label{fig:input_task_flowchart}
 \end{figure}
 
+The key mapping is summarized as follows: A toggles the relay ON/OFF (binary actuator), B enters analog input mode, digits 0--9 build the PWM percentage value, \# confirms the entered value, * cancels the current input, C triggers an emergency stop that disables both actuators, and D requests an immediate status report on the serial terminal.
+
 \subsubsection{Control Task Flowchart}
 
-The control task runs every 100\,ms and applies debouncing to the relay command and the full conditioning pipeline to the PWM command.
+The control task runs every 100\,ms and handles both actuator subsystems. It first processes the binary relay with debouncing, then runs the analog conditioning pipeline. Both subsystems share the same mutex-protected critical section to ensure consistent state snapshots.
 
 \begin{figure}[H]
 \centering
@@ -131,17 +385,21 @@ The control task runs every 100\,ms and applies debouncing to the relay command 
             minimum height=0.7cm, text centered, align=center, draw=black, fill=gray!15},
         process/.style={rectangle, minimum width=3cm,
             minimum height=0.7cm, text centered, align=center, draw=black, fill=blue!10},
+        procbin/.style={rectangle, minimum width=3cm,
+            minimum height=0.7cm, text centered, align=center, draw=black, fill=green!10},
+        procana/.style={rectangle, minimum width=3cm,
+            minimum height=0.7cm, text centered, align=center, draw=black, fill=orange!10},
         arrow/.style={thick,->,>=Stealth}
     }
-    \node (start)  [startstop] at (0,   0.0) {Wait 100\,ms};
-    \node (lock)   [process]   at (0,  -1.8) {Lock Mutex\\Read Commands};
-    \node (deb)    [process]   at (0,  -3.6) {Debounce Relay\\Command};
-    \node (relay)  [process]   at (0,  -5.4) {Apply Relay\\State};
-    \node (cond)   [process]   at (0,  -7.2) {Condition PWM\\(Sat$\to$Med$\to$EWMA$\to$Ramp)};
-    \node (pwm)    [process]   at (0,  -9.0) {Apply PWM\\Output};
-    \node (alert)  [process]   at (0, -10.8) {Evaluate Overload\\Alert FSM};
-    \node (leds)   [process]   at (0, -12.6) {Update Status LEDs};
-    \node (unlock) [process]   at (0, -14.4) {Unlock Mutex};
+    \node (start)  [startstop] at (0,   0.0)  {Wait 100\,ms};
+    \node (lock)   [process]   at (0,  -1.8)  {Lock Mutex\\Read Commands};
+    \node (deb)    [procbin]   at (0,  -3.6)  {Binary: Debounce\\Relay Command};
+    \node (relay)  [procbin]   at (0,  -5.4)  {Binary: Apply\\Relay State};
+    \node (cond)   [procana]   at (0,  -7.2)  {Analog: Condition PWM\\(Sat$\to$Med$\to$EWMA$\to$Ramp)};
+    \node (pwm)    [procana]   at (0,  -9.0)  {Analog: Apply\\PWM Output};
+    \node (alert)  [procana]   at (0, -10.8)  {Analog: Evaluate\\Overload Alert FSM};
+    \node (leds)   [process]   at (0, -12.6)  {Update Status LEDs};
+    \node (unlock) [process]   at (0, -14.4)  {Unlock Mutex};
     \draw [arrow] (start)  -- (lock);
     \draw [arrow] (lock)   -- (deb);
     \draw [arrow] (deb)    -- (relay);
@@ -152,32 +410,8 @@ The control task runs every 100\,ms and applies debouncing to the relay command 
     \draw [arrow] (leds)   -- (unlock);
     \draw [arrow] (unlock.west) -- ++(-3.0, 0) |- (start.west);
 \end{tikzpicture}
-\caption{Control task flowchart --- actuator conditioning and hardware control}
+\caption{Control task flowchart --- binary (green) and analog (orange) processing}
 \label{fig:control_task_flowchart}
-\end{figure}
-
-\subsubsection{Overload Alert FSM}
-
-The overload detection uses a 4-state hysteresis FSM with debounce confirmation. An alert triggers when the conditioned PWM output exceeds 90\% for 3 consecutive evaluations, and clears when it drops below 80\% for 3 consecutive evaluations.
-
-\begin{figure}[H]
-\centering
-\begin{tikzpicture}[>=Stealth, auto, node distance=3.5cm,
-        every state/.style={draw, circle, minimum size=1.5cm, font=\scriptsize}]
-    \node[state, initial]   (normal)  {NORMAL};
-    \node[state]            (debH)    [right of=normal]  {DEB\_H};
-    \node[state]            (alert)   [right of=debH]    {ALERT};
-    \node[state]            (debL)    [below of=debH]    {DEB\_L};
-    \path[->]
-        (normal) edge              node[font=\tiny] {val $>$ 90\%}    (debH)
-        (debH)   edge              node[font=\tiny] {3 confirms}      (alert)
-        (debH)   edge [bend right] node[font=\tiny, below] {val $\leq$ 90\%} (normal)
-        (alert)  edge              node[font=\tiny, right] {val $<$ 80\%}     (debL)
-        (debL)   edge              node[font=\tiny] {3 confirms}      (normal)
-        (debL)   edge [bend right] node[font=\tiny, right] {val $\geq$ 80\%} (alert);
-\end{tikzpicture}
-\caption{Overload alert FSM state diagram with hysteresis}
-\label{fig:overload_fsm}
 \end{figure}
 
 \subsection{Electrical Schematics}
@@ -197,51 +431,48 @@ The circuit uses the following components with their electrical specifications:
     \item \textbf{White LED} --- relay load indicator (connected through relay NO/COM)
 \end{itemize}
 
-\subsubsection{Circuit Connections}
+\subsubsection{Complete Circuit Connections}
 
-The electrical schematic shows how each component connects to the Arduino Mega 2560. All LED circuits use 220\,$\Omega$ current-limiting resistors. The relay module receives its control signal from pin D7, while the PWM actuator LED is driven from pin D3. The keypad occupies pins D22--D29, and the LCD uses the I2C bus on pins D20 (SDA) and D21 (SCL).
+The full electrical schematic combines both the binary (relay) and analog (PWM) actuator subsystems. The keypad uses 8 GPIO lines (D22--D29), the LCD connects via I2C (D20/D21), and the relay control signal originates from pin D7. The PWM actuator output uses pin D3, and status LEDs are on pins D8 (green) and D9 (red).
 
 \begin{figure}[H]
 \centering
 \begin{circuitikz}[scale=0.85, transform shape]
-    % PWM LED circuit
-    \draw (0,0) node[anchor=east]{\footnotesize Pin D3 (PWM)}
-        to[R, l=220\,\si{\ohm}] (3,0)
-        to[leD*, color=blue, l=\footnotesize PWM LED] (5.5,0)
-        node[ground] {};
-
-    % Green status LED
-    \draw (0,-1.8) node[anchor=east]{\footnotesize Pin D8}
-        to[R, l=220\,\si{\ohm}] (3,-1.8)
-        to[leD*, color=green, l=\footnotesize Green] (5.5,-1.8)
-        node[ground] {};
-
-    % Red alert LED
-    \draw (0,-3.6) node[anchor=east]{\footnotesize Pin D9}
-        to[R, l=220\,\si{\ohm}] (3,-3.6)
-        to[leD*, color=red, l=\footnotesize Red] (5.5,-3.6)
-        node[ground] {};
-
-    % Relay control
-    \draw (0,-5.4) node[anchor=east]{\footnotesize Pin D7}
-        to[short] (2,-5.4)
+    % Binary actuator: Relay + load
+    \draw (0,0) node[anchor=east]{\footnotesize Pin D7}
+        to[short, -o] (2,0)
         node[anchor=west]{\footnotesize Relay IN};
-
-    % Relay load circuit
-    \draw (4,-5.4) node[anchor=east]{\footnotesize Relay COM}
-        to[leD*, color=white, l=\footnotesize Load LED] (7,-5.4)
+    \draw (4.5,0) node[anchor=east]{\footnotesize Relay COM}
+        to[leD*, color=white, l=\footnotesize Load LED] (7.5,0)
         node[ground] {};
-    \draw (4,-6.4) node[anchor=east]{\footnotesize Relay NC}
-        to[short] (5,-6.4)
-        node[anchor=west]{\footnotesize 5V};
+    \node[font=\footnotesize, gray] at (3.2, 0.5) {Binary Actuator};
+
+    % Analog actuator: PWM LED
+    \draw (0,-2.0) node[anchor=east]{\footnotesize Pin D3 (PWM)}
+        to[R, l=220\,\si{\ohm}] (3,-2.0)
+        to[leD*, color=blue, l=\footnotesize PWM LED] (5.5,-2.0)
+        node[ground] {};
+    \node[font=\footnotesize, gray] at (2.8, -1.3) {Analog Actuator};
+
+    % Status LEDs
+    \draw (0,-4.0) node[anchor=east]{\footnotesize Pin D8}
+        to[R, l=220\,\si{\ohm}] (3,-4.0)
+        to[leD*, color=green, l=\footnotesize Green] (5.5,-4.0)
+        node[ground] {};
+
+    \draw (0,-5.8) node[anchor=east]{\footnotesize Pin D9}
+        to[R, l=220\,\si{\ohm}] (3,-5.8)
+        to[leD*, color=red, l=\footnotesize Red] (5.5,-5.8)
+        node[ground] {};
+    \node[font=\footnotesize, gray] at (2.8, -4.9) {Status Indicators};
 
     % I2C LCD
-    \draw (0,-8.0) node[anchor=east]{\footnotesize Pin D20 (SDA)}
-        to[short] (3,-8.0) node[anchor=west]{\footnotesize LCD SDA};
-    \draw (0,-9.0) node[anchor=east]{\footnotesize Pin D21 (SCL)}
-        to[short] (3,-9.0) node[anchor=west]{\footnotesize LCD SCL};
+    \draw (0,-7.8) node[anchor=east]{\footnotesize Pin D20 (SDA)}
+        to[short] (3,-7.8) node[anchor=west]{\footnotesize LCD SDA};
+    \draw (0,-8.8) node[anchor=east]{\footnotesize Pin D21 (SCL)}
+        to[short] (3,-8.8) node[anchor=west]{\footnotesize LCD SCL};
 \end{circuitikz}
-\caption{Circuit schematic of the dual-actuator control system}
+\caption{Complete circuit schematic --- binary and analog actuator subsystems}
 \label{fig:circuit_schematic}
 \end{figure}
 
@@ -302,7 +533,7 @@ labs/
 
 \subsection{Modular Implementation}
 
-\subsubsection{MCAL Layer: Relay Driver}
+\subsubsection{MCAL Layer: Relay Driver (Binary Actuator)}
 
 The Relay module provides a simple interface for controlling a relay connected to a digital GPIO pin. It supports configurable active level (HIGH or LOW) and tracks the current relay state internally.
 
@@ -325,7 +556,7 @@ private:
 
 The implementation maps the logical ON/OFF state to the physical pin level based on the \texttt{activeHigh} configuration. When \texttt{activeHigh} is true, turning ON writes HIGH to the pin; when false, it writes LOW. This accommodates both active-HIGH relay modules (common in Arduino ecosystem) and active-LOW modules (common in industrial applications).
 
-\subsubsection{MCAL Layer: PWM Actuator Driver}
+\subsubsection{MCAL Layer: PWM Actuator Driver (Analog Actuator)}
 
 The PwmActuator module abstracts PWM output control, accepting a duty cycle percentage (0--100\%) and mapping it to the 8-bit range required by \texttt{analogWrite()}.
 
@@ -345,7 +576,7 @@ private:
 
 The \texttt{setDuty()} method clamps the input to [0, 100] before computing \texttt{pwmVal = duty * 255 / 100} and calling \texttt{analogWrite()}. This percentage-based interface decouples the application logic from the hardware-specific 8-bit range.
 
-\subsubsection{SRV Layer: Actuator Conditioner}
+\subsubsection{SRV Layer: Actuator Conditioner (Analog Actuator)}
 
 The ActuatorConditioner module extends the existing SignalConditioner with a ramping stage. It wraps the three-stage pipeline (saturation, median filter, EWMA) and adds gradual output transitions to protect mechanical actuators from sudden changes.
 
@@ -365,28 +596,36 @@ public:
 
 The ramping logic computes the difference between the conditioned target and the current output, then limits the change to \texttt{maxRampStep} per call. This ensures that even if the user commands a jump from 0\% to 100\%, the actual output ramps up at 5\% per 100\,ms cycle, reaching full speed in approximately 2 seconds.
 
+\subsubsection{ECAL Layer: Threshold Alert FSM (Analog Actuator)}
+
+The ThresholdAlert module, originally developed in Lab 3 for temperature monitoring, is reused here to detect overload conditions on the analog actuator. The module implements a 4-state hysteresis FSM with configurable high/low thresholds and debounce confirmation count. For this lab, the thresholds are set to 90\% (trigger) and 80\% (clear) with 3 required confirmations.
+
 \subsubsection{APP Layer: Shared State Module}
 
-The SharedState module defines the \texttt{ActuatorState} structure containing all data exchanged between the three tasks: relay command/actual state, PWM command/conditioned/ramped values, alert status, and input mode tracking. A FreeRTOS mutex protects concurrent access.
+The SharedState module defines the \texttt{ActuatorState} structure containing all data exchanged between the three tasks. It includes fields for both actuator subsystems: relay command/actual state with debounce counter (binary), and PWM command/conditioned/ramped values with raw register output (analog). A one-shot \texttt{reportRequested} flag allows the input task to trigger an immediate serial report via the display task. A FreeRTOS mutex protects concurrent access.
 
 \begin{lstlisting}[language=C++, caption=Shared state structure (shared\_state.h), label=lst:shared_state_h]
 struct ActuatorState {
+    // Binary actuator
     bool relayCommandOn;
     bool relayActualOn;
     uint8_t relayDebounceCount;
+    // Analog actuator
     float pwmCommandPercent;
     float pwmConditioned;
     float pwmRamped;
     uint8_t pwmRawValue;
+    // Alert and control
     bool overloadAlert;
     bool inputModeAnalog;
     char inputBuffer[4];
     uint8_t inputBufferLen;
+    bool reportRequested;
 };
 \end{lstlisting}
 
 \subsubsection{APP Layer: FreeRTOS Tasks}
 
-Three tasks run concurrently, each with a dedicated period and priority. The Input task (priority 3, 50\,ms) has the highest priority to ensure responsive keypad scanning. The Control task (priority 2, 100\,ms) processes actuator commands and drives hardware. The Display task (priority 1, 500\,ms) updates the LCD and prints serial reports at a relaxed rate to avoid consuming excessive CPU time with I/O operations.
+Three tasks run concurrently, each with a dedicated period and priority. The Input task (priority 3, 50\,ms) has the highest priority to ensure responsive keypad scanning. The Control task (priority 2, 100\,ms) processes both binary and analog actuator commands and drives all hardware outputs. The Display task (priority 1, 500\,ms) updates the LCD and prints serial reports at a relaxed rate to avoid consuming excessive CPU time with I/O operations.
 
 All tasks follow the same pattern: acquire the mutex, read/write the shared state, release the mutex, then perform hardware I/O outside the critical section where possible. This minimizes mutex hold time and reduces the risk of priority inversion.

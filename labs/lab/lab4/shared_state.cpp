@@ -16,6 +16,7 @@ void sharedStateInit() {
     _state.pwmCommandPercent = 0.0f;
     _state.inputModeAnalog = false;
     _state.inputBufferLen = 0;
+    _state.reportRequested = false;
     _mutex = xSemaphoreCreateMutex();
 }
 

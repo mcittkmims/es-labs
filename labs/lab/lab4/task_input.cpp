@@ -64,7 +64,8 @@ void vTaskInput(void *pvParameters) {
                     break;
 
                 case 'D':
-                    // Status report request (handled by display task)
+                    // One-shot status report request (handled by display task)
+                    s->reportRequested = true;
                     printf("[INPUT] Status report requested\r\n");
                     break;
 

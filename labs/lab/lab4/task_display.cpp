@@ -41,8 +41,11 @@ void vTaskDisplay(void *pvParameters) {
         uint8_t pwmRaw = s->pwmRawValue;
         bool alert = s->overloadAlert;
         bool inputMode = s->inputModeAnalog;
+        bool reportRequested = s->reportRequested;
+        s->reportRequested = false;  // consume one-shot request
         char inputBuf[4];
         uint8_t inputLen = s->inputBufferLen;
+        if (inputLen > 3) inputLen = 3;
         for (uint8_t i = 0; i < inputLen && i < 3; i++)
             inputBuf[i] = s->inputBuffer[i];
         inputBuf[inputLen] = '\0';
@@ -68,15 +71,23 @@ void vTaskDisplay(void *pvParameters) {
 
         // ── Serial report every 2 seconds (4 x 500ms) ──────────────
         reportCounter++;
-        if (reportCounter >= 4) {
+        bool periodicReport = (reportCounter >= 4);
+        if (periodicReport) {
             reportCounter = 0;
+        }
 
+        if (periodicReport || reportRequested) {
             char cmdBuf[8], condBuf[8], rampBuf[8];
             dtostrf(pwmCmd, 5, 1, cmdBuf);
             dtostrf(pwmCond, 5, 1, condBuf);
             dtostrf(pwmRamp, 5, 1, rampBuf);
 
             printf("\r\n--- Actuator Status Report ---\r\n");
+            if (reportRequested && !periodicReport) {
+                printf("Trigger: keypad D (on-demand)\r\n");
+            } else {
+                printf("Trigger: periodic 2s timer\r\n");
+            }
             printf("BINARY ACTUATOR (Relay):\r\n");
             printf("  State: %s\r\n", relayOn ? "ON" : "OFF");
             printf("ANALOG ACTUATOR (PWM):\r\n");

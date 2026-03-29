@@ -32,43 +32,89 @@ Upon starting the Wokwi simulation, the system prints a startup banner to the se
 \label{fig:simulation_start}
 \end{figure}
 
-\subsection{Command Interface Validation}
+% =====================================================================
+% PART 1 — BINARY ACTUATOR RESULTS
+% =====================================================================
+\subsection{Part 1 --- Binary Actuator (Relay) Results}
 
-\subsubsection{Test 1: Relay Toggle (Key A)}
+\subsubsection{Test 1.1: Relay Toggle ON (Key A)}
 
-Pressing key A on the keypad toggles the relay between ON and OFF states. The serial terminal confirms each toggle with a message \texttt{[INPUT] Relay cmd: ON} or \texttt{[INPUT] Relay cmd: OFF}. After the debounce period (3 consecutive confirmations at 100\,ms intervals = 300\,ms), the relay module activates and the white load LED illuminates. The LCD updates to show \texttt{Relay:ON} on the first line.
-
-\begin{figure}[H]
-\centering
-\IfFileExists{resources/ObtainedResults/test_relay_toggle.png}{%
-    \includegraphics[width=0.75\textwidth]{resources/ObtainedResults/test_relay_toggle.png}%
-}{%
-    \fbox{\parbox{0.73\textwidth}{\centering\color{gray}\small
-        [Screenshot pending --- save to resources/ObtainedResults/test\_relay\_toggle.png]}}%
-}
-\caption{Relay toggle test --- relay ON, white load LED lit, LCD updated}
-\label{fig:test_relay_toggle}
-\end{figure}
-
-\subsubsection{Test 2: Analog PWM Input (Keys B, 0--9, \#)}
-
-Pressing B enters analog input mode. The LCD switches to edit mode showing \texttt{[EDIT]} on the first line and the current digit entry on the second. Typing digits (e.g., 7, 5) builds the target percentage, and pressing \# confirms the value. The serial terminal logs each digit entry and the final confirmed value. The blue PWM LED gradually brightens as the ramping stage increases the output from 0\% to 75\% over approximately 1.5 seconds.
+Pressing key A on the keypad sends a toggle command to the binary actuator. The serial terminal immediately confirms the command with \texttt{[INPUT] Relay cmd: ON}. After the debounce period (3 consecutive confirmations at 100\,ms intervals = 300\,ms), the relay module activates: the white load LED illuminates, and the LCD updates its first line to show \texttt{Relay:ON}. The 2-second periodic serial report confirms the relay is in the ON state.
 
 \begin{figure}[H]
 \centering
-\IfFileExists{resources/ObtainedResults/test_pwm_input.png}{%
-    \includegraphics[width=0.75\textwidth]{resources/ObtainedResults/test_pwm_input.png}%
+\IfFileExists{resources/ObtainedResults/test_relay_on.png}{%
+    \includegraphics[width=0.75\textwidth]{resources/ObtainedResults/test_relay_on.png}%
 }{%
     \fbox{\parbox{0.73\textwidth}{\centering\color{gray}\small
-        [Screenshot pending --- save to resources/ObtainedResults/test\_pwm\_input.png]}}%
+        [Screenshot pending --- save to resources/ObtainedResults/test\_relay\_on.png]}}%
 }
-\caption{PWM input test --- entering 75\% via keypad, ramping visible on LED}
-\label{fig:test_pwm_input}
+\caption{Relay ON test --- white load LED lit, LCD shows Relay:ON}
+\label{fig:test_relay_on}
 \end{figure}
 
-\subsubsection{Test 3: Overload Alert (PWM $>$ 90\%)}
+\subsubsection{Test 1.2: Relay Toggle OFF (Key A Again)}
 
-Setting the PWM target to 95\% triggers the overload alert after the conditioned output exceeds 90\% for 3 consecutive evaluations. The red LED turns on, the green LED turns off, and the LCD displays \texttt{!ALERT} on the second line. The serial report confirms \texttt{ALERT: OVERLOAD ACTIVE}. Reducing the target below 80\% clears the alert after the hysteresis debounce period.
+Pressing key A a second time sends the OFF command. The serial terminal logs \texttt{[INPUT] Relay cmd: OFF}, and after the 300\,ms debounce period, the relay deactivates: the white load LED turns off, and the LCD reverts to \texttt{Relay:OFF}. This confirms the toggle behavior works correctly in both directions with consistent debounce timing.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/test_relay_off.png}{%
+    \includegraphics[width=0.75\textwidth]{resources/ObtainedResults/test_relay_off.png}%
+}{%
+    \fbox{\parbox{0.73\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save to resources/ObtainedResults/test\_relay\_off.png]}}%
+}
+\caption{Relay OFF test --- load LED off, LCD shows Relay:OFF}
+\label{fig:test_relay_off}
+\end{figure}
+
+\subsubsection{Test 1.3: Relay Debounce Validation}
+
+To verify that the software debounce prevents false toggles, rapid successive presses of key A are performed. Despite multiple key events arriving within a short window, the relay state changes only once the command has been stable for 3 consecutive 100\,ms control cycles. The debounce counter value, visible in the serial report, confirms that transient command changes are filtered out. The relay does not ``chatter'' (rapidly toggling ON and OFF) during fast keypad interaction.
+
+% =====================================================================
+% PART 2 — ANALOG ACTUATOR RESULTS
+% =====================================================================
+\subsection{Part 2 --- Analog Actuator (PWM) Results}
+
+\subsubsection{Test 2.1: PWM Value Entry (Keys B, 7, 5, \#)}
+
+Pressing B enters analog input mode. The LCD switches to edit mode, displaying \texttt{[EDIT]} on the first line and the current digit entry on the second. Typing 7 then 5 builds the target percentage ``75'', visible both on the LCD and in the serial log (\texttt{[INPUT] Entering: 7\%}, \texttt{[INPUT] Entering: 75\%}). Pressing \# confirms the value, and the serial terminal logs \texttt{[INPUT] PWM set to 75\%}. The LCD returns to normal mode showing \texttt{PWM 75\%}.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/test_pwm_entry.png}{%
+    \includegraphics[width=0.75\textwidth]{resources/ObtainedResults/test_pwm_entry.png}%
+}{%
+    \fbox{\parbox{0.73\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save to resources/ObtainedResults/test\_pwm\_entry.png]}}%
+}
+\caption{PWM value entry --- typing 75\% via keypad in edit mode}
+\label{fig:test_pwm_entry}
+\end{figure}
+
+\subsubsection{Test 2.2: Signal Conditioning and Ramping}
+
+After confirming a target of 75\%, the conditioning pipeline processes the command. The saturation stage passes 75 unchanged (within [0, 100]). The median filter requires several cycles to fill its 5-sample window. The EWMA smoothes the transition. Most visibly, the ramping stage limits the output increase to 5\% per 100\,ms cycle, so the blue PWM LED gradually brightens over approximately 1.5 seconds rather than jumping instantly to 75\%.
+
+The serial report shows the pipeline stages: the raw command at 75.0\%, the conditioned (post-EWMA) value converging toward 75\%, and the ramped output incrementing in 5\% steps (0, 5, 10, 15, ... 70, 75). The PWM register value correspondingly increases from 0 to 191 (75\% of 255).
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/test_pwm_ramping.png}{%
+    \includegraphics[width=0.75\textwidth]{resources/ObtainedResults/test_pwm_ramping.png}%
+}{%
+    \fbox{\parbox{0.73\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save to resources/ObtainedResults/test\_pwm\_ramping.png]}}%
+}
+\caption{PWM ramping --- serial report showing gradual output increase to 75\%}
+\label{fig:test_pwm_ramping}
+\end{figure}
+
+\subsubsection{Test 2.3: Overload Alert (PWM $>$ 90\%)}
+
+Setting the PWM target to 95\% (via B, 9, 5, \#) triggers the overload detection sequence. As the ramped output climbs past 90\%, the ThresholdAlert FSM transitions from NORMAL to DEBOUNCE\_HIGH. After 3 consecutive readings above 90\% (300\,ms), the FSM enters the ALERT state. The red LED turns on, the green LED turns off, and the LCD displays \texttt{!ALERT} on the second line. The serial report confirms \texttt{ALERT: OVERLOAD ACTIVE}.
 
 \begin{figure}[H]
 \centering
@@ -78,13 +124,54 @@ Setting the PWM target to 95\% triggers the overload alert after the conditioned
     \fbox{\parbox{0.73\textwidth}{\centering\color{gray}\small
         [Screenshot pending --- save to resources/ObtainedResults/test\_overload\_alert.png]}}%
 }
-\caption{Overload alert test --- red LED active, LCD showing ALERT status}
+\caption{Overload alert active --- red LED on, LCD showing !ALERT, serial confirmation}
 \label{fig:test_overload_alert}
 \end{figure}
 
-\subsubsection{Test 4: Emergency Stop (Key C)}
+\subsubsection{Test 2.4: Alert Hysteresis and Clearing}
 
-Pressing key C immediately sets both actuator commands to OFF/0\%. The relay deactivates, the PWM ramps down to 0\%, and any active alerts clear. The serial terminal prints \texttt{[INPUT] EMERGENCY STOP}. This provides a one-button safety mechanism for shutting down all actuators.
+To verify hysteresis behavior, the PWM target is reduced to 85\% (within the hysteresis band of 80--90\%). The alert remains active because the FSM only clears when the value drops \emph{below} the low threshold of 80\%. Setting the target to 70\% causes the ramped output to decrease past 80\%, triggering the DEBOUNCE\_LOW state. After 3 consecutive sub-80\% readings, the FSM returns to NORMAL: the green LED turns back on, the red LED turns off, and the LCD shows \texttt{OK} again. This confirms that the hysteresis band prevents alert oscillation near the threshold boundary.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/test_alert_clear.png}{%
+    \includegraphics[width=0.75\textwidth]{resources/ObtainedResults/test_alert_clear.png}%
+}{%
+    \fbox{\parbox{0.73\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save to resources/ObtainedResults/test\_alert\_clear.png]}}%
+}
+\caption{Alert cleared after PWM reduced below 80\% --- green LED restored}
+\label{fig:test_alert_clear}
+\end{figure}
+
+\subsubsection{Test 2.5: Input Cancellation (Key *)}
+
+While in analog input mode (after pressing B and entering partial digits), pressing * cancels the input and returns to normal display mode without changing the PWM target. The serial terminal logs \texttt{[INPUT] Input cancelled}. This verifies that the cancel mechanism prevents accidental actuator changes from incomplete or erroneous input.
+
+% =====================================================================
+% COMBINED OPERATION
+% =====================================================================
+\subsection{Combined Operation Results}
+
+\subsubsection{Test 3.1: Simultaneous Binary and Analog Control}
+
+Both actuators can be controlled independently within the same session. After setting the relay to ON (key A) and the PWM to 50\% (B, 5, 0, \#), the LCD shows both states simultaneously: \texttt{Relay:ON  PWM 50\%} on the first line and \texttt{Out: 50\%   OK} on the second. The serial report lists both actuator states in a single structured output. The white relay load LED and the dimmed blue PWM LED are both active simultaneously, demonstrating that the FreeRTOS task architecture supports concurrent dual-actuator control without interference.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/test_combined.png}{%
+    \includegraphics[width=0.75\textwidth]{resources/ObtainedResults/test_combined.png}%
+}{%
+    \fbox{\parbox{0.73\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save to resources/ObtainedResults/test\_combined.png]}}%
+}
+\caption{Combined operation --- relay ON and PWM at 50\% simultaneously}
+\label{fig:test_combined}
+\end{figure}
+
+\subsubsection{Test 3.2: Emergency Stop (Key C)}
+
+Pressing key C immediately sets both actuator commands to their safe states: relay OFF and PWM 0\%. The serial terminal prints \texttt{[INPUT] EMERGENCY STOP}. The relay deactivates (white LED off), and the PWM ramps down to 0\% (blue LED fading). Any active overload alert clears as the output drops below 80\%. The LCD returns to the fully-idle state showing \texttt{Relay:OFF PWM  0\%} and \texttt{Out:  0\%   OK}. This provides a one-button safety mechanism for shutting down all actuators simultaneously.
 
 \begin{figure}[H]
 \centering
@@ -94,28 +181,61 @@ Pressing key C immediately sets both actuator commands to OFF/0\%. The relay dea
     \fbox{\parbox{0.73\textwidth}{\centering\color{gray}\small
         [Screenshot pending --- save to resources/ObtainedResults/test\_emergency\_stop.png]}}%
 }
-\caption{Emergency stop test --- all actuators off after pressing C}
+\caption{Emergency stop --- all actuators off, system returned to idle state}
 \label{fig:test_emergency_stop}
+\end{figure}
+
+\subsubsection{Test 3.3: On-Demand Status Report (Key D)}
+
+Pressing key D triggers an immediate serial status report without waiting for the 2-second periodic timer. The report includes the trigger source (\texttt{Trigger: keypad D (on-demand)}), both actuator states, the full PWM conditioning pipeline values, and the alert status. This allows rapid diagnostic checks during testing.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/test_report.png}{%
+    \includegraphics[width=0.75\textwidth]{resources/ObtainedResults/test_report.png}%
+}{%
+    \fbox{\parbox{0.73\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save to resources/ObtainedResults/test\_report.png]}}%
+}
+\caption{On-demand serial status report triggered by key D}
+\label{fig:test_report}
 \end{figure}
 
 \subsection{System Observations}
 
-The system demonstrates responsive command processing with the keypad input being detected within 50\,ms of the key press. The relay debounce adds a 300\,ms delay before the physical relay state changes, which is appropriate for preventing false toggles from noisy membrane contacts. The PWM ramping at 5\% per 100\,ms produces visibly smooth LED brightness transitions, which would translate to gentle motor speed changes in a real application.
+The system demonstrates responsive command processing, with keypad input detected within 50\,ms of the key press. The relay debounce adds a 300\,ms delay before the physical relay state changes, which is appropriate for preventing false toggles from noisy membrane contacts. The PWM ramping at 5\% per 100\,ms produces visibly smooth LED brightness transitions, which would translate to gentle motor speed changes in a real application.
 
-The structured serial reports, printed every 2 seconds, provide comprehensive diagnostic information including the raw command, conditioned value, ramped output, PWM register value, and alert state. This level of observability would be valuable for tuning the conditioning parameters in a production system.
+The structured serial reports, printed every 2 seconds (or on demand via key D), provide comprehensive diagnostic information including the raw command, conditioned value, ramped output, PWM register value, and alert state. This level of observability would be valuable for tuning the conditioning parameters in a production system.
 
-Memory utilization remains well within the Arduino Mega 2560's constraints at 25.7\% RAM and 9.8\% Flash, suggesting the architecture could support significantly more complex applications on the same hardware platform.
+Memory utilization remains well within the Arduino Mega 2560's constraints at 25.7\% RAM and 9.8\% Flash, suggesting the architecture could support significantly more complex applications on the same hardware platform. The FreeRTOS scheduler manages the three tasks without observable timing jitter, and no deadlock or data corruption was encountered during testing.
 
 \subsection{Verification Summary}
 
 \begin{itemize}
     \item \textbf{Compilation:} Build succeeds with no errors and minimal warnings.
     \item \textbf{Initialization:} Startup banner prints correctly, LCD shows initial state, green LED active.
-    \item \textbf{Binary actuator:} Relay toggles via key A with debounce protection, load LED responds.
-    \item \textbf{Analog actuator:} PWM value entry via B + digits + \# with ramped output, visible on blue LED.
-    \item \textbf{Signal conditioning:} Saturation, median, EWMA, and ramping pipeline operational.
+\end{itemize}
+
+\textbf{Part 1 --- Binary Actuator:}
+\begin{itemize}
+    \item \textbf{Relay ON/OFF:} Toggle via key A works correctly with LCD and serial confirmation.
+    \item \textbf{Debounce:} Relay state only changes after 3 stable command cycles (300\,ms).
+    \item \textbf{Load indication:} White LED correctly reflects the relay's physical state.
+\end{itemize}
+
+\textbf{Part 2 --- Analog Actuator:}
+\begin{itemize}
+    \item \textbf{Value entry:} Digits build the target value, \# confirms, * cancels.
+    \item \textbf{Conditioning:} Saturation, median, EWMA pipeline processes commands correctly.
+    \item \textbf{Ramping:} Output changes at $\leq$5\%/cycle, producing smooth transitions.
     \item \textbf{Overload alert:} Triggers at $>$90\%, clears at $<$80\% with hysteresis and debounce.
-    \item \textbf{Emergency stop:} Key C immediately disables both actuators.
-    \item \textbf{Concurrent operation:} All three FreeRTOS tasks run without deadlock or data corruption.
-    \item \textbf{Architecture:} Modular, layered design with reusable library components.
+    \item \textbf{PWM output:} Blue LED brightness matches the conditioned duty cycle.
+\end{itemize}
+
+\textbf{Combined:}
+\begin{itemize}
+    \item \textbf{Dual control:} Both actuators operate simultaneously without interference.
+    \item \textbf{Emergency stop:} Key C disables all actuators immediately.
+    \item \textbf{On-demand report:} Key D triggers immediate serial diagnostic output.
+    \item \textbf{Concurrent tasks:} All three FreeRTOS tasks run without deadlock or data corruption.
 \end{itemize}

@@ -37,6 +37,9 @@ struct ActuatorState {
     bool inputModeAnalog;      // True = editing analog value, false = binary
     char inputBuffer[4];       // Numeric input buffer for PWM %
     uint8_t inputBufferLen;    // Current length of input buffer
+
+    // Reporting control
+    bool reportRequested;      // One-shot request for immediate serial report
 };
 
 /** @brief Initialize shared state and create the mutex. */
