@@ -1,0 +1,29 @@
+\section{Conclusion}
+
+\subsection{Achievement of Objectives}
+
+The primary objective of implementing a Varianta C dual-actuator control system was fully achieved. The system successfully controls a binary actuator (relay) and an analog actuator (PWM) simultaneously through a unified keypad interface, with real-time LCD feedback and structured serial reporting. All three FreeRTOS tasks operate concurrently at their designated periods without deadlock or data corruption, demonstrating proper use of mutex-protected shared state for inter-task communication.
+
+The four-stage signal conditioning pipeline (saturation, median filter, EWMA, ramping) processes analog commands as specified, producing smooth, protected actuator transitions. The hysteresis-based overload alert FSM with debounce confirmation provides stable, oscillation-free threshold detection.
+
+\subsection{Performance Analysis and System Limitations}
+
+The system meets the 100\,ms latency requirement for command response, with keypad input detected within 50\,ms and relay debounce completing in 300\,ms. Memory utilization is efficient at 25.7\% RAM and 9.8\% Flash, leaving substantial headroom for extensions.
+
+The main limitations are: the relay debounce introduces a perceptible 300\,ms delay, which is acceptable for safety but could feel sluggish for rapid toggle operations; the PWM ramping at 5\% per 100\,ms requires 2 seconds for a full 0--100\% transition, which may be too slow for some applications (the ramp step is configurable); and the keypad's single-key detection means the system cannot process simultaneous relay and PWM commands.
+
+\subsection{Proposed Improvements}
+
+Several enhancements could extend the system's capabilities. Adding a PID controller for the analog actuator would enable closed-loop speed or position control with sensor feedback. Implementing a configuration menu accessible through the keypad (using keys to navigate a multi-level LCD menu) would allow runtime adjustment of conditioning parameters without recompilation. Supporting multiple relay channels and PWM outputs would demonstrate scalability. Finally, adding persistent storage (EEPROM) for the last-used actuator settings would improve the user experience across power cycles.
+
+\subsection{Reflections on the Learning Experience}
+
+This laboratory work provided practical experience with several essential embedded systems concepts. Designing the signal conditioning pipeline for actuator commands, rather than sensor signals, highlighted that the same filtering techniques (median, EWMA) serve dual purposes in embedded control systems. The ramping stage, while simple in implementation, demonstrated the importance of protecting mechanical actuators from abrupt state changes --- a principle critical in industrial motor and valve control.
+
+Working with FreeRTOS mutex synchronization reinforced the challenge of concurrent data access in real-time systems. The shared state design pattern, where all inter-task data passes through a single mutex-protected structure, provided a clear and maintainable approach that avoids the complexity of multiple semaphores or message queues for this scale of application.
+
+\subsection{Impact of Technology in Real-World Applications}
+
+The dual-actuator control pattern is a fundamental building block in industrial automation, building management, and consumer electronics. HVAC systems combine relay-controlled compressors with PWM-modulated fan speeds. Automotive systems use relay-switched fuel pumps alongside PWM-controlled throttle bodies. Manufacturing lines employ relay-actuated pneumatic valves together with PWM-driven servo motors.
+
+The signal conditioning and hysteresis alerting techniques implemented here are standard practice in SCADA (Supervisory Control and Data Acquisition) systems, where reliable actuator control and false-alarm prevention are critical for operational safety and efficiency. The modular, FreeRTOS-based architecture demonstrated in this lab scales directly to industrial controllers managing dozens of actuator channels with deterministic timing guarantees.

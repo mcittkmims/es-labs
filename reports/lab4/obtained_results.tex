@@ -1,0 +1,121 @@
+\section{Obtained Results}
+
+\subsection{Build Process}
+
+The project was compiled using PlatformIO for the \texttt{lab4} environment targeting the Arduino Mega 2560. The build completed successfully with the following resource utilization: RAM usage of 25.7\% (2105 bytes out of 8192 bytes) and Flash usage of 9.8\% (24852 bytes out of 253952 bytes). The relatively modest memory footprint leaves ample headroom for future extensions such as additional actuator channels or more complex conditioning algorithms.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/build_results.png}{%
+    \includegraphics[width=0.85\textwidth]{resources/ObtainedResults/build_results.png}%
+}{%
+    \fbox{\parbox{0.83\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save to resources/ObtainedResults/build\_results.png]}}%
+}
+\caption{Successful PlatformIO build output showing RAM and Flash usage}
+\label{fig:build_results}
+\end{figure}
+
+\subsection{Simulation Initialization}
+
+Upon starting the Wokwi simulation, the system prints a startup banner to the serial terminal listing all configuration parameters: keypad command mapping, hardware pin assignments, conditioning pipeline parameters (median window size, EWMA alpha, ramp step), and overload alert thresholds. The LCD displays the initial state with the relay OFF, PWM at 0\%, and no alerts active. The green status LED illuminates immediately, indicating normal system operation.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/simulation_start.png}{%
+    \includegraphics[width=0.75\textwidth]{resources/ObtainedResults/simulation_start.png}%
+}{%
+    \fbox{\parbox{0.73\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save to resources/ObtainedResults/simulation\_start.png]}}%
+}
+\caption{Wokwi simulation startup --- LCD showing initial state, serial banner visible}
+\label{fig:simulation_start}
+\end{figure}
+
+\subsection{Command Interface Validation}
+
+\subsubsection{Test 1: Relay Toggle (Key A)}
+
+Pressing key A on the keypad toggles the relay between ON and OFF states. The serial terminal confirms each toggle with a message \texttt{[INPUT] Relay cmd: ON} or \texttt{[INPUT] Relay cmd: OFF}. After the debounce period (3 consecutive confirmations at 100\,ms intervals = 300\,ms), the relay module activates and the white load LED illuminates. The LCD updates to show \texttt{Relay:ON} on the first line.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/test_relay_toggle.png}{%
+    \includegraphics[width=0.75\textwidth]{resources/ObtainedResults/test_relay_toggle.png}%
+}{%
+    \fbox{\parbox{0.73\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save to resources/ObtainedResults/test\_relay\_toggle.png]}}%
+}
+\caption{Relay toggle test --- relay ON, white load LED lit, LCD updated}
+\label{fig:test_relay_toggle}
+\end{figure}
+
+\subsubsection{Test 2: Analog PWM Input (Keys B, 0--9, \#)}
+
+Pressing B enters analog input mode. The LCD switches to edit mode showing \texttt{[EDIT]} on the first line and the current digit entry on the second. Typing digits (e.g., 7, 5) builds the target percentage, and pressing \# confirms the value. The serial terminal logs each digit entry and the final confirmed value. The blue PWM LED gradually brightens as the ramping stage increases the output from 0\% to 75\% over approximately 1.5 seconds.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/test_pwm_input.png}{%
+    \includegraphics[width=0.75\textwidth]{resources/ObtainedResults/test_pwm_input.png}%
+}{%
+    \fbox{\parbox{0.73\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save to resources/ObtainedResults/test\_pwm\_input.png]}}%
+}
+\caption{PWM input test --- entering 75\% via keypad, ramping visible on LED}
+\label{fig:test_pwm_input}
+\end{figure}
+
+\subsubsection{Test 3: Overload Alert (PWM $>$ 90\%)}
+
+Setting the PWM target to 95\% triggers the overload alert after the conditioned output exceeds 90\% for 3 consecutive evaluations. The red LED turns on, the green LED turns off, and the LCD displays \texttt{!ALERT} on the second line. The serial report confirms \texttt{ALERT: OVERLOAD ACTIVE}. Reducing the target below 80\% clears the alert after the hysteresis debounce period.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/test_overload_alert.png}{%
+    \includegraphics[width=0.75\textwidth]{resources/ObtainedResults/test_overload_alert.png}%
+}{%
+    \fbox{\parbox{0.73\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save to resources/ObtainedResults/test\_overload\_alert.png]}}%
+}
+\caption{Overload alert test --- red LED active, LCD showing ALERT status}
+\label{fig:test_overload_alert}
+\end{figure}
+
+\subsubsection{Test 4: Emergency Stop (Key C)}
+
+Pressing key C immediately sets both actuator commands to OFF/0\%. The relay deactivates, the PWM ramps down to 0\%, and any active alerts clear. The serial terminal prints \texttt{[INPUT] EMERGENCY STOP}. This provides a one-button safety mechanism for shutting down all actuators.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/test_emergency_stop.png}{%
+    \includegraphics[width=0.75\textwidth]{resources/ObtainedResults/test_emergency_stop.png}%
+}{%
+    \fbox{\parbox{0.73\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save to resources/ObtainedResults/test\_emergency\_stop.png]}}%
+}
+\caption{Emergency stop test --- all actuators off after pressing C}
+\label{fig:test_emergency_stop}
+\end{figure}
+
+\subsection{System Observations}
+
+The system demonstrates responsive command processing with the keypad input being detected within 50\,ms of the key press. The relay debounce adds a 300\,ms delay before the physical relay state changes, which is appropriate for preventing false toggles from noisy membrane contacts. The PWM ramping at 5\% per 100\,ms produces visibly smooth LED brightness transitions, which would translate to gentle motor speed changes in a real application.
+
+The structured serial reports, printed every 2 seconds, provide comprehensive diagnostic information including the raw command, conditioned value, ramped output, PWM register value, and alert state. This level of observability would be valuable for tuning the conditioning parameters in a production system.
+
+Memory utilization remains well within the Arduino Mega 2560's constraints at 25.7\% RAM and 9.8\% Flash, suggesting the architecture could support significantly more complex applications on the same hardware platform.
+
+\subsection{Verification Summary}
+
+\begin{itemize}
+    \item \textbf{Compilation:} Build succeeds with no errors and minimal warnings.
+    \item \textbf{Initialization:} Startup banner prints correctly, LCD shows initial state, green LED active.
+    \item \textbf{Binary actuator:} Relay toggles via key A with debounce protection, load LED responds.
+    \item \textbf{Analog actuator:} PWM value entry via B + digits + \# with ramped output, visible on blue LED.
+    \item \textbf{Signal conditioning:} Saturation, median, EWMA, and ramping pipeline operational.
+    \item \textbf{Overload alert:} Triggers at $>$90\%, clears at $<$80\% with hysteresis and debounce.
+    \item \textbf{Emergency stop:} Key C immediately disables both actuators.
+    \item \textbf{Concurrent operation:} All three FreeRTOS tasks run without deadlock or data corruption.
+    \item \textbf{Architecture:} Modular, layered design with reusable library components.
+\end{itemize}

@@ -1,0 +1,373 @@
+\section{Appendix}
+
+The complete source code is organized below by architectural layer. All source files are available in the project GitHub repository.
+
+\textbf{GitHub Repository:} \url{https://github.com/mcittkmims/es-labs}
+
+\subsection{Application Layer}
+
+\subsubsection{Lab Selector Entry Point}
+
+\begin{lstlisting}[language=C++, caption=src/main.cpp --- Lab selector (Lab 4 section), label=lst:app_main]
+#elif defined(LAB4)
+    #include "lab4_main.h"
+// In setup():
+    lab4Setup();
+// In loop():
+    lab4Loop();
+\end{lstlisting}
+
+\subsubsection{Lab 4 Entry Point}
+
+\begin{lstlisting}[language=C++, caption=lab4\_main.h --- Lab 4 entry point interface, label=lst:lab4_main_h]
+#ifndef LAB4_MAIN_H
+#define LAB4_MAIN_H
+void lab4Setup();
+void lab4Loop();
+#endif
+\end{lstlisting}
+
+\begin{lstlisting}[language=C++, caption=lab4\_main.cpp --- Lab 4 entry point implementation, label=lst:lab4_main_cpp]
+#include "lab4_main.h"
+#include "lab4_config.h"
+#include "shared_state.h"
+#include "task_input.h"
+#include "task_control.h"
+#include "task_display.h"
+#include <Arduino.h>
+#include <Arduino_FreeRTOS.h>
+#include <stdio.h>
+#include "StdioSerial.h"
+
+void lab4Setup() {
+    stdioSerialInit(9600);
+    // Print startup banner (omitted for brevity)
+    sharedStateInit();
+    xTaskCreate(vTaskInput, "Input",
+        TASK_INPUT_STACK, NULL, TASK_INPUT_PRIORITY, NULL);
+    xTaskCreate(vTaskControl, "Control",
+        TASK_CONTROL_STACK, NULL, TASK_CONTROL_PRIORITY, NULL);
+    xTaskCreate(vTaskDisplay, "Display",
+        TASK_DISPLAY_STACK, NULL, TASK_DISPLAY_PRIORITY, NULL);
+}
+
+void lab4Loop() { /* FreeRTOS tasks handle all logic */ }
+\end{lstlisting}
+
+\subsubsection{Configuration and Pin Mapping}
+
+\begin{lstlisting}[language=C++, caption=lab4\_config.h --- Pin mapping and configuration, label=lst:lab4_config]
+#ifndef LAB4_CONFIG_H
+#define LAB4_CONFIG_H
+#include <Arduino.h>
+// Pin assignments
+static const uint8_t PIN_RELAY     = 7;
+static const uint8_t PIN_PWM_ACT   = 3;
+static const uint8_t PIN_LED_GREEN = 8;
+static const uint8_t PIN_LED_RED   = 9;
+static byte KEYPAD_ROW_PINS[4] = {22, 23, 24, 25};
+static byte KEYPAD_COL_PINS[4] = {26, 27, 28, 29};
+static const uint8_t LCD_I2C_ADDR = 0x27;
+// Timing
+static const uint16_t TASK_INPUT_PERIOD_MS   = 50;
+static const uint16_t TASK_CONTROL_PERIOD_MS = 100;
+static const uint16_t TASK_DISPLAY_PERIOD_MS = 500;
+// FreeRTOS task config
+static const uint16_t TASK_INPUT_STACK   = 256;
+static const uint16_t TASK_CONTROL_STACK = 256;
+static const uint16_t TASK_DISPLAY_STACK = 512;
+static const uint8_t TASK_INPUT_PRIORITY   = 3;
+static const uint8_t TASK_CONTROL_PRIORITY = 2;
+static const uint8_t TASK_DISPLAY_PRIORITY = 1;
+// Conditioning parameters
+static const uint8_t  ACT_MEDIAN_WINDOW = 5;
+static const float    ACT_EWMA_ALPHA    = 0.4f;
+static const float    ACT_RAMP_STEP     = 5.0f;
+static const float    OVERLOAD_THRESHOLD_HIGH = 90.0f;
+static const float    OVERLOAD_THRESHOLD_LOW  = 80.0f;
+#endif
+\end{lstlisting}
+
+\subsubsection{Shared State Module}
+
+\begin{lstlisting}[language=C++, caption=shared\_state.h --- Shared state interface, label=lst:shared_state_h_app]
+struct ActuatorState {
+    bool relayCommandOn, relayActualOn;
+    uint8_t relayDebounceCount;
+    float pwmCommandPercent, pwmConditioned, pwmRamped;
+    uint8_t pwmRawValue;
+    bool overloadAlert, inputModeAnalog;
+    char inputBuffer[4];
+    uint8_t inputBufferLen;
+};
+void sharedStateInit();
+void sharedStateLock();
+void sharedStateUnlock();
+ActuatorState* sharedStateGet();
+\end{lstlisting}
+
+\subsubsection{Input Task}
+
+\begin{lstlisting}[language=C++, caption=task\_input.cpp --- Keypad input task, label=lst:task_input_cpp]
+#include "task_input.h"
+#include "shared_state.h"
+#include "lab4_config.h"
+#include "KeypadInput.h"
+#include <stdio.h>
+#include <stdlib.h>
+
+static KeypadInput keypad(KEYPAD_ROW_PINS, KEYPAD_COL_PINS);
+
+void vTaskInput(void *pvParameters) {
+    keypad.init();
+    TickType_t xLastWake = xTaskGetTickCount();
+    const TickType_t xPeriod = pdMS_TO_TICKS(TASK_INPUT_PERIOD_MS);
+    for (;;) {
+        char key = keypad.getKey();
+        if (key != 0) {
+            sharedStateLock();
+            ActuatorState *s = sharedStateGet();
+            switch (key) {
+                case 'A': s->relayCommandOn = !s->relayCommandOn; break;
+                case 'B': s->inputModeAnalog = true;
+                          s->inputBufferLen = 0; break;
+                case 'C': s->relayCommandOn = false;
+                          s->pwmCommandPercent = 0.0f; break;
+                case '#': if (s->inputModeAnalog && s->inputBufferLen > 0) {
+                    s->inputBuffer[s->inputBufferLen] = '\0';
+                    int val = atoi(s->inputBuffer);
+                    if (val > 100) val = 100;
+                    s->pwmCommandPercent = (float)val;
+                    s->inputModeAnalog = false;
+                } break;
+                case '*': s->inputBufferLen = 0;
+                          s->inputModeAnalog = false; break;
+                default:
+                    if (key >= '0' && key <= '9' && s->inputModeAnalog)
+                        if (s->inputBufferLen < 3)
+                            s->inputBuffer[s->inputBufferLen++] = key;
+                    break;
+            }
+            sharedStateUnlock();
+        }
+        vTaskDelayUntil(&xLastWake, xPeriod);
+    }
+}
+\end{lstlisting}
+
+\subsubsection{Control Task}
+
+\begin{lstlisting}[language=C++, caption=task\_control.cpp --- Actuator control task, label=lst:task_control_cpp]
+#include "task_control.h"
+#include "shared_state.h"
+#include "lab4_config.h"
+#include "Relay.h"
+#include "PwmActuator.h"
+#include "ActuatorConditioner.h"
+#include "ThresholdAlert.h"
+#include "Led.h"
+
+static Relay relay(PIN_RELAY, true);
+static PwmActuator pwmAct(PIN_PWM_ACT);
+static Led ledGreen(PIN_LED_GREEN);
+static Led ledRed(PIN_LED_RED);
+static ActuatorConditioner conditioner(
+    ACT_MEDIAN_WINDOW, ACT_EWMA_ALPHA,
+    ACT_MIN_CLAMP, ACT_MAX_CLAMP, ACT_RAMP_STEP);
+static ThresholdAlert overloadAlert(
+    OVERLOAD_THRESHOLD_HIGH, OVERLOAD_THRESHOLD_LOW,
+    OVERLOAD_DEBOUNCE_COUNT);
+
+void vTaskControl(void *pvParameters) {
+    relay.init(); pwmAct.init();
+    ledGreen.init(); ledRed.init();
+    overloadAlert.init(); ledGreen.turnOn();
+    TickType_t xLastWake = xTaskGetTickCount();
+    for (;;) {
+        sharedStateLock();
+        ActuatorState *s = sharedStateGet();
+        // Relay debounce + control
+        relay.setState(s->relayCommandOn);
+        s->relayActualOn = relay.isOn();
+        // PWM conditioning pipeline
+        float output = conditioner.process(s->pwmCommandPercent);
+        pwmAct.setDuty(output);
+        s->pwmRamped = output;
+        s->pwmRawValue = pwmAct.getRawPwm();
+        // Overload alert
+        overloadAlert.update(output);
+        s->overloadAlert = overloadAlert.isAlertActive();
+        // LED indicators
+        if (s->overloadAlert) { ledRed.turnOn(); ledGreen.turnOff(); }
+        else { ledRed.turnOff(); ledGreen.turnOn(); }
+        sharedStateUnlock();
+        vTaskDelayUntil(&xLastWake,
+            pdMS_TO_TICKS(TASK_CONTROL_PERIOD_MS));
+    }
+}
+\end{lstlisting}
+
+\subsubsection{Display Task}
+
+\begin{lstlisting}[language=C++, caption=task\_display.cpp --- LCD and serial reporting task, label=lst:task_display_cpp]
+#include "task_display.h"
+#include "shared_state.h"
+#include "lab4_config.h"
+#include "LcdDisplay.h"
+#include <stdio.h>
+#include <stdlib.h>
+
+static LcdDisplay lcd(LCD_I2C_ADDR, LCD_COLS, LCD_ROWS);
+
+void vTaskDisplay(void *pvParameters) {
+    lcd.init();
+    TickType_t xLastWake = xTaskGetTickCount();
+    uint8_t reportCounter = 0;
+    for (;;) {
+        sharedStateLock();
+        ActuatorState *s = sharedStateGet();
+        bool relayOn = s->relayActualOn;
+        float pwmRamp = s->pwmRamped;
+        bool alert = s->overloadAlert;
+        sharedStateUnlock();
+        // LCD update
+        char line1[17], line2[17];
+        snprintf(line1, 17, "Relay:%-3s PWM%3d%%",
+            relayOn ? "ON" : "OFF", (int)(pwmRamp + 0.5f));
+        snprintf(line2, 17, "Out:%3d%% %s",
+            (int)(pwmRamp + 0.5f), alert ? "!ALERT" : "  OK  ");
+        lcd.showTwoLines(line1, line2);
+        // Serial report every 2s
+        if (++reportCounter >= 4) {
+            reportCounter = 0;
+            printf("\r\n--- Status Report ---\r\n");
+            printf("Relay: %s | PWM: %d%%\r\n",
+                relayOn ? "ON" : "OFF", (int)(pwmRamp+0.5f));
+            printf("Alert: %s\r\n",
+                alert ? "OVERLOAD" : "Normal");
+        }
+        vTaskDelayUntil(&xLastWake,
+            pdMS_TO_TICKS(TASK_DISPLAY_PERIOD_MS));
+    }
+}
+\end{lstlisting}
+
+\subsection{Service Layer}
+
+\subsubsection{Actuator Conditioner}
+
+\begin{lstlisting}[language=C++, caption=ActuatorConditioner.h --- Command conditioning interface, label=lst:act_cond_h_app]
+#ifndef ACTUATOR_CONDITIONER_H
+#define ACTUATOR_CONDITIONER_H
+#include "SignalConditioner.h"
+class ActuatorConditioner {
+public:
+    ActuatorConditioner(uint8_t medianWindow, float ewmaAlpha,
+        float minClamp, float maxClamp, float maxRampStep);
+    float process(float rawCommand);
+    float getRampedOutput() const;
+    float getConditionedTarget() const;
+    const SignalConditioner& getSignalConditioner() const;
+    void reset();
+private:
+    SignalConditioner _conditioner;
+    float _maxRampStep, _rampedOutput, _conditionedTarget;
+    bool _initialized;
+};
+#endif
+\end{lstlisting}
+
+\begin{lstlisting}[language=C++, caption=ActuatorConditioner.cpp --- Conditioning with ramping, label=lst:act_cond_cpp_app]
+#include "ActuatorConditioner.h"
+#include <math.h>
+
+float ActuatorConditioner::process(float rawCommand) {
+    _conditionedTarget = _conditioner.process(rawCommand);
+    if (!_initialized) {
+        _rampedOutput = _conditionedTarget;
+        _initialized = true;
+    } else {
+        float diff = _conditionedTarget - _rampedOutput;
+        if (diff > _maxRampStep) _rampedOutput += _maxRampStep;
+        else if (diff < -_maxRampStep) _rampedOutput -= _maxRampStep;
+        else _rampedOutput = _conditionedTarget;
+    }
+    return _rampedOutput;
+}
+\end{lstlisting}
+
+\subsection{MCAL Layer}
+
+\subsubsection{Relay Driver}
+
+\begin{lstlisting}[language=C++, caption=Relay.h --- Relay driver interface, label=lst:relay_h_app]
+#ifndef RELAY_H
+#define RELAY_H
+#include <Arduino.h>
+class Relay {
+public:
+    Relay(uint8_t pin, bool activeHigh = true);
+    void init();
+    void turnOn();
+    void turnOff();
+    void toggle();
+    void setState(bool on);
+    bool isOn() const;
+private:
+    uint8_t _pin; bool _activeHigh, _state;
+};
+#endif
+\end{lstlisting}
+
+\begin{lstlisting}[language=C++, caption=Relay.cpp --- Relay driver implementation, label=lst:relay_cpp_app]
+#include "Relay.h"
+Relay::Relay(uint8_t pin, bool activeHigh)
+    : _pin(pin), _activeHigh(activeHigh), _state(false) {}
+void Relay::init() { pinMode(_pin, OUTPUT); turnOff(); }
+void Relay::turnOn() {
+    _state = true;
+    digitalWrite(_pin, _activeHigh ? HIGH : LOW);
+}
+void Relay::turnOff() {
+    _state = false;
+    digitalWrite(_pin, _activeHigh ? LOW : HIGH);
+}
+void Relay::toggle() { _state ? turnOff() : turnOn(); }
+void Relay::setState(bool on) { on ? turnOn() : turnOff(); }
+bool Relay::isOn() const { return _state; }
+\end{lstlisting}
+
+\subsubsection{PWM Actuator Driver}
+
+\begin{lstlisting}[language=C++, caption=PwmActuator.h --- PWM actuator interface, label=lst:pwm_h_app]
+#ifndef PWM_ACTUATOR_H
+#define PWM_ACTUATOR_H
+#include <Arduino.h>
+class PwmActuator {
+public:
+    PwmActuator(uint8_t pin);
+    void init();
+    void setDuty(float duty);
+    float getDuty() const;
+    uint8_t getRawPwm() const;
+private:
+    uint8_t _pin; float _duty;
+};
+#endif
+\end{lstlisting}
+
+\begin{lstlisting}[language=C++, caption=PwmActuator.cpp --- PWM actuator implementation, label=lst:pwm_cpp_app]
+#include "PwmActuator.h"
+PwmActuator::PwmActuator(uint8_t pin) : _pin(pin), _duty(0.0f) {}
+void PwmActuator::init() { pinMode(_pin, OUTPUT); analogWrite(_pin, 0); }
+void PwmActuator::setDuty(float duty) {
+    if (duty < 0.0f) duty = 0.0f;
+    if (duty > 100.0f) duty = 100.0f;
+    _duty = duty;
+    analogWrite(_pin, (uint8_t)(_duty * 255.0f / 100.0f));
+}
+float PwmActuator::getDuty() const { return _duty; }
+uint8_t PwmActuator::getRawPwm() const {
+    return (uint8_t)(_duty * 255.0f / 100.0f);
+}
+\end{lstlisting}
