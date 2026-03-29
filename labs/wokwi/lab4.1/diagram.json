@@ -1,0 +1,122 @@
+{
+  "version": 1,
+  "author": "Vremere Adrian",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "wokwi-arduino-mega",
+      "id": "mega",
+      "top": 0,
+      "left": 0,
+      "attrs": {}
+    },
+
+    {
+      "type": "wokwi-lcd1602",
+      "id": "lcd1",
+      "top": -340,
+      "left": 100,
+      "attrs": { "pins": "i2c" }
+    },
+
+    {
+      "type": "wokwi-relay-module",
+      "id": "relay1",
+      "top": 240,
+      "left": -300,
+      "attrs": {}
+    },
+
+    {
+      "type": "wokwi-led",
+      "id": "led_load",
+      "top": 300,
+      "left": -400,
+      "attrs": { "color": "white", "label": "Lamp (Load)" }
+    },
+
+    {
+      "type": "wokwi-led",
+      "id": "led_binary",
+      "top": -200,
+      "left": -200,
+      "attrs": { "color": "green", "label": "Binary Status" }
+    },
+
+    {
+      "type": "wokwi-resistor",
+      "id": "r_binary",
+      "top": -180,
+      "left": -130,
+      "attrs": { "value": "220" }
+    },
+
+    {
+      "type": "wokwi-led",
+      "id": "led_analog",
+      "top": -200,
+      "left": -60,
+      "attrs": { "color": "yellow", "label": "Analog Status" }
+    },
+
+    {
+      "type": "wokwi-resistor",
+      "id": "r_analog",
+      "top": -180,
+      "left": 10,
+      "attrs": { "value": "220" }
+    },
+
+    {
+      "type": "wokwi-led",
+      "id": "led_pwm",
+      "top": 240,
+      "left": -100,
+      "attrs": { "color": "blue", "label": "PWM Motor (simulated)" }
+    },
+
+    {
+      "type": "wokwi-resistor",
+      "id": "r_pwm",
+      "top": 220,
+      "left": -30,
+      "attrs": { "value": "220" }
+    },
+
+    {
+      "type": "wokwi-breadboard-half",
+      "id": "bb1",
+      "top": 400,
+      "left": -350,
+      "attrs": {}
+    }
+  ],
+
+  "connections": [
+    [ "mega:GND.1", "lcd1:GND", "black", [ "v-50", "h0" ] ],
+    [ "mega:5V",    "lcd1:VCC", "red",   [ "v-40", "h0" ] ],
+    [ "mega:20",    "lcd1:SDA", "green", [ "v-30", "h0" ] ],
+    [ "mega:21",    "lcd1:SCL", "blue",  [ "v-20", "h0" ] ],
+
+    [ "mega:7",     "relay1:IN",  "orange", [ "v50", "h-100" ] ],
+    [ "mega:5V",    "relay1:VCC", "red",    [ "v60", "h-100" ] ],
+    [ "mega:GND.2", "relay1:GND", "black",  [ "v70", "h-100" ] ],
+
+    [ "relay1:NO",  "led_load:A", "red",   [ "h-50" ] ],
+    [ "led_load:C", "bb1:1t.a",   "black", [ "v30" ] ],
+    [ "mega:5V",    "relay1:COM", "red",   [ "v80", "h-150" ] ],
+    [ "bb1:1t.e",   "mega:GND.3", "black", [ "v30" ] ],
+
+    [ "mega:12",       "r_binary:1",    "green",  [ "v-60" ] ],
+    [ "r_binary:2",    "led_binary:A",  "green",  [ "h-20" ] ],
+    [ "led_binary:C",  "mega:GND.4",    "black",  [ "v20" ] ],
+
+    [ "mega:11",       "r_analog:1",    "yellow", [ "v-60" ] ],
+    [ "r_analog:2",    "led_analog:A",  "yellow", [ "h-20" ] ],
+    [ "led_analog:C",  "mega:GND.5",    "black",  [ "v20" ] ],
+
+    [ "mega:9",        "r_pwm:1",       "blue",   [ "v50" ] ],
+    [ "r_pwm:2",       "led_pwm:A",     "blue",   [ "h-20" ] ],
+    [ "led_pwm:C",     "mega:GND.6",    "black",  [ "v20" ] ]
+  ]
+}
