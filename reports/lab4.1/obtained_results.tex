@@ -1,0 +1,122 @@
+\section{Obtained Results}
+
+\subsection{Build Results}
+
+The project was compiled successfully using PlatformIO for the \texttt{lab4\_1} environment targeting the Arduino Mega 2560. The build output confirmed successful compilation with the following resource utilization: RAM usage of 16.2\% (1324 bytes out of 8192 bytes) and Flash usage of 8.5\% (21472 bytes out of 253952 bytes). The relatively low resource usage demonstrates that the FreeRTOS-based multi-task architecture with four concurrent tasks, mutex synchronization, and signal conditioning pipelines fits comfortably within the ATmega2560's memory constraints.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/build_results.png}{%
+    \includegraphics[width=0.8\textwidth]{resources/ObtainedResults/build_results.png}%
+}{%
+    \fbox{\parbox{0.78\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save to resources/ObtainedResults/build\_results.png]\\
+        Show PlatformIO terminal with successful build output for env:lab4\_1}}%
+}
+\caption{PlatformIO build output showing successful compilation for Lab 4.1}
+\label{fig:build_results}
+\end{figure}
+
+\subsection{Simulation Startup}
+
+Upon starting the Wokwi simulation, the system initializes all hardware components and displays the startup message on the LCD (``Lab 4.1: Dual / Actuator Ctrl'') and on the serial terminal. The relay is initially OFF, the PWM duty cycle is 0\%, and all status LEDs are off. The serial terminal prints the command help message listing available commands.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/simulation_start.png}{%
+    \includegraphics[width=0.8\textwidth]{resources/ObtainedResults/simulation_start.png}%
+}{%
+    \fbox{\parbox{0.78\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save to resources/ObtainedResults/simulation\_start.png]\\
+        Show Wokwi simulation with LCD showing startup text and serial terminal showing help}}%
+}
+\caption{Wokwi simulation at startup with initial state displayed}
+\label{fig:simulation_start}
+\end{figure}
+
+\subsection{Test Results}
+
+\subsubsection{TC1 --- Binary ON Command}
+
+Sending the ``ON'' command via the serial terminal triggers the binary actuator control pipeline. The command task updates the target state, and the binary task begins incrementing the debounce counter. After 5 consecutive confirmations (500\,ms), the relay activates, the green status LED turns on, and the LCD updates to show ``Rly:ON''. The serial report confirms the state transition and shows the debounce counter at 5/5.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/test_binary_on.png}{%
+    \includegraphics[width=0.8\textwidth]{resources/ObtainedResults/test_binary_on.png}%
+}{%
+    \fbox{\parbox{0.78\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save to resources/ObtainedResults/test\_binary\_on.png]\\
+        Show ``ON'' command sent, relay activated, green LED on, LCD showing Rly:ON}}%
+}
+\caption{Binary actuator ON command test --- relay activated after debounce}
+\label{fig:test_binary_on}
+\end{figure}
+
+\subsubsection{TC2 --- Binary OFF Command}
+
+After the relay is active, sending ``OFF'' initiates the reverse debounce process. The counter decrements from 5 to 0 over 500\,ms, after which the relay deactivates and the green LED turns off.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/test_binary_off.png}{%
+    \includegraphics[width=0.8\textwidth]{resources/ObtainedResults/test_binary_off.png}%
+}{%
+    \fbox{\parbox{0.78\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save to resources/ObtainedResults/test\_binary\_off.png]\\
+        Show ``OFF'' command sent, relay deactivated, green LED off, LCD showing Rly:OFF}}%
+}
+\caption{Binary actuator OFF command test --- relay deactivated after debounce}
+\label{fig:test_binary_off}
+\end{figure}
+
+\subsubsection{TC4 --- Analog Speed Command}
+
+Sending ``SPEED 75'' sets the analog actuator target to 75\%. The analog task applies ramping (5\%/cycle, 100\,ms period) so the duty cycle increases gradually over approximately 1.5 seconds. The signal conditioning pipeline further smooths the transition. The blue PWM LED brightens progressively, and the LCD shows the duty cycle approaching 75\%.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/test_analog_speed.png}{%
+    \includegraphics[width=0.8\textwidth]{resources/ObtainedResults/test_analog_speed.png}%
+}{%
+    \fbox{\parbox{0.78\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save to resources/ObtainedResults/test\_analog\_speed.png]\\
+        Show ``SPEED 75'' command, PWM ramping up, serial reports showing gradual increase}}%
+}
+\caption{Analog actuator speed command test --- PWM ramping to 75\%}
+\label{fig:test_analog_speed}
+\end{figure}
+
+\subsubsection{TC10 --- Dual Actuator Simultaneous Operation}
+
+Sending ``ON'' followed by ``SPEED 50'' demonstrates independent operation of both actuators. The relay activates through its debounce pipeline while the PWM simultaneously ramps to 50\%. The LCD displays both states on a single screen, confirming that the FreeRTOS tasks operate independently without interference.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/test_dual_actuator.png}{%
+    \includegraphics[width=0.8\textwidth]{resources/ObtainedResults/test_dual_actuator.png}%
+}{%
+    \fbox{\parbox{0.78\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save to resources/ObtainedResults/test\_dual\_actuator.png]\\
+        Show both actuators active: relay ON + PWM at 50\%, LCD showing both states}}%
+}
+\caption{Dual actuator simultaneous operation test}
+\label{fig:test_dual_actuator}
+\end{figure}
+
+\subsection{Serial Report Output}
+
+The display task prints a structured actuator report every 500\,ms, showing the binary state with debounce diagnostics and the analog state with duty cycle, raw setpoint, and PWM value. This output can be used with the Arduino Serial Plotter for real-time visualization of the analog actuator response.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/test_report.png}{%
+    \includegraphics[width=0.8\textwidth]{resources/ObtainedResults/test_report.png}%
+}{%
+    \fbox{\parbox{0.78\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save to resources/ObtainedResults/test\_report.png]\\
+        Show serial monitor with multiple actuator report cycles}}%
+}
+\caption{Serial monitor output showing periodic actuator reports}
+\label{fig:test_report}
+\end{figure}

@@ -1,0 +1,401 @@
+\section{Design}
+
+\subsection{System Components}
+
+The dual actuator control system consists of the following components, each with a clearly defined role in the architecture:
+
+\begin{enumerate}
+    \item \textbf{Arduino Mega 2560} --- central microcontroller running FreeRTOS, hosting all tasks and coordinating communication between modules.
+    \item \textbf{Relay Module} --- binary actuator driven by digital pin 7, switches an external load (lamp) ON/OFF.
+    \item \textbf{PWM Output (Pin 9)} --- analog actuator interface generating a variable duty cycle signal for motor/LED control.
+    \item \textbf{Green LED (Pin 12)} --- status indicator mirroring the relay state.
+    \item \textbf{Yellow LED (Pin 11)} --- status indicator for analog actuator activity.
+    \item \textbf{Blue LED (Pin 9)} --- load simulation for the analog actuator (PWM-driven brightness).
+    \item \textbf{LCD 1602 I2C} --- 16x2 character display showing both actuator states, debounce counters, and setpoints.
+    \item \textbf{Serial Terminal (UART0)} --- command input interface and diagnostic report output.
+    \item \textbf{BinaryConditioner} --- software module implementing counter-based debouncing for the relay command.
+    \item \textbf{SignalConditioner} --- software module providing saturation, median filtering, and EWMA for the analog command.
+    \item \textbf{FreeRTOS Scheduler} --- manages four concurrent tasks with priority-based preemptive scheduling.
+\end{enumerate}
+
+\subsection{Structural Diagram}
+
+The structural diagram in \citeimg{fig:structural_diagram} shows how the hardware and software components interact. The serial terminal feeds commands to the Command Task, which updates shared state variables. The Binary Task and Analog Task read these variables (protected by a mutex), apply their respective conditioning pipelines, and drive the hardware actuators. The Display Task reads all state and updates the LCD and serial output.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    box/.style={draw, rectangle, minimum width=3.2cm, minimum height=0.8cm,
+                text centered, align=center, fill=blue!10, font=\small},
+    hw/.style={draw, rectangle, minimum width=2.8cm, minimum height=0.8cm,
+               text centered, align=center, fill=green!15, font=\small},
+    cond/.style={draw, rectangle, minimum width=2.8cm, minimum height=0.8cm,
+                 text centered, align=center, fill=orange!15, font=\small},
+    arrow/.style={thick,->,>=Stealth}
+]
+    % Tasks column
+    \node[box] (cmd)   at (0,    0.0) {Command Task\\(50\,ms)};
+    \node[box] (bin)   at (-4.0,-2.5) {Binary Task\\(100\,ms)};
+    \node[box] (anl)   at ( 4.0,-2.5) {Analog Task\\(100\,ms)};
+    \node[box] (disp)  at (0,   -5.0) {Display Task\\(500\,ms)};
+
+    % Shared state
+    \node[draw, rectangle, dashed, minimum width=2.5cm, minimum height=0.7cm,
+          text centered, fill=yellow!15, font=\small] (mutex)
+          at (0, -2.5) {Shared State\\(Mutex)};
+
+    % Conditioners
+    \node[cond] (bcond) at (-4.0,-4.5) {BinaryConditioner\\(Debounce)};
+    \node[cond] (acond) at ( 4.0,-4.5) {SignalConditioner\\(Ramp+Filter)};
+
+    % Hardware
+    \node[hw] (relay) at (-4.0,-6.5) {Relay + LED};
+    \node[hw] (pwm)   at ( 4.0,-6.5) {PWM + LED};
+    \node[hw] (lcd)   at (0,   -7.0) {LCD 1602};
+    \node[hw] (ser)   at (0,    1.8) {Serial Terminal};
+
+    % Arrows
+    \draw[arrow] (ser)   -- (cmd);
+    \draw[arrow] (cmd)   -- (mutex);
+    \draw[arrow] (mutex) -- (bin);
+    \draw[arrow] (mutex) -- (anl);
+    \draw[arrow] (mutex) -- (disp);
+    \draw[arrow] (bin)   -- (bcond);
+    \draw[arrow] (anl)   -- (acond);
+    \draw[arrow] (bcond) -- (relay);
+    \draw[arrow] (acond) -- (pwm);
+    \draw[arrow] (disp)  -- (lcd);
+\end{tikzpicture}
+\caption{System structural diagram showing task interactions and data flow}
+\label{fig:structural_diagram}
+\end{figure}
+
+\subsection{Layered Software Architecture}
+
+The software follows a layered architecture that separates concerns across five abstraction levels, as shown in \citeimg{fig:layered_architecture}. The Application Layer (APP) contains the FreeRTOS tasks that orchestrate the system behavior. The Service Layer (SRV) provides signal conditioning algorithms (BinaryConditioner, SignalConditioner) and command parsing logic. The ECU Abstraction Layer (ECAL) handles STDIO-to-UART redirection and I2C LCD communication. The Microcontroller Abstraction Layer (MCAL) wraps low-level GPIO, PWM, and I2C peripheral access through the Relay, PwmActuator, Led, and LcdDisplay drivers. The Hardware Layer (HW) represents the physical ATmega2560 and its connected peripherals.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    box/.style={draw, rectangle, minimum width=9cm, minimum height=0.8cm,
+                text centered, fill=blue!10},
+    node distance=0.5cm]
+    \node[box] (app)  at (0,  0.0) {APP --- FreeRTOS Tasks (Command, Binary, Analog, Display)};
+    \node[box] (srv)  at (0, -1.3) {SRV --- BinaryConditioner, SignalConditioner, CommandParser};
+    \node[box] (ecal) at (0, -2.6) {ECAL --- StdioSerial, LcdDisplay (I2C abstraction)};
+    \node[box] (mcal) at (0, -3.9) {MCAL --- Relay, PwmActuator, Led (GPIO/PWM drivers)};
+    \node[box] (hw)   at (0, -5.2) {HW --- ATmega2560, Relay Module, LEDs, LCD, Motor};
+    \foreach \a/\b in {app/srv, srv/ecal, ecal/mcal, mcal/hw}
+        \draw[->] (\a) -- (\b);
+\end{tikzpicture}
+\caption{Layered software architecture for the dual actuator control system}
+\label{fig:layered_architecture}
+\end{figure}
+
+\subsection{Hardware-Software Interface Architecture}
+
+For each hardware interface, the layered architecture provides a clear mapping from physical connection to software API:
+
+\begin{itemize}
+    \item \textbf{Relay interface:} GPIO pin 7 $\rightarrow$ MCAL \texttt{Relay} class (\texttt{turnOn()}, \texttt{turnOff()}, \texttt{isOn()}) $\rightarrow$ SRV \texttt{BinaryConditioner} $\rightarrow$ APP Binary Task.
+    \item \textbf{PWM interface:} PWM pin 9 $\rightarrow$ MCAL \texttt{PwmActuator} class (\texttt{setDutyCycle()}, \texttt{getDutyCycle()}) $\rightarrow$ SRV \texttt{SignalConditioner} with ramping $\rightarrow$ APP Analog Task.
+    \item \textbf{LED interfaces:} GPIO pins 11, 12 $\rightarrow$ MCAL \texttt{Led} class (\texttt{turnOn()}, \texttt{turnOff()}) $\rightarrow$ APP actuator tasks.
+    \item \textbf{LCD interface:} I2C bus (SDA=20, SCL=21) $\rightarrow$ ECAL \texttt{LcdDisplay} class (\texttt{showTwoLines()}, \texttt{printLine()}) $\rightarrow$ APP Display Task.
+    \item \textbf{Serial interface:} UART0 (pins 0/1) $\rightarrow$ ECAL \texttt{StdioSerial} (\texttt{printf()}, \texttt{Serial.read()}) $\rightarrow$ APP Command Task.
+\end{itemize}
+
+\subsection{Behavioral Diagrams}
+
+\subsubsection{Application Main Flowchart}
+
+The main application flow, shown in \citeimg{fig:app_flowchart}, illustrates the initialization sequence and the FreeRTOS task creation. After setup completes, the FreeRTOS scheduler takes over and the four tasks run concurrently according to their priorities and periods.
+
+\tikzset{
+    startstop/.style={rectangle, rounded corners, minimum width=3.0cm,
+        minimum height=0.7cm, text centered, align=center, draw=black, fill=gray!15},
+    process/.style={rectangle, minimum width=3.0cm,
+        minimum height=0.7cm, text centered, align=center, draw=black, fill=blue!10},
+    decision/.style={diamond, aspect=2.5, minimum width=2cm,
+        minimum height=0.7cm, text centered, align=center, draw=black, fill=orange!15},
+    arrow/.style={thick,->,>=Stealth}
+}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+    \node (start)  [startstop] at (0,   0.0) {Start};
+    \node (serial) [process]   at (0,  -1.8) {Init Serial (STDIO)};
+    \node (hw)     [process]   at (0,  -3.6) {Init Hardware\\(Relay, PWM, LEDs, LCD)};
+    \node (cond)   [process]   at (0,  -5.4) {Init Conditioners\\(Binary, Analog)};
+    \node (mutex)  [process]   at (0,  -7.2) {Create Mutex};
+    \node (tasks)  [process]   at (0,  -9.0) {Create FreeRTOS Tasks\\(Cmd, Bin, Anl, Disp)};
+    \node (sched)  [startstop] at (0, -10.8) {FreeRTOS Scheduler\\Runs Forever};
+
+    \draw[arrow] (start)  -- (serial);
+    \draw[arrow] (serial) -- (hw);
+    \draw[arrow] (hw)     -- (cond);
+    \draw[arrow] (cond)   -- (mutex);
+    \draw[arrow] (mutex)  -- (tasks);
+    \draw[arrow] (tasks)  -- (sched);
+\end{tikzpicture}
+\caption{Application initialization flowchart}
+\label{fig:app_flowchart}
+\end{figure}
+
+\subsubsection{Command Task Flowchart}
+
+The command task, shown in \citeimg{fig:cmd_flowchart}, runs every 50\,ms and reads all available characters from the serial buffer. When a complete line is received (terminated by newline), it parses the command and updates the shared state under mutex protection.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+    \node (start) [startstop] at (0,    0.0) {Command Task\\Cycle Start};
+    \node (check) [decision]  at (0,   -2.5) {Serial data\\available?};
+    \node (read)  [process]   at (5.0, -2.5) {Read char,\\add to buffer};
+    \node (nl)    [decision]  at (5.0, -5.5) {Newline\\received?};
+    \node (parse) [process]   at (5.0, -8.0) {Parse command,\\update shared state};
+    \node (delay) [process]   at (0,   -8.0) {vTaskDelay\\(50\,ms)};
+
+    \draw[arrow] (start) -- (check);
+    \draw[arrow] (check) -- node[above]{Yes} (read);
+    \draw[arrow] (check) -- node[left]{No} (delay);
+    \draw[arrow] (read)  -- (nl);
+    \draw[arrow] (nl)    -- node[right]{Yes} (parse);
+    \draw[arrow] (nl.west) -- node[above]{No} (3.0, -5.5) -- (3.0, -2.5) -- (check);
+    \draw[arrow] (parse) -- (delay);
+    \draw[arrow] (delay.south) -- (0, -9.5) -- (-2.5, -9.5) -- (-2.5, 0.0) -- (start.west);
+\end{tikzpicture}
+\caption{Command task flowchart}
+\label{fig:cmd_flowchart}
+\end{figure}
+
+\subsubsection{Binary Actuator Task Flowchart}
+
+The binary actuator task, shown in \citeimg{fig:bin_flowchart}, reads the command target, processes it through the debounce filter, and drives the relay and status LED based on the stable output.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+    \node (start)  [startstop] at (0,   0.0) {Binary Task\\Cycle Start};
+    \node (read)   [process]   at (0,  -1.8) {Read cmdBinaryTarget\\(mutex)};
+    \node (deb)    [process]   at (0,  -3.6) {BinaryConditioner\\process(target)};
+    \node (drive)  [process]   at (0,  -5.4) {Set Relay \& LED\\to stable state};
+    \node (update) [process]   at (0,  -7.2) {Update shared\\diagnostics (mutex)};
+    \node (delay)  [process]   at (0,  -9.0) {vTaskDelay\\(100\,ms)};
+
+    \draw[arrow] (start)  -- (read);
+    \draw[arrow] (read)   -- (deb);
+    \draw[arrow] (deb)    -- (drive);
+    \draw[arrow] (drive)  -- (update);
+    \draw[arrow] (update) -- (delay);
+    \draw[arrow] (delay.south) -- (0, -10.3) -- (-2.5, -10.3) -- (-2.5, 0.0) -- (start.west);
+\end{tikzpicture}
+\caption{Binary actuator task flowchart}
+\label{fig:bin_flowchart}
+\end{figure}
+
+\subsubsection{Analog Actuator Task Flowchart}
+
+The analog task, shown in \citeimg{fig:anl_flowchart}, reads the target setpoint, applies ramping to limit the rate of change, processes the ramped value through the signal conditioning pipeline, and writes the conditioned output to the PWM actuator.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+    \node (start) [startstop] at (0,   0.0) {Analog Task\\Cycle Start};
+    \node (read)  [process]   at (0,  -1.8) {Read cmdAnalogTarget\\(mutex)};
+    \node (ramp)  [process]   at (0,  -3.6) {Apply Ramp\\($\pm$5\%/cycle max)};
+    \node (cond)  [process]   at (0,  -5.4) {SignalConditioner\\process(ramped)};
+    \node (drive) [process]   at (0,  -7.2) {Set PWM \& LED\\to conditioned value};
+    \node (upd)   [process]   at (0,  -9.0) {Update shared\\state (mutex)};
+    \node (delay) [process]   at (0, -10.8) {vTaskDelay\\(100\,ms)};
+
+    \draw[arrow] (start) -- (read);
+    \draw[arrow] (read)  -- (ramp);
+    \draw[arrow] (ramp)  -- (cond);
+    \draw[arrow] (cond)  -- (drive);
+    \draw[arrow] (drive) -- (upd);
+    \draw[arrow] (upd)   -- (delay);
+    \draw[arrow] (delay.south) -- (0, -12.1) -- (-2.5, -12.1) -- (-2.5, 0.0) -- (start.west);
+\end{tikzpicture}
+\caption{Analog actuator task flowchart}
+\label{fig:anl_flowchart}
+\end{figure}
+
+\subsubsection{Binary Conditioner State Diagram}
+
+The debounce filter operates as a simple state machine with two stable states (OFF and ON) and transitional behavior governed by the counter, as shown in \citeimg{fig:debounce_fsm}.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[>=Stealth, auto, node distance=4.5cm,
+        every state/.style={draw, circle, minimum size=1.5cm, font=\small}]
+    \node[state, initial]  (off) {OFF\\cnt=0};
+    \node[state]           (trans) [right of=off] {TRANS};
+    \node[state, accepting](on)  [right of=trans] {ON\\cnt=MAX};
+
+    \path[->]
+        (off)   edge [bend left=20]  node {input=1, cnt++} (trans)
+        (trans) edge [bend left=20]  node {cnt=MAX}        (on)
+        (trans) edge [bend left=20]  node {cnt=0}          (off)
+        (on)    edge [bend left=20]  node {input=0, cnt--} (trans)
+        (trans) edge [loop above]    node {0 < cnt < MAX}  (trans);
+\end{tikzpicture}
+\caption{Binary conditioner (debounce) state diagram}
+\label{fig:debounce_fsm}
+\end{figure}
+
+\subsection{Electrical Schematic}
+
+The circuit schematic in \citeimg{fig:circuit_schematic} shows the complete wiring of the dual actuator system. The relay module is connected to pin 7 with its load (white LED) on the normally-open contact. The PWM actuator LED is on pin 9. Status LEDs on pins 11 and 12 provide visual feedback. The LCD communicates via I2C on pins 20/21.
+
+\begin{figure}[H]
+\centering
+\begin{circuitikz}[scale=0.9, transform shape]
+    % Relay control
+    \draw (0,0) node[anchor=east]{\small Pin 7}
+        to[short] (2,0)
+        node[anchor=west]{\small Relay IN};
+    \draw (0,-0.8) node[anchor=east]{\small 5V}
+        to[short] (2,-0.8)
+        node[anchor=west]{\small Relay VCC};
+    \draw (0,-1.6) node[anchor=east]{\small GND}
+        to[short] (2,-1.6)
+        node[anchor=west]{\small Relay GND};
+
+    % Relay load
+    \draw (4, 0) node[anchor=east]{\small Relay NO}
+        to[leD*, color=white, l=Lamp] (7, 0)
+        node[ground]{};
+    \draw (4,-0.8) node[anchor=east]{\small Relay COM}
+        to[short] (5,-0.8) -- (5,0.5) node[anchor=south]{\small 5V};
+
+    % Binary status LED
+    \draw (0,-3.0) node[anchor=east]{\small Pin 12}
+        to[R, l=220\,\si{\ohm}] (3,-3.0)
+        to[leD*, color=green] (5,-3.0)
+        node[ground]{};
+
+    % Analog status LED
+    \draw (0,-4.5) node[anchor=east]{\small Pin 11}
+        to[R, l=220\,\si{\ohm}] (3,-4.5)
+        to[leD*, color=yellow] (5,-4.5)
+        node[ground]{};
+
+    % PWM actuator LED
+    \draw (0,-6.0) node[anchor=east]{\small Pin 9 (PWM)}
+        to[R, l=220\,\si{\ohm}] (3,-6.0)
+        to[leD*, color=blue] (5,-6.0)
+        node[ground]{};
+
+    % I2C LCD
+    \draw (0,-8.0) node[anchor=east]{\small Pin 20 (SDA)}
+        to[short] (4,-8.0) node[anchor=west]{\small LCD SDA};
+    \draw (0,-8.8) node[anchor=east]{\small Pin 21 (SCL)}
+        to[short] (4,-8.8) node[anchor=west]{\small LCD SCL};
+    \draw (0,-9.6) node[anchor=east]{\small 5V}
+        to[short] (4,-9.6) node[anchor=west]{\small LCD VCC};
+    \draw (0,-10.4) node[anchor=east]{\small GND}
+        to[short] (4,-10.4) node[anchor=west]{\small LCD GND};
+\end{circuitikz}
+\caption{Complete circuit schematic of the dual actuator control system}
+\label{fig:circuit_schematic}
+\end{figure}
+
+\subsection{Wokwi Simulation Circuit}
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/Design/ElectricalSchematics/wokwi_circuit.png}{%
+    \includegraphics[width=0.85\textwidth]{resources/Design/ElectricalSchematics/wokwi_circuit.png}%
+}{%
+    \fbox{\parbox{0.83\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save to resources/Design/ElectricalSchematics/wokwi\_circuit.png]}}%
+}
+\caption{Wokwi simulation circuit for the dual actuator control system}
+\label{fig:wokwi_circuit}
+\end{figure}
+
+\subsection{Project Structure}
+
+The project files are organized to reflect the layered architecture, with each module in its own library directory:
+
+\begin{lstlisting}[language={}, caption={Project directory structure for Lab 4.1}]
+labs/
+  src/main.cpp                     # Lab selector (ifdef LAB4_1)
+  lab/lab4_1/
+    lab4_1_main.h                  # Entry point header
+    lab4_1_main.cpp                # FreeRTOS tasks & orchestration
+    lab4_1_config.h                # Pin mapping & timing constants
+  lib/
+    Relay/Relay.h, .cpp            # MCAL: relay driver
+    PwmActuator/PwmActuator.h,.cpp # MCAL: PWM output driver
+    Led/Led.h, .cpp                # MCAL: LED driver (reused)
+    LcdDisplay/LcdDisplay.h, .cpp  # ECAL: I2C LCD driver (reused)
+    StdioSerial/StdioSerial.h,.cpp # ECAL: STDIO redirection (reused)
+    BinaryConditioner/             # SRV: debounce filter
+    SignalConditioner/             # SRV: analog pipeline (reused)
+  platformio.ini                   # env:lab4_1 configuration
+  wokwi/lab4.1/
+    diagram.json                   # Wokwi circuit definition
+    wokwi.toml                     # Firmware path for simulation
+\end{lstlisting}
+
+\subsection{Modular Implementation}
+
+\subsubsection{Relay Driver Module}
+
+The \texttt{Relay} library provides a hardware abstraction for controlling a relay module via a digital GPIO pin. It supports both active-HIGH and active-LOW relay modules through a constructor parameter. The interface exposes four methods: \texttt{init()} configures the pin as OUTPUT and deactivates the relay, \texttt{turnOn()} and \texttt{turnOff()} set the relay state with automatic logic inversion for active-LOW modules, and \texttt{setState(bool)} provides a convenient boolean-controlled interface. The \texttt{isOn()} getter returns the current relay state for diagnostic reporting.
+
+\begin{lstlisting}[language=C++, caption={Relay driver interface (Relay.h)}]
+class Relay {
+public:
+    Relay(uint8_t pin, bool activeHigh = true);
+    void init();
+    void turnOn();
+    void turnOff();
+    void setState(bool on);
+    bool isOn() const;
+};
+\end{lstlisting}
+
+\subsubsection{PWM Actuator Driver Module}
+
+The \texttt{PwmActuator} library abstracts PWM output control for analog actuators. It accepts a duty cycle as a percentage (0.0--100.0\%) and converts it to the 0--255 range used by Arduino's \texttt{analogWrite()} function. Input values are automatically clamped to the valid range. The \texttt{getDutyCycle()} and \texttt{getRawPwm()} getters provide diagnostic access to the current output state.
+
+\begin{lstlisting}[language=C++, caption={PWM actuator driver interface (PwmActuator.h)}]
+class PwmActuator {
+public:
+    PwmActuator(uint8_t pin);
+    void init();
+    void setDutyCycle(float percent);
+    float getDutyCycle() const;
+    uint8_t getRawPwm() const;
+};
+\end{lstlisting}
+
+\subsubsection{Binary Conditioner Module}
+
+The \texttt{BinaryConditioner} library implements counter-based debouncing as described in Section 4.1.6 of the lab manual. A counter increments when the raw input is HIGH and decrements when LOW, bounded by [0, MAX]. The output transitions to ON only when the counter reaches MAX, and to OFF only when it reaches zero. This prevents false triggering from transient noise or accidental rapid command changes. The module exposes diagnostic getters for the counter value and transitioning status.
+
+\begin{lstlisting}[language=C++, caption={Binary conditioner interface (BinaryConditioner.h)}]
+class BinaryConditioner {
+public:
+    BinaryConditioner(uint8_t maxCount = 5);
+    void init();
+    bool process(bool rawInput);
+    bool getState() const;
+    uint8_t getCounter() const;
+    bool isTransitioning() const;
+};
+\end{lstlisting}
+
+\subsubsection{Reused Modules}
+
+The following library modules from previous labs are reused without modification:
+
+\begin{itemize}
+    \item \textbf{SignalConditioner} --- three-stage pipeline (saturation $\rightarrow$ median $\rightarrow$ EWMA) for conditioning the analog actuator setpoint.
+    \item \textbf{LcdDisplay} --- I2C LCD driver with \texttt{showTwoLines()} for displaying both actuator states.
+    \item \textbf{Led} --- GPIO LED driver for status indicators.
+    \item \textbf{StdioSerial} --- STDIO redirection over UART for \texttt{printf()} output.
+\end{itemize}
