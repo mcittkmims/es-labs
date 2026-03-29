@@ -63,6 +63,7 @@ The complete source code for this lab is available in the GitHub repository:
 #include "LcdDisplay.h"
 #include "Led.h"
 #include "StdioSerial.h"
+#include "SerialInput.h"
 
 // Hardware instances
 static Relay         relay(PIN_RELAY, true);
@@ -70,6 +71,7 @@ static PwmActuator   pwmAct(PIN_PWM_ACTUATOR);
 static Led           ledBinary(PIN_LED_BINARY);
 static Led           ledAnalog(PIN_LED_ANALOG);
 static LcdDisplay    lcd(LCD_I2C_ADDR, LCD_COLS, LCD_ROWS);
+static SerialInput   serialIn(31);
 
 // Signal conditioners
 static BinaryConditioner binCond(BINARY_DEBOUNCE_COUNT);
@@ -186,5 +188,41 @@ bool BinaryConditioner::process(bool rawInput) {
     if (_counter >= _maxCount) _output = true;
     else if (_counter == 0)    _output = false;
     return _output;
+}
+\end{lstlisting}
+
+\subsection{Serial Input Module (SerialInput.h / SerialInput.cpp)}
+
+\begin{lstlisting}[language=C++, caption={Serial line reader with echo --- encapsulates all raw Serial calls}]
+// SerialInput.h
+class SerialInput {
+public:
+    SerialInput(uint8_t maxLen = 31);
+    void init();
+    // Returns complete line or nullptr if not ready yet
+    const char* readLine();
+    bool available() const;
+private:
+    static const uint8_t MAX_BUF_SIZE = 64;
+    char    _buf[MAX_BUF_SIZE];
+    uint8_t _maxLen, _idx;
+};
+
+// SerialInput.cpp - all low-level Serial I/O lives here
+const char* SerialInput::readLine() {
+    while (Serial.available() > 0) {
+        char c = (char)Serial.read();
+        Serial.write(c);  // echo back
+        if (c == '\n' || c == '\r') {
+            if (_idx > 0) {
+                _buf[_idx] = '\0';
+                _idx = 0;
+                return _buf;
+            }
+        } else if (_idx < _maxLen) {
+            _buf[_idx++] = c;
+        }
+    }
+    return nullptr;
 }
 \end{lstlisting}

@@ -13,6 +13,7 @@ The dual actuator control system consists of the following components, each with
     \item \textbf{Blue LED (Pin 9)} --- load simulation for the analog actuator (PWM-driven brightness).
     \item \textbf{LCD 1602 I2C} --- 16x2 character display showing both actuator states, debounce counters, and setpoints.
     \item \textbf{Serial Terminal (UART0)} --- command input interface and diagnostic report output.
+    \item \textbf{SerialInput} --- software module encapsulating low-level serial read/write/echo operations behind a line-oriented API.
     \item \textbf{BinaryConditioner} --- software module implementing counter-based debouncing for the relay command.
     \item \textbf{SignalConditioner} --- software module providing saturation, median filtering, and EWMA for the analog command.
     \item \textbf{FreeRTOS Scheduler} --- manages four concurrent tasks with priority-based preemptive scheduling.
@@ -41,7 +42,7 @@ The structural diagram in \citeimg{fig:structural_diagram} shows how the hardwar
 
     % Shared state
     \node[draw, rectangle, dashed, minimum width=2.5cm, minimum height=0.7cm,
-          text centered, fill=yellow!15, font=\small] (mutex)
+          align=center, fill=yellow!15, font=\small] (mutex)
           at (0, -2.5) {Shared State\\(Mutex)};
 
     % Conditioners
@@ -81,8 +82,8 @@ The software follows a layered architecture that separates concerns across five 
                 text centered, fill=blue!10},
     node distance=0.5cm]
     \node[box] (app)  at (0,  0.0) {APP --- FreeRTOS Tasks (Command, Binary, Analog, Display)};
-    \node[box] (srv)  at (0, -1.3) {SRV --- BinaryConditioner, SignalConditioner, CommandParser};
-    \node[box] (ecal) at (0, -2.6) {ECAL --- StdioSerial, LcdDisplay (I2C abstraction)};
+    \node[box] (srv)  at (0, -1.3) {SRV --- BinaryConditioner, SignalConditioner};
+    \node[box] (ecal) at (0, -2.6) {ECAL --- StdioSerial, SerialInput, LcdDisplay (I2C abstraction)};
     \node[box] (mcal) at (0, -3.9) {MCAL --- Relay, PwmActuator, Led (GPIO/PWM drivers)};
     \node[box] (hw)   at (0, -5.2) {HW --- ATmega2560, Relay Module, LEDs, LCD, Motor};
     \foreach \a/\b in {app/srv, srv/ecal, ecal/mcal, mcal/hw}
@@ -101,7 +102,7 @@ For each hardware interface, the layered architecture provides a clear mapping f
     \item \textbf{PWM interface:} PWM pin 9 $\rightarrow$ MCAL \texttt{PwmActuator} class (\texttt{setDutyCycle()}, \texttt{getDutyCycle()}) $\rightarrow$ SRV \texttt{SignalConditioner} with ramping $\rightarrow$ APP Analog Task.
     \item \textbf{LED interfaces:} GPIO pins 11, 12 $\rightarrow$ MCAL \texttt{Led} class (\texttt{turnOn()}, \texttt{turnOff()}) $\rightarrow$ APP actuator tasks.
     \item \textbf{LCD interface:} I2C bus (SDA=20, SCL=21) $\rightarrow$ ECAL \texttt{LcdDisplay} class (\texttt{showTwoLines()}, \texttt{printLine()}) $\rightarrow$ APP Display Task.
-    \item \textbf{Serial interface:} UART0 (pins 0/1) $\rightarrow$ ECAL \texttt{StdioSerial} (\texttt{printf()}, \texttt{Serial.read()}) $\rightarrow$ APP Command Task.
+    \item \textbf{Serial interface:} UART0 (pins 0/1) $\rightarrow$ ECAL \texttt{StdioSerial} (\texttt{printf()}) + \texttt{SerialInput} (\texttt{readLine()}) $\rightarrow$ APP Command Task.
 \end{itemize}
 
 \subsection{Behavioral Diagrams}
@@ -228,7 +229,7 @@ The debounce filter operates as a simple state machine with two stable states (O
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}[>=Stealth, auto, node distance=4.5cm,
-        every state/.style={draw, circle, minimum size=1.5cm, font=\small}]
+        every state/.style={draw, circle, minimum size=1.5cm, align=center, font=\small}]
     \node[state, initial]  (off) {OFF\\cnt=0};
     \node[state]           (trans) [right of=off] {TRANS};
     \node[state, accepting](on)  [right of=trans] {ON\\cnt=MAX};
@@ -332,6 +333,7 @@ labs/
     Led/Led.h, .cpp                # MCAL: LED driver (reused)
     LcdDisplay/LcdDisplay.h, .cpp  # ECAL: I2C LCD driver (reused)
     StdioSerial/StdioSerial.h,.cpp # ECAL: STDIO redirection (reused)
+    SerialInput/SerialInput.h,.cpp # ECAL: line reader with echo
     BinaryConditioner/             # SRV: debounce filter
     SignalConditioner/             # SRV: analog pipeline (reused)
   platformio.ini                   # env:lab4_1 configuration
@@ -386,6 +388,20 @@ public:
     bool getState() const;
     uint8_t getCounter() const;
     bool isTransitioning() const;
+};
+\end{lstlisting}
+
+\subsubsection{Serial Input Module}
+
+The \texttt{SerialInput} library encapsulates all low-level serial I/O operations (\texttt{Serial.available()}, \texttt{Serial.read()}, \texttt{Serial.write()}) behind a line-oriented interface. This ensures that no raw Arduino \texttt{Serial} calls appear in the application-level lab code. The module accumulates incoming characters into an internal buffer, echoes each character back to the terminal, and returns a complete null-terminated line when a newline or carriage return is received. If no complete line is available, \texttt{readLine()} returns \texttt{nullptr}, enabling non-blocking polling from the FreeRTOS command task.
+
+\begin{lstlisting}[language=C++, caption={Serial input reader interface (SerialInput.h)}]
+class SerialInput {
+public:
+    SerialInput(uint8_t maxLen = 31);
+    void init();
+    const char* readLine();  // Returns line or nullptr
+    bool available() const;
 };
 \end{lstlisting}
 
