@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "author": "Maxim",
+  "author": "Adrian",
   "editor": "wokwi",
   "parts": [
     { "type": "wokwi-breadboard-half", "id": "bb1", "top": 342.6, "left": -150.8, "attrs": {} },
