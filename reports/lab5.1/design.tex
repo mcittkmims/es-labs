@@ -191,67 +191,86 @@ The acquisition, control, and actuation tasks are connected through binary semap
 
 \begin{figure}[H]
 \centering
-\begin{circuitikz}[scale=0.70, transform shape, every node/.style={font=\small}]
-    \node[draw, rectangle, minimum width=3.1cm, minimum height=4.7cm, align=center] (mega) at (0,0)
-        {Arduino\\Mega 2560};
+\resizebox{0.97\textwidth}{!}{%
+\begin{circuitikz}[american, every node/.style={font=\footnotesize}]
+    \tikzset{
+        module/.style={draw, rectangle, rounded corners, minimum width=3.0cm,
+                       minimum height=0.95cm, align=center, fill=blue!7},
+        mcu/.style={draw, rectangle, rounded corners, minimum width=3.6cm,
+                    minimum height=4.6cm, align=center, fill=gray!10},
+        wire/.style={line width=0.55pt},
+        pinlabel/.style={font=\scriptsize, fill=white, inner sep=1.2pt},
+        note/.style={font=\scriptsize, align=center, fill=white, inner sep=1.5pt}
+    }
 
-    \coordinate (d2) at (-1.55,1.65);
-    \coordinate (a0) at (-1.55,0.25);
-    \coordinate (keypins) at (-1.55,-1.25);
-    \coordinate (i2c) at (1.55,1.35);
-    \coordinate (d12) at (1.55,-0.55);
+    \node[mcu] (mega) at (0,0.2) {Arduino\\Mega 2560};
+    \coordinate (d2pin) at (-1.8,1.85);
+    \coordinate (a0pin) at (-1.8,0.45);
+    \coordinate (keypin) at (-1.8,-1.05);
+    \coordinate (i2cpin) at (1.8,1.45);
+    \coordinate (d12pin) at (1.8,-0.65);
+    \foreach \p in {d2pin,a0pin,keypin,i2cpin,d12pin} {
+        \fill (\p) circle (1.1pt);
+    }
+    \node[pinlabel, anchor=east] at (-1.95,1.98) {D2};
+    \node[pinlabel, anchor=east] at (-1.95,0.58) {A0};
+    \node[pinlabel, anchor=east] at (-1.95,-0.92) {D4--D11};
+    \node[pinlabel, anchor=west] at (1.95,1.58) {SDA/SCL};
+    \node[pinlabel, anchor=west] at (1.95,-0.52) {D12};
 
-    \node[anchor=east] at (d2) {\scriptsize D2};
-    \node[anchor=east] at (a0) {\scriptsize A0};
-    \node[anchor=east] at (keypins) {\scriptsize D4--D11};
-    \node[anchor=west] at (i2c) {\scriptsize SDA/SCL};
-    \node[anchor=west] at (d12) {\scriptsize D12};
+    \node[module] (dht) at (-6.7,1.85) {DHT22\\\scriptsize VCC=5 V, GND};
+    \draw[wire] (dht.east) -- ++(0.42,0) coordinate (dhtdata)
+        -- node[note, above, pos=0.48] {DATA} (d2pin);
+    \draw[wire] (dhtdata) node[circ]{}
+        -- ++(0,0.70) to[R,l=1\,\si{k\ohm}] ++(0,0.88)
+        node[pinlabel, anchor=south] {+5 V};
 
-    \node[draw, rectangle, minimum width=1.9cm, minimum height=0.9cm, align=center] (dht) at (-6.4,2.15)
-        {DHT22};
-    \coordinate (dhtdata) at (-4.95,2.15);
-    \draw (dht.east) -- (dhtdata) node[circ]{}
-        -- (-3.3,2.15) -- (-3.3,1.65) -- (d2);
-    \draw (dhtdata) -- (-4.95,2.85) to[R,l=1\,\si{k\ohm}] (-4.95,3.65) node[vcc]{5 V};
-    \draw (dht.north) -- ++(0,0.65) node[vcc]{5 V};
-    \draw (dht.south) -- ++(0,-0.65) node[ground]{};
+    \node[module] (pot) at (-6.7,0.45) {Potentiometer\\\scriptsize 5 V -- SIG -- GND};
+    \draw[wire] (pot.east) -- node[note, above, pos=0.56] {SIG} (a0pin);
 
-    \draw (-6.35,0.70) node[vcc]{5 V}
-        to[R] (-6.35,-1.15) node[ground]{};
-    \node[anchor=east] at (-6.65,-0.20) {Potentiometer};
-    \coordinate (potwiper) at (-6.35,-0.20);
-    \draw (potwiper) node[circ]{} -- (-3.25,-0.20) -- (-3.25,0.25) -- (a0);
+    \node[module] (keypad) at (-6.7,-1.05) {4x4 Keypad\\\scriptsize rows D11--D8, columns D7--D4};
+    \draw[wire] (keypad.east) -- (keypin);
 
-    \node[draw, rectangle, minimum width=2.5cm, minimum height=0.9cm, align=center] (keypad) at (-6.1,-2.55)
-        {4x4\\Keypad};
-    \draw (keypad.east) -- (-3.25,-2.55) -- (-3.25,-1.25) -- (keypins);
+    \node[module] (lcd) at (6.5,1.45) {LCD 1602 I2C\\\scriptsize VCC=5 V, GND};
+    \draw[wire] (i2cpin) -- (lcd.west);
 
-    \node[draw, rectangle, minimum width=2.4cm, minimum height=0.95cm, align=center] (lcd) at (5.4,1.35)
-        {LCD 1602\\I2C};
-    \draw (i2c) -- (lcd.west);
-    \draw (lcd.east) ++(0,0.22) -- ++(0.75,0) node[vcc]{5 V};
-    \draw (lcd.east) ++(0,-0.22) -- ++(0.75,0) node[ground]{};
+    \node[module] (relay) at (6.5,-0.65) {Relay Module\\\scriptsize VCC=5 V, GND};
+    \draw[wire] (d12pin) -- node[note, above, pos=0.52] {IN} (relay.west);
+    \node[note] at (0,-2.35) {All control-side modules share the Arduino 5 V and GND rails.};
 
-    \node[draw, rectangle, minimum width=2.35cm, minimum height=1.05cm, align=center] (relay) at (5.2,-0.55)
-        {Relay\\Module};
-    \draw (d12) -- (relay.west);
-    \draw (relay.east) ++(0,0.25) -- ++(0.75,0) node[vcc]{5 V};
-    \draw (relay.east) ++(0,-0.25) -- ++(0.75,0) node[ground]{};
+    \node[anchor=west, font=\footnotesize\bfseries] at (-7.95,-3.35)
+        {Isolated 9 V load branch switched by relay contacts};
+    \coordinate (batminus) at (-7.15,-6.95);
+    \coordinate (batplus) at (-7.15,-5.05);
+    \draw[wire] (batminus) to[battery1,l_=9\,V] (batplus);
 
-    \coordinate (com) at (3.8,-3.50);
-    \coordinate (no) at (5.9,-3.50);
-    \coordinate (ret) at (9.4,-3.50);
-    \coordinate (bpos) at (3.8,-4.35);
-    \coordinate (bneg) at (9.4,-4.35);
-    \draw (bpos) to[battery1] (bneg);
-    \node[anchor=north] at (6.6,-4.45) {\scriptsize 9 V};
-    \draw (bpos) -- (com);
-    \node[anchor=south] at (com) {\scriptsize COM};
-    \node[anchor=south] at (no) {\scriptsize NO};
-    \draw (com) to[normal open switch] (no)
-        to[leD*, color=red,l=Load LED] (7.2,-3.50)
-        to[R,l=220\,\si{\ohm}] (ret) -- (bneg);
-\end{circuitikz}
+    \coordinate (comin) at (-4.75,-5.05);
+    \coordinate (pivot) at (-3.95,-5.05);
+    \coordinate (nc) at (-2.75,-4.55);
+    \coordinate (no) at (-2.75,-5.55);
+    \draw[wire] (batplus) -- (comin) -- (pivot);
+    \draw[densely dashed, rounded corners] (-4.35,-5.88) rectangle (-2.35,-4.18);
+    \node[note] at (-3.35,-4.18) {relay contacts};
+    \fill (pivot) circle (1.1pt);
+    \fill (nc) circle (1.1pt);
+    \fill (no) circle (1.1pt);
+    \draw[wire] (pivot) -- (nc);
+    \node[pinlabel, anchor=south] at (comin) {COM};
+    \node[pinlabel, anchor=south] at (nc) {NC};
+    \node[pinlabel, anchor=north] at (no) {NO};
+
+    \coordinate (retbus) at (6.35,-6.95);
+    \draw[wire] (batminus) -- (retbus);
+    \draw[wire] (nc) -- (-1.35,-4.55)
+        to[R,l=220\,\si{\ohm}] (0.55,-4.55)
+        to[leD*, l=Green LED] (2.25,-4.55)
+        -- (6.35,-4.55) -- (retbus);
+    \draw[wire] (no) -- (-1.35,-5.55)
+        to[R,l_=220\,\si{\ohm}] (0.55,-5.55)
+        to[leD*, color=red, l_=Red LED] (2.25,-5.55)
+        -- (5.65,-5.55) -- (5.65,-6.95);
+\end{circuitikz}%
+}
 \caption{Electrical schematic of the temperature control circuit}
 \label{fig:circuit_schematic}
 \end{figure}
@@ -270,7 +289,9 @@ The acquisition, control, and actuation tasks are connected through binary semap
 
 \subsubsection{Circuit Connections}
 
-The DHT22 VCC and GND pins are connected to the Arduino 5 V and GND rails, and its data line is wired to D2. The potentiometer is wired as a voltage divider from 5 V to GND with its wiper on A0. The keypad row pins are D11, D10, D9, and D8, while the column pins are D7, D6, D5, and D4. The LCD I2C backpack uses the Mega SDA and SCL pins. The relay module logic side is powered from 5 V and controlled by D12. The relay contacts switch the external LED load branch, which is powered separately.
+The DHT22 VCC and GND pins are connected to the Arduino 5 V and GND rails, and its data line is wired to D2. The potentiometer is wired as a voltage divider from 5 V to GND with its wiper on A0. The keypad row pins are D11, D10, D9, and D8, while the column pins are D7, D6, D5, and D4. The LCD I2C backpack uses the Mega SDA and SCL pins. The relay module logic side is powered from 5 V and controlled by D12.
+
+The relay contact side is isolated from the Arduino logic side and is powered by the external 9 V source. In the de-energized relay state, COM is connected to NC and the green indicator branch is supplied through its 220 \(\Omega\) resistor. When the controller energizes the relay, COM moves to NO and the red indicator branch becomes the active load path.
 
 \subsubsection{Hardware Configuration}
 
