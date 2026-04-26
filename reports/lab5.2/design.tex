@@ -1,0 +1,388 @@
+\section{Design}
+
+\subsection{System Architecture Diagrams}
+
+\subsubsection{Component-Level Architecture}
+
+The system is organized as a closed feedback loop. The DHT22 sensor provides the measured temperature, the potentiometer and keypad provide the desired setpoint and tuning choices, the PID controller computes a continuous command, and the H-bridge applies the command to the fan through PWM. The LCD and Serial Plotter expose the same internal state so that the physical behavior can be checked while the board is running.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    comp/.style={draw, rectangle, rounded corners, minimum width=3.1cm,
+                 minimum height=0.9cm, text centered, align=center, fill=blue!10},
+    arrow/.style={thick,->,>=Stealth}]
+    \node[comp] (mcu)    at (0.0, 0.0) {Arduino Mega 2560\\FreeRTOS firmware};
+    \node[comp] (dht)    at (-5.4, 1.8) {DHT22\\temperature feedback};
+    \node[comp] (pot)    at (-5.4, 0.2) {Potentiometer\\setpoint source};
+    \node[comp] (keypad) at (-5.4,-1.4) {4x4 Keypad\\manual setpoint + PID preset};
+    \node[comp] (lcd)    at (5.4, 1.8) {LCD 1602 I2C\\local diagnostics};
+    \node[comp] (plot)   at (5.4, 0.2) {Serial Plotter\\PID channels};
+    \node[comp] (driver) at (5.4,-1.4) {L293D/L298 Driver\\PWM fan power stage};
+    \node[comp] (fan)    at (5.4,-3.0) {DC Fan\\9 V load};
+
+    \draw[arrow] (dht.east) -- node[above, font=\scriptsize]{D2} (mcu.west);
+    \draw[arrow] (pot.east) -- node[above, font=\scriptsize]{A0} (mcu.west);
+    \draw[arrow] (keypad.east) -- node[below, font=\scriptsize]{D4--D11} (mcu.west);
+    \draw[arrow] (mcu.east) -- node[above, font=\scriptsize]{SDA/SCL} (lcd.west);
+    \draw[arrow] (mcu.east) -- node[above, font=\scriptsize]{STDIO} (plot.west);
+    \draw[arrow] (mcu.east) -- node[below, font=\scriptsize]{D13, D16, D17} (driver.west);
+    \draw[arrow] (driver.south) -- node[right, font=\scriptsize]{motor outputs} (fan.north);
+\end{tikzpicture}
+\caption{System structural diagram for PID temperature regulation}
+\label{fig:system_structural_diagram}
+\end{figure}
+
+\subsubsection{Layered System Architecture}
+
+The layered architecture keeps the control algorithm separate from hardware access. The application layer creates tasks and defines the runtime sequence. The service layer contains shared state and the PID controller. The ECAL layer contains reusable wrappers for DHT22, analog setpoint input, LCD, keypad, PWM, and H-bridge motor control. The hardware layer contains the actual Arduino pins and external driver circuit.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    box/.style={draw, rectangle, minimum width=12.0cm, minimum height=0.85cm,
+                text centered, align=center, fill=blue!10},
+    arrow/.style={thick,->,>=Stealth}]
+    \node[box] (app)  at (0, 0.0)  {Application Layer: lab5\_2 entry point and FreeRTOS task orchestration};
+    \node[box] (srv)  at (0,-1.2)  {Service Layer: shared PID state, setpoint policy, PID control law};
+    \node[box] (ecal) at (0,-2.4)  {ECAL Layer: DhtSensor, AnalogSetpointInput, KeypadInput, LcdDisplay, HBridgeMotor};
+    \node[box] (mcal) at (0,-3.6)  {MCAL/Arduino Layer: digitalWrite, analogWrite, I2C, DHT library, STDIO serial};
+    \node[box] (hw)   at (0,-4.8)  {Hardware: Mega 2560, DHT22, potentiometer, keypad, LCD, H-bridge, 9 V fan branch};
+
+    \foreach \a/\b in {app/srv, srv/ecal, ecal/mcal, mcal/hw}
+        \draw[arrow] (\a) -- (\b);
+\end{tikzpicture}
+\caption{Layered architecture of the PID control application}
+\label{fig:layered_architecture}
+\end{figure}
+
+\subsection{Block Diagrams}
+
+\tikzset{
+    startstop/.style={rectangle, rounded corners, minimum width=3.0cm,
+        minimum height=0.75cm, text centered, align=center, draw=black, fill=gray!15},
+    process/.style={rectangle, minimum width=3.4cm,
+        minimum height=0.8cm, text centered, align=center, draw=black, fill=blue!10},
+    decision/.style={diamond, aspect=2.5, minimum width=2.6cm,
+        minimum height=0.9cm, text centered, align=center, draw=black, fill=orange!15},
+    arrow/.style={thick,->,>=Stealth}
+}
+
+\subsubsection{PID Control Flow}
+
+The control task runs only after the acquisition task publishes a fresh sample. The PID controller is updated outside the shared-state critical section, so the mutex is held only while copying input values and writing the computed result.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+    \node (start) [startstop] at (0, 0.0) {New sample semaphore};
+    \node (copy)  [process]   at (0,-1.8) {Copy temperature, setpoint, gains};
+    \node (valid) [decision]  at (0,-4.0) {Sensor valid?};
+    \node (pid)   [process]   at (-4.5,-6.3) {Update reverse-action PID};
+    \node (safe)  [process]   at (4.5,-6.3) {Reset PID and output 0\%};
+    \node (write) [process]   at (0,-8.7) {Store output, error, I, D};
+    \node (sem)   [process]   at (0,-10.5) {Give actuator semaphore};
+
+    \draw[arrow] (start) -- (copy);
+    \draw[arrow] (copy) -- (valid);
+    \draw[arrow] (valid) -- node[anchor=south]{Yes} (pid);
+    \draw[arrow] (valid) -- node[anchor=south]{No} (safe);
+    \draw[arrow] (pid.south) -- (-4.5,-8.7) -- (write.west);
+    \draw[arrow] (safe.south) -- (4.5,-8.7) -- (write.east);
+    \draw[arrow] (write) -- (sem);
+\end{tikzpicture}
+\caption{Flowchart of the PID control task}
+\label{fig:pid_control_flowchart}
+\end{figure}
+
+\subsubsection{FreeRTOS Data Flow}
+
+The shared state is the only communication contract between tasks. The acquisition task produces process measurements, the input task produces user settings, the control task produces a bounded control output, and the actuation task applies the PWM command to the fan driver.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    task/.style={draw, rectangle, rounded corners, minimum width=2.8cm,
+                 minimum height=0.9cm, align=center, fill=blue!10},
+    store/.style={draw, cylinder, shape border rotate=90, aspect=0.25,
+                  minimum width=1.7cm, minimum height=1.2cm, align=center, fill=gray!15},
+    arrow/.style={thick,->,>=Stealth}]
+    \node[task]  (input) at (-5.2, 1.6) {Input Task\\50 ms};
+    \node[task]  (acq)   at (-5.2,-0.2) {Acquisition Task\\2000 ms};
+    \node[store] (state) at (0.0, 0.7) {Shared\\State};
+    \node[task]  (ctrl)  at (4.9, 1.6) {Control Task\\new sample};
+    \node[task]  (act)   at (4.9,-0.2) {Actuation Task\\new command};
+    \node[task]  (disp)  at (0.0,-2.2) {Display Task\\500 ms};
+
+    \draw[arrow] (input.east) -- node[above, font=\scriptsize]{setpoint, preset} (state.west);
+    \draw[arrow] (acq.east) -- node[below, font=\scriptsize]{sample} (state.west);
+    \draw[arrow] (state.east) -- node[above, font=\scriptsize]{snapshot} (ctrl.west);
+    \draw[arrow] (ctrl.south) -- (4.9,0.65) -- node[right, font=\scriptsize]{command} (act.north);
+    \draw[arrow] (act.west) -- node[below, font=\scriptsize]{actual duty} (state.east);
+    \draw[arrow] (state.south) -- node[right, font=\scriptsize]{snapshot} (disp.north);
+\end{tikzpicture}
+\caption{FreeRTOS task data flow}
+\label{fig:task_data_flow}
+\end{figure}
+
+\subsubsection{Keypad Interaction States}
+
+The keypad has two major operating states: normal command mode and numeric setpoint editing. This prevents accidental numeric input from immediately changing the setpoint before confirmation.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[>=Stealth, auto,
+    every state/.style={draw, rectangle, rounded corners, minimum width=2.8cm,
+                        minimum height=0.9cm, align=center}]
+    \node[state, initial] (normal) at (-4.2,0) {Normal\\commands};
+    \node[state] (editing) at (4.2,0) {Editing\\numeric SP};
+    \path[->]
+        (normal) edge[bend left] node[above] {digit} (editing)
+        (editing) edge[bend left] node[below] {\# confirm} (normal)
+        (editing) edge[loop above] node {digit} (editing)
+        (editing) edge[bend right=45] node[above] {*} (normal)
+        (normal) edge[loop above] node {A/B/C/D} (normal);
+\end{tikzpicture}
+\caption{Keypad input state diagram}
+\label{fig:keypad_state_diagram}
+\end{figure}
+
+\subsection{Electrical Schematics}
+
+\subsubsection{Circuit Schematic}
+
+The physical circuit extends the Wokwi-supported logic-side wiring with an H-bridge fan branch. D13 is the PWM enable signal, D16 and D17 select direction, and the external 9 V source powers the fan side of the driver. The Arduino and driver grounds must be connected so the logic signals have a common reference.
+
+\begin{figure}[H]
+\centering
+\resizebox{0.97\textwidth}{!}{%
+\begin{circuitikz}[american, every node/.style={font=\footnotesize}]
+    \tikzset{
+        module/.style={draw, rectangle, rounded corners, minimum width=3.0cm,
+                       minimum height=0.95cm, align=center, fill=blue!7},
+        mcu/.style={draw, rectangle, rounded corners, minimum width=3.8cm,
+                    minimum height=5.0cm, align=center, fill=gray!10},
+        driver/.style={draw, rectangle, rounded corners, minimum width=3.5cm,
+                       minimum height=3.0cm, align=center, fill=orange!10},
+        wire/.style={line width=0.55pt},
+        pinlabel/.style={font=\scriptsize, fill=white, inner sep=1.2pt},
+        note/.style={font=\scriptsize, align=center, fill=white, inner sep=1.5pt}
+    }
+
+    \node[mcu] (mega) at (0,0.3) {Arduino\\Mega 2560};
+    \coordinate (d2pin) at (-1.9,2.05);
+    \coordinate (a0pin) at (-1.9,0.75);
+    \coordinate (keypin) at (-1.9,-0.65);
+    \coordinate (i2cpin) at (1.9,1.85);
+    \coordinate (pwmpin) at (1.9,0.35);
+    \coordinate (in1pin) at (1.9,-0.65);
+    \coordinate (in2pin) at (1.9,-1.55);
+    \foreach \p in {d2pin,a0pin,keypin,i2cpin,pwmpin,in1pin,in2pin} {
+        \fill (\p) circle (1.1pt);
+    }
+    \node[pinlabel, anchor=east] at (-2.05,2.18) {D2};
+    \node[pinlabel, anchor=east] at (-2.05,0.88) {A0};
+    \node[pinlabel, anchor=east] at (-2.05,-0.52) {D4--D11};
+    \node[pinlabel, anchor=west] at (2.05,1.98) {SDA/SCL};
+    \node[pinlabel, anchor=west] at (2.05,0.48) {D13 PWM};
+    \node[pinlabel, anchor=west] at (2.05,-0.52) {D16};
+    \node[pinlabel, anchor=west] at (2.05,-1.42) {D17};
+
+    \node[module] (dht) at (-6.9,2.05) {DHT22\\\scriptsize VCC=5 V, GND};
+    \draw[wire] (dht.east) -- ++(0.45,0) coordinate (dhtdata)
+        -- node[note, above, pos=0.50] {DATA} (d2pin);
+    \draw[wire] (dhtdata) node[circ]{}
+        -- ++(0,0.70) to[R,l=1\,\si{k\ohm}] ++(0,0.88)
+        node[pinlabel, anchor=south] {+5 V};
+
+    \node[module] (pot) at (-6.9,0.75) {Potentiometer\\\scriptsize 5 V -- SIG -- GND};
+    \draw[wire] (pot.east) -- node[note, above, pos=0.55] {SIG} (a0pin);
+
+    \node[module] (keypad) at (-6.9,-0.65) {4x4 Keypad\\\scriptsize rows D11--D8, columns D7--D4};
+    \draw[wire] (keypad.east) -- (keypin);
+
+    \node[module] (lcd) at (6.9,1.85) {LCD 1602 I2C\\\scriptsize VCC=5 V, GND};
+    \draw[wire] (i2cpin) -- (lcd.west);
+
+    \node[driver] (hbridge) at (6.8,-0.75) {L293D/L298\\H-bridge driver\\\scriptsize logic VCC=5 V\\\scriptsize motor VCC=9 V};
+    \coordinate (en) at (5.05,0.25);
+    \coordinate (inone) at (5.05,-0.65);
+    \coordinate (intwo) at (5.05,-1.45);
+    \coordinate (outa) at (8.55,-0.35);
+    \coordinate (outb) at (8.55,-1.15);
+    \draw[wire] (pwmpin) -- node[note, above, pos=0.55] {EN} (en);
+    \draw[wire] (in1pin) -- node[note, above, pos=0.55] {IN1} (inone);
+    \draw[wire] (in2pin) -- node[note, below, pos=0.55] {IN2} (intwo);
+
+    \coordinate (motorA) at (10.2,-0.35);
+    \coordinate (motorB) at (10.2,-1.15);
+    \node[draw, circle, minimum size=0.95cm, align=center, fill=white] (motor) at (10.2,-0.75) {M};
+    \node[pinlabel, anchor=south] at (motor.north) {DC fan};
+    \draw[wire] (outa) -- (motorA) -- (motor.north);
+    \draw[wire] (outb) -- (motorB) -- (motor.south);
+
+    \coordinate (bpos) at (5.0,-3.4);
+    \coordinate (bneg) at (10.2,-3.4);
+    \draw[wire] (bpos) to[battery1,l=9\,V] (bneg);
+    \draw[wire] (bpos) -- (5.0,-2.25) node[pinlabel, anchor=east] {VMOT};
+    \draw[wire] (bneg) -- (10.2,-2.25) node[ground]{};
+    \node[note] at (0,-2.65) {Arduino GND and driver GND share a common reference.};
+\end{circuitikz}%
+}
+\caption{Electrical schematic of the PID temperature control circuit}
+\label{fig:circuit_schematic}
+\end{figure}
+
+\subsubsection{Component Specification}
+
+\begin{itemize}
+    \item Arduino Mega 2560: ATmega2560, 5 V logic, 16 MHz.
+    \item DHT22: digital temperature and humidity sensor connected to D2.
+    \item Potentiometer: analog setpoint source connected to A0.
+    \item Keypad: 4x4 matrix, rows on D11--D8 and columns on D7--D4.
+    \item LCD 1602 I2C: address \(0x27\), connected through SDA/SCL.
+    \item H-bridge driver: PWM enable on D13, IN1 on D16, IN2 on D17.
+    \item Fan branch: external 9 V supply and DC fan connected to the driver motor outputs.
+\end{itemize}
+
+\subsubsection{Wokwi Reference}
+
+The Wokwi project contains the Arduino Mega, DHT22, potentiometer, keypad, LCD, and a direct PWM motor/LED proxy. It intentionally does not model the complete physical L293D and 9 V fan branch; those are documented in the schematic and must be validated on the real board.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/Design/ElectricalSchematics/wokwi_circuit.png}{%
+    \includegraphics[width=0.85\textwidth]{resources/Design/ElectricalSchematics/wokwi_circuit.png}%
+}{%
+    \fbox{\parbox{0.83\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- start labs/wokwi/lab5.2/wokwi.toml and save the running circuit to\\
+        resources/Design/ElectricalSchematics/wokwi\_circuit.png]}}%
+}
+\caption{Wokwi wiring reference for the supported Lab 5.2 components}
+\label{fig:wokwi_circuit}
+\end{figure}
+
+\begin{lstlisting}[language=json, caption=Essential Lab 5.2 pin map, label=lst:pin_map]
+{
+  "dht22": { "data": "D2", "vcc": "5V", "gnd": "GND" },
+  "potentiometer": { "sig": "A0", "vcc": "5V", "gnd": "GND" },
+  "keypad": {
+    "rows": ["D11", "D10", "D9", "D8"],
+    "cols": ["D7", "D6", "D5", "D4"]
+  },
+  "lcd_i2c": { "sda": "SDA", "scl": "SCL", "address": "0x27" },
+  "fan_driver": { "pwm": "D13", "in1": "D16", "in2": "D17" }
+}
+\end{lstlisting}
+
+\subsection{Modular Implementation}
+
+\subsubsection{Project Structure}
+
+\begin{lstlisting}[language=bash, caption=Lab 5.2 source tree, label=lst:project_structure]
+labs/
+|-- src/main.cpp
+|-- lab/lab5_2/
+|   |-- lab5_2_main.h/.cpp
+|   |-- lab5_2_config.h/.cpp
+|   |-- shared_state.h/.cpp
+|   |-- task_input.h/.cpp
+|   |-- task_acquisition.h/.cpp
+|   |-- task_control.h/.cpp
+|   |-- task_actuation.h/.cpp
+|   `-- task_display.h/.cpp
+|-- lib/
+|   |-- PidController/
+|   |-- HBridgeMotor/
+|   |-- DhtSensor/
+|   |-- AnalogSetpointInput/
+|   |-- KeypadInput/
+|   |-- LcdDisplay/
+|   `-- StdioSerial/
+`-- wokwi/lab5.2/
+    |-- diagram.json
+    `-- wokwi.toml
+\end{lstlisting}
+
+\subsubsection{Application Entry Point}
+
+The lab entry point initializes STDIO serial output, prints the physical pin map and keypad commands, initializes the shared state, and creates the five FreeRTOS tasks. The Arduino `loop()` delegate remains empty because FreeRTOS tasks own the runtime behavior.
+
+\begin{lstlisting}[language=C++, caption=Lab 5.2 task creation, label=lst:task_creation]
+lab5PidStateInit();
+xTaskCreate(vTaskLab5PidInput, "Input", TASK_INPUT_STACK,
+            NULL, TASK_INPUT_PRIORITY, NULL);
+xTaskCreate(vTaskLab5PidAcquisition, "Acquire", TASK_ACQUISITION_STACK,
+            NULL, TASK_ACQUISITION_PRIORITY, NULL);
+xTaskCreate(vTaskLab5PidControl, "Control", TASK_CONTROL_STACK,
+            NULL, TASK_CONTROL_PRIORITY, NULL);
+xTaskCreate(vTaskLab5PidActuation, "Actuate", TASK_ACTUATION_STACK,
+            NULL, TASK_ACTUATION_PRIORITY, NULL);
+xTaskCreate(vTaskLab5PidDisplay, "Display", TASK_DISPLAY_STACK,
+            NULL, TASK_DISPLAY_PRIORITY, NULL);
+\end{lstlisting}
+
+\subsubsection{Shared State and Synchronization}
+
+The shared state stores the measured temperature and humidity, sensor validity, potentiometer setpoint, manual setpoint, active setpoint source, PID gains, PID output, applied fan duty, and diagnostic counters. The mutex protects multi-field updates, while the new-sample and actuator semaphores enforce the control chain order.
+
+\begin{lstlisting}[language=C++, caption=Shared PID fields, label=lst:shared_state_fields]
+struct Lab5PidState {
+    float measuredTempC;
+    float activeSetpointC;
+    float kp, ki, kd;
+    float errorC;
+    float controlOutputPercent;
+    float appliedDutyPercent;
+    bool sensorValid;
+    bool fanRunning;
+};
+\end{lstlisting}
+
+\subsubsection{PID Controller Module}
+
+The reusable `PidController` accepts gains, output limits, and a direction mode. In reverse mode it calculates error as measured value minus setpoint, which is appropriate for a cooling fan. The integral term is clamped to the output limits to reduce windup when the actuator saturates.
+
+\begin{lstlisting}[language=C++, caption=PID update interface, label=lst:pid_update]
+float output = s_pid.update(setpoint, temperature, dtSeconds);
+state->controlOutputPercent = output;
+state->errorC = s_pid.getError();
+state->pidIntegral = s_pid.getIntegral();
+state->pidDerivative = s_pid.getDerivative();
+\end{lstlisting}
+
+\subsubsection{H-Bridge Fan Driver}
+
+The `HBridgeMotor` wrapper combines a PWM actuator with two direction pins. The fan is commanded forward only, but the wrapper is bidirectional so the same module can be reused for rotor-position or motor-speed variants.
+
+\begin{lstlisting}[language=C++, caption=Fan actuation logic, label=lst:fan_actuation]
+float dutyPercent = sensorValid ? mapPidOutputToFanDuty(outputPercent) : 0.0f;
+if (dutyPercent > 0.0f) {
+    s_fan.setForward(dutyPercent);
+} else {
+    s_fan.stop();
+}
+\end{lstlisting}
+
+\subsubsection{Timing Configuration}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|p{3.2cm}|p{3.0cm}|p{7.0cm}|}
+\hline
+\textbf{Task} & \textbf{Trigger} & \textbf{Responsibility} \\
+\hline
+Input & 50 ms period & Scan debounced keypad events and update setpoint or PID preset. \\
+\hline
+Acquisition & 2000 ms period & Read DHT22 temperature/humidity and potentiometer setpoint. \\
+\hline
+Control & New-sample semaphore & Apply reverse-action PID and publish bounded output. \\
+\hline
+Actuation & Actuator semaphore & Convert PID output to PWM fan duty and drive H-bridge pins. \\
+\hline
+Display & 500 ms period & Update LCD pages and print Serial Plotter channels. \\
+\hline
+\end{tabular}
+\caption{FreeRTOS task timing and responsibility summary}
+\label{tab:task_timing}
+\end{table}

@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "author": "Adrian",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "wokwi-arduino-mega", "id": "mega", "top": 0.6, "left": -3.6, "attrs": {} },
+    { "type": "wokwi-membrane-keypad", "id": "keypad1", "top": -366.8, "left": 44, "attrs": { "keys": "123A456B789C*0#D", "columns": "4" } },
+    {
+      "type": "wokwi-lcd1602",
+      "id": "lcd1",
+      "top": 198.4,
+      "left": 476,
+      "attrs": { "pins": "i2c" }
+    },
+    { "type": "wokwi-dht22", "id": "dht1", "top": 105.9, "left": -178.2, "attrs": {} },
+    {
+      "type": "wokwi-resistor",
+      "id": "r2",
+      "top": 148.8,
+      "left": -202.15,
+      "rotate": 90,
+      "attrs": { "value": "1000" }
+    },
+    { "type": "wokwi-potentiometer", "id": "pot1", "top": 123.5, "left": -105.8, "attrs": {} },
+    {
+      "type": "wokwi-dc-motor",
+      "id": "fan1",
+      "top": 390,
+      "left": -240,
+      "attrs": { "label": "PWM fan proxy" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "pwm_led",
+      "top": 377,
+      "left": -95,
+      "attrs": { "color": "blue", "label": "D13 PWM" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r_pwm",
+      "top": 438,
+      "left": -91,
+      "rotate": 90,
+      "attrs": { "value": "220" }
+    }
+  ],
+  "connections": [
+    [ "keypad1:R1", "mega:11", "purple", [ "v0" ] ],
+    [ "keypad1:R2", "mega:10", "purple", [ "v0" ] ],
+    [ "keypad1:R3", "mega:9", "purple", [ "v0" ] ],
+    [ "keypad1:R4", "mega:8", "purple", [ "v0" ] ],
+    [ "keypad1:C1", "mega:7", "magenta", [ "v38.4", "h-0.1" ] ],
+    [ "keypad1:C2", "mega:6", "magenta", [ "v0" ] ],
+    [ "keypad1:C3", "mega:5", "magenta", [ "v0" ] ],
+    [ "keypad1:C4", "mega:4", "magenta", [ "v0" ] ],
+
+    [ "lcd1:SDA", "mega:SDA", "gold", [ "h-96", "v0.2", "h-393.6", "v-268.8", "h106" ] ],
+    [ "lcd1:SCL", "mega:SCL", "orange", [ "h-76.8", "v0.3", "h-422.4", "v-288", "h105.6" ] ],
+    [ "lcd1:GND", "mega:GND.2", "black", [ "h-307.2", "v-45.3" ] ],
+    [ "lcd1:VCC", "mega:5V", "red", [ "h0" ] ],
+
+    [ "dht1:SDA", "mega:2", "violet", [ "v9.6", "h38.5", "v-240", "h345.6" ] ],
+    [ "dht1:GND", "mega:GND.2", "black", [ "v9.6", "h307.2", "v-45.3" ] ],
+    [ "dht1:VCC", "mega:5V", "red", [ "v19.2", "h326.4" ] ],
+    [ "r2:1", "dht1:SDA", "purple", [ "h0" ] ],
+    [ "r2:2", "mega:5V", "red", [ "h-38.4", "v-144", "h326.4" ] ],
+
+    [ "pot1:GND", "mega:GND.2", "black", [ "v38.4", "h249.6", "v-45.3" ] ],
+    [ "pot1:VCC", "mega:5V", "red", [ "v48", "h217.7" ] ],
+    [ "pot1:SIG", "mega:A0", "green", [ "v28.8", "h268.4" ] ],
+
+    [ "mega:13", "fan1:1", "yellow", [ "v205", "h-420" ] ],
+    [ "fan1:2", "mega:GND.3", "black", [ "v60", "h650" ] ],
+    [ "mega:13", "pwm_led:A", "cyan", [ "v150", "h-250" ] ],
+    [ "pwm_led:C", "r_pwm:1", "blue", [ "v0" ] ],
+    [ "r_pwm:2", "mega:GND.3", "black", [ "v70", "h420" ] ]
+  ],
+  "dependencies": {}
+}

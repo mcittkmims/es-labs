@@ -1,0 +1,35 @@
+\section{Appendix}
+
+The complete source code is organized below by architectural layer. All source files are available in the project GitHub repository.
+
+\textbf{GitHub Repository:} \url{https://github.com/mcittkmims/es-labs}
+
+\subsection{Application Layer}
+
+\lstinputlisting[language=C++, caption=Lab 5.2 entry point header, label=lst:appendix_lab52_main_h]{../../labs/lab/lab5_2/lab5_2_main.h}
+\lstinputlisting[language=C++, caption=Lab 5.2 entry point implementation, label=lst:appendix_lab52_main_cpp]{../../labs/lab/lab5_2/lab5_2_main.cpp}
+\lstinputlisting[language=C++, caption=Lab 5.2 configuration header, label=lst:appendix_lab52_config_h]{../../labs/lab/lab5_2/lab5_2_config.h}
+\lstinputlisting[language=C++, caption=Lab 5.2 configuration implementation, label=lst:appendix_lab52_config_cpp]{../../labs/lab/lab5_2/lab5_2_config.cpp}
+
+\subsection{Service Layer}
+
+\lstinputlisting[language=C++, caption=Shared PID state header, label=lst:appendix_state_h]{../../labs/lab/lab5_2/shared_state.h}
+\lstinputlisting[language=C++, caption=Shared PID state implementation, label=lst:appendix_state_cpp]{../../labs/lab/lab5_2/shared_state.cpp}
+\lstinputlisting[language=C++, caption=Keypad input task, label=lst:appendix_input_cpp]{../../labs/lab/lab5_2/task_input.cpp}
+\lstinputlisting[language=C++, caption=Acquisition task, label=lst:appendix_acq_cpp]{../../labs/lab/lab5_2/task_acquisition.cpp}
+\lstinputlisting[language=C++, caption=PID control task, label=lst:appendix_control_cpp]{../../labs/lab/lab5_2/task_control.cpp}
+\lstinputlisting[language=C++, caption=Fan actuation task, label=lst:appendix_act_cpp]{../../labs/lab/lab5_2/task_actuation.cpp}
+\lstinputlisting[language=C++, caption=LCD and Serial Plotter task, label=lst:appendix_display_cpp]{../../labs/lab/lab5_2/task_display.cpp}
+
+\subsection{Reusable Control and Driver Modules}
+
+\lstinputlisting[language=C++, caption=PID controller interface, label=lst:appendix_pid_h]{../../labs/lib/PidController/PidController.h}
+\lstinputlisting[language=C++, caption=PID controller implementation, label=lst:appendix_pid_cpp]{../../labs/lib/PidController/PidController.cpp}
+\lstinputlisting[language=C++, caption=H-bridge motor interface, label=lst:appendix_hbridge_h]{../../labs/lib/HBridgeMotor/HBridgeMotor.h}
+\lstinputlisting[language=C++, caption=H-bridge motor implementation, label=lst:appendix_hbridge_cpp]{../../labs/lib/HBridgeMotor/HBridgeMotor.cpp}
+\lstinputlisting[language=C++, caption=PWM actuator interface, label=lst:appendix_pwm_h]{../../labs/lib/PwmActuator/PwmActuator.h}
+\lstinputlisting[language=C++, caption=PWM actuator implementation, label=lst:appendix_pwm_cpp]{../../labs/lib/PwmActuator/PwmActuator.cpp}
+\lstinputlisting[language=C++, caption=DHT sensor wrapper interface, label=lst:appendix_dht_h]{../../labs/lib/DhtSensor/DhtSensor.h}
+\lstinputlisting[language=C++, caption=DHT sensor wrapper implementation, label=lst:appendix_dht_cpp]{../../labs/lib/DhtSensor/DhtSensor.cpp}
+\lstinputlisting[language=C++, caption=Analog setpoint wrapper interface, label=lst:appendix_analog_h]{../../labs/lib/AnalogSetpointInput/AnalogSetpointInput.h}
+\lstinputlisting[language=C++, caption=Analog setpoint wrapper implementation, label=lst:appendix_analog_cpp]{../../labs/lib/AnalogSetpointInput/AnalogSetpointInput.cpp}

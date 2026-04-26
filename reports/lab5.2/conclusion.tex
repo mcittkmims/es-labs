@@ -1,0 +1,23 @@
+\section{Conclusion}
+
+\subsection{Achievement of Objectives}
+
+The laboratory work implements a complete PID-based embedded control application for temperature regulation. The system periodically acquires DHT22 temperature data, compares it with a configurable setpoint, computes a reverse-action PID output, and applies the resulting command to a PWM fan actuator through an H-bridge driver. The implementation follows the requested modular structure by separating input, acquisition, control, actuation, display, shared state, and reusable driver modules.
+
+\subsection{Performance Analysis and System Limitations}
+
+The selected timing model is appropriate for the physical components. The DHT22 is sampled every 2000 ms to respect its practical update rate, while the keypad and LCD are refreshed faster for usability. The control loop is event-driven by the acquisition task, so each PID decision is based on a fresh sample rather than on repeated stale values.
+
+The main limitation is the slow thermal response of the sensor-fan setup. The fan can change speed immediately, but the DHT22 temperature changes gradually and may be affected by airflow placement, room temperature, and sensor self-heating. As a result, PID tuning must be performed carefully on the real circuit. The FAST preset should be used only after the SOFT and NORM presets are verified.
+
+\subsection{Proposed Improvements}
+
+Future improvements could include storing PID gains in EEPROM, adding a serial command interface for exact gain entry, measuring fan speed with an encoder, and adding an automatic tuning procedure. A stronger physical setup could also use a real heater element and fan in a controlled chamber, which would produce more repeatable PID response curves.
+
+\subsection{Reflections on the Learning Experience}
+
+This laboratory highlights the difference between binary ON-OFF control and continuous PID control. The firmware must track previous error, accumulated error, sampling time, actuator limits, and safe behavior on invalid sensor reads. The project also shows why embedded control code benefits from strict modularity: tuning the PID controller, changing the fan driver, or replacing the input method can be done without rewriting the whole application.
+
+\subsection{Impact of Technology in Real-World Applications}
+
+PID control is one of the most common control strategies in industrial automation, HVAC, robotics, and process control. Even this small Arduino system reflects real engineering concerns: sensor update limits, actuator saturation, power-stage isolation, diagnostic display, and real-time data plotting. The same architecture can be scaled to regulate greenhouse ventilation, electronics cooling, incubator temperature, or motor speed in embedded products.

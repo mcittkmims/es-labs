@@ -1,0 +1,182 @@
+\section{Obtained Results}
+
+\subsection{Build Process}
+
+The PlatformIO environment `lab5\_2` compiles successfully for the Arduino Mega 2560 target before the firmware is flashed to the board. The successful build reports approximately 2237 bytes of RAM usage from 8192 bytes and 28664 bytes of flash usage from 253952 bytes, confirming that the PID controller, H-bridge driver, DHT22 wrapper, keypad, LCD, and FreeRTOS task modules are linked correctly.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/build_results.png}{%
+    \includegraphics[width=0.85\textwidth]{resources/ObtainedResults/build_results.png}%
+}{%
+    \fbox{\parbox{0.83\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save successful PlatformIO build output to\\
+        resources/ObtainedResults/build\_results.png]}}%
+}
+\caption{Successful PlatformIO build output for `lab5\_2`}
+\label{fig:build_results}
+\end{figure}
+
+\subsection{Physical Hardware Setup}
+
+The final validation is intended for the physical circuit shown by the provided wiring image. The setup must show the Arduino Mega, DHT22, potentiometer, keypad, LCD, L293D/L298-style driver, DC fan, shared ground, and external 9 V motor supply. The Wokwi file is useful for checking firmware startup and logic-side pins, but the fan driver and battery branch must be verified on hardware.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/hardware_setup.png}{%
+    \includegraphics[width=0.85\textwidth]{resources/ObtainedResults/hardware_setup.png}%
+}{%
+    \fbox{\parbox{0.83\textwidth}{\centering\color{gray}\small
+        [Photo pending --- save the complete real Arduino setup to\\
+        resources/ObtainedResults/hardware\_setup.png]}}%
+}
+\caption{Physical Arduino setup prepared for PID fan validation}
+\label{fig:hardware_setup}
+\end{figure}
+
+\subsection{Wokwi Reference Startup}
+
+The Wokwi project should be started from `labs/wokwi/lab5.2/wokwi.toml`. It is expected to show the LCD, keypad, potentiometer, DHT22, and the D13 PWM proxy. The real H-bridge and 9 V fan branch are represented in the report schematic rather than fully simulated.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/simulation_start.png}{%
+    \includegraphics[width=0.75\textwidth]{resources/ObtainedResults/simulation_start.png}%
+}{%
+    \fbox{\parbox{0.73\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save Wokwi startup reference to\\
+        resources/ObtainedResults/simulation\_start.png]}}%
+}
+\caption{Wokwi startup state for the supported Lab 5.2 wiring reference}
+\label{fig:simulation_start}
+\end{figure}
+
+\subsection{Validation Scenarios}
+
+The validation scenarios are derived from the requirements table. Each scenario should be documented with a hardware photo or Serial Plotter screenshot after the real Arduino setup is flashed and running.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|p{3.4cm}|p{5.0cm}|p{5.2cm}|}
+\hline
+\textbf{Scenario} & \textbf{Action} & \textbf{Expected Evidence} \\
+\hline
+Normal operation & Power the board and wait for DHT22 acquisition. & LCD shows temperature, setpoint, fan duty, and sensor status. \\
+\hline
+Setpoint change & Rotate the potentiometer or enter a manual keypad setpoint. & `SetPoint` changes and the PID error changes sign/magnitude accordingly. \\
+\hline
+Cooling demand & Warm the DHT22 above the setpoint. & `Output` and `Duty` increase, and the fan starts or speeds up. \\
+\hline
+Near setpoint & Let temperature approach the setpoint. & PID output decreases smoothly rather than switching abruptly. \\
+\hline
+PID preset change & Press D to cycle SOFT/NORM/FAST. & LCD and Serial Plotter show changed Kp, Ki, and Kd values. \\
+\hline
+Sensor failure behavior & Disconnect or force an invalid DHT22 read during controlled testing. & `Valid:0` appears and fan duty goes to 0\%. \\
+\hline
+\end{tabular}
+\caption{Hardware validation scenario matrix}
+\label{tab:validation_scenarios}
+\end{table}
+
+\subsubsection{Normal Measurement and Display}
+
+The LCD should alternate between the primary process page, the error/output page, and the PID gain page. The Serial Plotter line should include `SetPoint`, `Value`, `Output`, `Duty`, `Error`, `Kp`, `Ki`, `Kd`, and `Valid`.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/test_normal_operation.png}{%
+    \includegraphics[width=0.75\textwidth]{resources/ObtainedResults/test_normal_operation.png}%
+}{%
+    \fbox{\parbox{0.73\textwidth}{\centering\color{gray}\small
+        [Screenshot/photo pending --- save normal LCD/Serial operation to\\
+        resources/ObtainedResults/test\_normal\_operation.png]}}%
+}
+\caption{Normal PID operation with temperature, setpoint, and fan duty visible}
+\label{fig:test_normal_operation}
+\end{figure}
+
+\subsubsection{PID Response to Heating}
+
+When the DHT22 temperature is raised above the setpoint, the reverse-action PID error becomes positive. The controller should increase its output, and the fan duty should rise after the actuator task converts the PID output to a physical PWM duty.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/test_pid_heating_response.png}{%
+    \includegraphics[width=0.75\textwidth]{resources/ObtainedResults/test_pid_heating_response.png}%
+}{%
+    \fbox{\parbox{0.73\textwidth}{\centering\color{gray}\small
+        [Photo/screenshot pending --- save heating response validation to\\
+        resources/ObtainedResults/test\_pid\_heating\_response.png]}}%
+}
+\caption{PID fan response when measured temperature rises above the setpoint}
+\label{fig:test_pid_heating_response}
+\end{figure}
+
+\subsubsection{Manual Setpoint Entry}
+
+Digits on the keypad start numeric setpoint entry, `\#` confirms the typed value, and `*` cancels the edit. After confirmation, the active setpoint source becomes manual and the Serial Plotter `SetPoint` channel should reflect the entered value.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/test_manual_setpoint.png}{%
+    \includegraphics[width=0.75\textwidth]{resources/ObtainedResults/test_manual_setpoint.png}%
+}{%
+    \fbox{\parbox{0.73\textwidth}{\centering\color{gray}\small
+        [Photo/screenshot pending --- save keypad setpoint test to\\
+        resources/ObtainedResults/test\_manual\_setpoint.png]}}%
+}
+\caption{Manual setpoint entry through the 4x4 keypad}
+\label{fig:test_manual_setpoint}
+\end{figure}
+
+\subsubsection{PID Preset Change}
+
+Pressing D cycles through the SOFT, NORM, and FAST gain presets. The expected evidence is a visible change in the displayed gains and a different slope or amplitude in the `Output` channel for the same temperature error.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/test_pid_preset.png}{%
+    \includegraphics[width=0.75\textwidth]{resources/ObtainedResults/test_pid_preset.png}%
+}{%
+    \fbox{\parbox{0.73\textwidth}{\centering\color{gray}\small
+        [Photo/screenshot pending --- save PID preset validation to\\
+        resources/ObtainedResults/test\_pid\_preset.png]}}%
+}
+\caption{PID gain preset selection from the keypad}
+\label{fig:test_pid_preset}
+\end{figure}
+
+\subsubsection{Serial Plotter PID Trace}
+
+The Serial Plotter should show a continuous control trace rather than the binary output of the ON-OFF laboratory. The key evidence is that `Output` and `Duty` vary gradually as `Value` moves relative to `SetPoint`.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/serial_plotter_pid.png}{%
+    \includegraphics[width=0.85\textwidth]{resources/ObtainedResults/serial_plotter_pid.png}%
+}{%
+    \fbox{\parbox{0.83\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save Arduino Serial Plotter PID trace to\\
+        resources/ObtainedResults/serial\_plotter\_pid.png]}}%
+}
+\caption{Arduino Serial Plotter trace of PID temperature control}
+\label{fig:serial_plotter_pid}
+\end{figure}
+
+\subsection{System Observations}
+
+The acquisition period is 2000 ms because the DHT22 should not be polled aggressively. The controller therefore updates at the same rate as the sensor data, while the LCD and Serial Plotter refresh faster so user edits remain visible. The fan duty is mapped from the PID output with a minimum running duty, because small PWM values may not overcome motor friction on real hardware.
+
+The most important limitation is that the DHT22 measures air temperature slowly compared with the electrical response of the fan. Because of that, aggressive PID gains can produce oscillation if the fan cools the sensor area with delay. The preset mechanism supports practical tuning: SOFT is safer for first hardware runs, NORM is the default, and FAST is useful only when the physical setup responds quickly.
+
+\subsection{Verification Summary}
+
+\begin{itemize}
+    \item \textbf{Compilation:} `lab5\_2` builds for Arduino Mega 2560.
+    \item \textbf{Acquisition:} DHT22 temperature and humidity are sampled in a dedicated task.
+    \item \textbf{Setpoint:} A0 potentiometer and keypad manual mode both update the active setpoint.
+    \item \textbf{Control:} Reverse-action PID produces a bounded 0--100\% output.
+    \item \textbf{Actuation:} H-bridge motor driver receives PWM and direction signals from a separate task.
+    \item \textbf{Display:} LCD and Serial Plotter expose setpoint, measured value, output, duty, error, gains, and validity.
+    \item \textbf{Validation evidence:} Hardware photos and Serial Plotter screenshots must be added after running the real Arduino setup.
+\end{itemize}
