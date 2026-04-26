@@ -19,6 +19,33 @@ The functional requirements are the following: acquire DHT22 temperature and hum
 
 The non-functional requirements are modularity, deterministic task recurrence, clear separation between drivers and application logic, reuse of existing repository libraries, preservation of previous labs, and a hardware-first validation workflow.
 
+\subsection{Technical Requirements and Validation Criteria}
+
+The laboratory guide requires not only an implementation, but also a clear connection between requirements and validation scenarios. For this system, the main validation question is whether the measured temperature, configurable setpoint, hysteresis thresholds, and relay command remain consistent across the LCD, Serial Plotter, and physical actuator.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|p{1.0cm}|p{7.4cm}|p{5.2cm}|}
+\hline
+\textbf{ID} & \textbf{Requirement} & \textbf{Validation Criterion} \\
+\hline
+R1 & Acquire temperature and humidity from DHT22 without blocking other tasks unnecessarily. & LCD and serial output update every acquisition cycle; invalid reads set `Valid:0`. \\
+\hline
+R2 & Provide a configurable temperature setpoint through potentiometer and keypad. & Potentiometer changes `SetPoint`; keypad manual entry overrides it after confirmation. \\
+\hline
+R3 & Apply ON-OFF control with hysteresis around the selected setpoint. & Relay turns ON below \(T_{low}\), turns OFF above \(T_{high}\), and holds state inside the band. \\
+\hline
+R4 & Separate acquisition, control, actuation, display, and input into modules/tasks. & Source tree contains dedicated task files and reusable library modules. \\
+\hline
+R5 & Report SetPoint, measured Value, and Output for real-time analysis. & Arduino Serial Plotter receives named fields `SetPoint`, `Value`, and `Output`. \\
+\hline
+R6 & Preserve safe behavior on sensor failure. & Invalid DHT22 read forces relay command OFF and displays sensor error status. \\
+\hline
+\end{tabular}
+\caption{Technical requirements and validation criteria}
+\label{tab:requirements_validation}
+\end{table}
+
 \subsection{Used Technologies}
 
 \subsubsection{ON-OFF Control with Hysteresis}

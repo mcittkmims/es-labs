@@ -61,6 +61,8 @@ The lab follows the repository's layered style. The application layer creates ta
 
 \subsubsection{Runtime Data Flow}
 
+The runtime data flow is split around a mutex-protected shared state object. The input and acquisition tasks are the only tasks that produce user and sensor inputs. The control task consumes the latest sample and setpoint, then writes the desired relay command. The actuation task is the only task that touches the relay driver, and the display task periodically snapshots the state for LCD and Serial Plotter output. This makes the timing model easy to reason about because hardware writes are not scattered across unrelated modules.
+
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}[
@@ -89,6 +91,38 @@ The lab follows the repository's layered style. The application layer creates ta
 \label{fig:task_data_flow}
 \end{figure}
 
+\subsubsection{Task Synchronization Sequence}
+
+The acquisition, control, and actuation tasks are connected through binary semaphores, while the shared state is protected by a mutex. The acquisition task gives a new-sample semaphore after writing a new DHT22 and potentiometer sample. The control task blocks on that semaphore, updates the hysteresis output, and gives an actuator semaphore. The relay task blocks on the actuator semaphore and is therefore woken only when a fresh control command is ready. The display task does not block the control path; it simply locks the mutex briefly every 500 ms to copy a snapshot.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    lane/.style={draw, rectangle, minimum width=2.35cm, minimum height=0.7cm,
+                 align=center, fill=blue!10},
+    msg/.style={thick,->,>=Stealth},
+    lifeline/.style={gray, dashed}
+]
+    \node[lane] (acq)  at (-5.4, 0.0) {Acquisition\\Task};
+    \node[lane] (state) at (-2.0, 0.0) {Shared\\State};
+    \node[lane] (ctrl) at (1.4, 0.0) {Control\\Task};
+    \node[lane] (act)  at (4.8, 0.0) {Actuation\\Task};
+
+    \foreach \x in {-5.4,-2.0,1.4,4.8}
+        \draw[lifeline] (\x,-0.5) -- (\x,-7.0);
+
+    \draw[msg] (-5.4,-1.1) -- node[above, font=\scriptsize]{write sample} (-2.0,-1.1);
+    \draw[msg] (-5.4,-2.0) -- node[above, font=\scriptsize]{new-sample semaphore} (1.4,-2.0);
+    \draw[msg] (1.4,-2.9) -- node[above, font=\scriptsize]{read T, SP, H} (-2.0,-2.9);
+    \draw[msg] (1.4,-3.8) -- node[above, font=\scriptsize]{write command} (-2.0,-3.8);
+    \draw[msg] (1.4,-4.7) -- node[above, font=\scriptsize]{actuator semaphore} (4.8,-4.7);
+    \draw[msg] (4.8,-5.6) -- node[above, font=\scriptsize]{actual relay state} (-2.0,-5.6);
+    \draw[msg] (-2.0,-6.5) -- node[above, font=\scriptsize]{display snapshot} (1.4,-6.5);
+\end{tikzpicture}
+\caption{FreeRTOS synchronization sequence for acquisition, control, and actuation}
+\label{fig:synchronization_sequence}
+\end{figure}
+
 \subsubsection{Control Algorithm Flowchart}
 
 \tikzset{
@@ -107,24 +141,24 @@ The lab follows the repository's layered style. The application layer creates ta
     \node (start) [startstop] at (0, 0.0) {New sample};
     \node (read)  [process]   at (0,-1.8) {Read temperature, setpoint, hysteresis};
     \node (valid) [decision]  at (0,-4.1) {Sensor valid?};
-    \node (safe)  [process]   at (-4.0,-6.4) {Force output OFF};
-    \node (low)   [decision]  at (2.3,-6.4) {$T \leq T_{low}$?};
-    \node (on)    [process]   at (5.7,-8.7) {Set output ON};
-    \node (high)  [decision]  at (0,-8.7) {$T \geq T_{high}$?};
-    \node (off)   [process]   at (-4.0,-11.0) {Set output OFF};
-    \node (hold)  [process]   at (1.6,-11.0) {Keep previous output};
-    \node (done)  [startstop] at (0,-13.0) {Update shared command};
+    \node (safe)  [process]   at (-5.0,-6.8) {Force output OFF};
+    \node (low)   [decision]  at (0,-6.8) {$T \leq T_{low}$?};
+    \node (on)    [process]   at (5.0,-6.8) {Set output ON};
+    \node (high)  [decision]  at (0,-9.7) {$T \geq T_{high}$?};
+    \node (off)   [process]   at (-5.0,-9.7) {Set output OFF};
+    \node (hold)  [process]   at (0,-12.1) {Keep previous output};
+    \node (done)  [startstop] at (0,-14.1) {Update shared command};
 
     \draw[arrow] (start) -- (read);
     \draw[arrow] (read) -- (valid);
     \draw[arrow] (valid) -- node[anchor=south]{No} (safe);
-    \draw[arrow] (safe) |- (done);
+    \draw[arrow] (safe.west) -- ++(-0.9,0) -- (-5.9,-14.1) -- (done.west);
     \draw[arrow] (valid) -- node[anchor=west]{Yes} (low);
     \draw[arrow] (low) -- node[anchor=south]{Yes} (on);
-    \draw[arrow] (on) |- (done);
-    \draw[arrow] (low) -- node[anchor=east]{No} (high);
+    \draw[arrow] (on.east) -- ++(0.9,0) -- (5.9,-14.1) -- (done.east);
+    \draw[arrow] (low) -- node[anchor=west]{No} (high);
     \draw[arrow] (high) -- node[anchor=south]{Yes} (off);
-    \draw[arrow] (off) |- (done);
+    \draw[arrow] (off.south) -- (-5.0,-14.1) -- (done.west);
     \draw[arrow] (high) -- node[anchor=west]{No} (hold);
     \draw[arrow] (hold) -- (done);
 \end{tikzpicture}
@@ -139,8 +173,8 @@ The lab follows the repository's layered style. The application layer creates ta
 \begin{tikzpicture}[>=Stealth, auto,
     every state/.style={draw, rectangle, rounded corners, minimum width=2.2cm,
                         minimum height=0.9cm, align=center}]
-    \node[state, initial] (off) at (-3.0,0) {Relay OFF};
-    \node[state, accepting] (on) at (3.0,0) {Relay ON};
+    \node[state, initial] (off) at (-4.0,0) {Relay OFF};
+    \node[state, accepting] (on) at (4.0,0) {Relay ON};
     \path[->]
         (off) edge[bend left] node[above] {$T \leq T_{low}$} (on)
         (on) edge[bend left] node[below] {$T \geq T_{high}$} (off)
@@ -157,32 +191,35 @@ The lab follows the repository's layered style. The application layer creates ta
 
 \begin{figure}[H]
 \centering
-\begin{circuitikz}[scale=0.9, transform shape]
+\begin{circuitikz}[scale=0.75, transform shape]
     \node[draw, rectangle, minimum width=3.0cm, minimum height=4.0cm, align=center] (mega) at (0,0) {Arduino\\Mega 2560};
 
-    \draw (-5.2,1.8) node[draw, rectangle, minimum width=2.0cm, minimum height=1.0cm, align=center] (dht) {DHT22};
-    \draw (dht.east) -- ++(1.0,0) node[anchor=south]{DATA} -- (-1.5,1.2) node[anchor=east]{D2};
-    \draw (-5.2,2.8) node[vcc]{5 V} to[R,l=1\,\si{k\ohm}] (-5.2,1.8);
-    \draw (-5.9,1.2) node[ground]{};
-    \draw (-5.9,1.2) -- (-5.9,1.55);
+    \draw (-6.0,2.4) node[draw, rectangle, minimum width=2.0cm, minimum height=1.0cm, align=center] (dht) {DHT22};
+    \draw (dht.east) -- (-3.0,2.4) node[circ]{} -- (-1.5,1.2) node[anchor=east]{D2};
+    \draw (-3.0,3.4) node[vcc]{5 V} to[R,l=1\,\si{k\ohm}] (-3.0,2.4);
+    \draw (-6.7,1.7) node[ground]{};
+    \draw (-6.7,1.7) -- (-6.7,2.05);
+    \draw (-3.9,2.65) node[anchor=south]{DATA};
 
-    \draw (-5.4,-0.3) node[vcc]{5 V}
-        to[R,l=Pot] (-5.4,-2.1) node[ground]{};
-    \draw (-5.4,-1.2) node[circ]{} -- (-1.5,-0.8) node[anchor=east]{A0};
+    \draw (-6.0,-0.2) node[vcc]{5 V}
+        to[R] (-6.0,-2.2) node[ground]{};
+    \draw (-6.95,-1.2) node[anchor=east]{Potentiometer};
+    \draw (-6.0,-1.2) node[circ]{} -- (-1.5,-0.8) node[anchor=east]{A0};
 
     \draw (1.5,1.4) node[anchor=west]{SDA/SCL} -- (4.5,1.4)
         node[draw, rectangle, minimum width=2.4cm, minimum height=0.9cm, align=center, anchor=west] {LCD 1602\\I2C};
 
-    \draw (-4.6,-3.1) node[draw, rectangle, minimum width=2.7cm, minimum height=1.0cm, align=center] (keypad) {4x4\\Keypad};
+    \draw (-5.2,-3.3) node[draw, rectangle, minimum width=2.7cm, minimum height=1.0cm, align=center] (keypad) {4x4\\Keypad};
     \draw (keypad.east) -- (-1.5,-2.2) node[anchor=east]{D4--D11};
 
     \draw (1.5,-1.0) node[anchor=west]{D12} -- (4.1,-1.0)
         node[draw, rectangle, minimum width=2.2cm, minimum height=1.0cm, align=center, anchor=west] (relay) {Relay\\Module};
-    \draw (4.8,-2.0) to[normal open switch, l=NO] (7.2,-2.0)
-        to[leD*, color=red, l=Load LED] (9.0,-2.0)
-        to[R,l=220\,\si{\ohm}] (10.5,-2.0)
+    \draw (relay.east) -- (6.8,-1.0) -- (6.8,-2.1);
+    \draw (6.8,-2.1) to[normal open switch, l^=NO] (8.8,-2.1)
+        to[leD*, color=red, l=Load LED] (10.2,-2.1)
+        to[R,l=220\,\si{\ohm}] (11.7,-2.1)
         node[ground]{};
-    \draw (4.8,-3.1) to[battery1,l=9 V] (7.2,-3.1);
+    \draw (6.8,-3.3) to[battery1,l=9 V] (8.8,-3.3);
 \end{circuitikz}
 \caption{Electrical schematic of the temperature control circuit}
 \label{fig:circuit_schematic}
@@ -263,9 +300,53 @@ labs/
 
 \subsection{Modular Implementation}
 
+\subsubsection{Implementation Overview}
+
+The implementation follows the same separation that was modeled in the architecture diagrams. Lab-specific behavior is located in `labs/lab/lab5\_1`, while reusable hardware and control abstractions are located under `labs/lib`. The application does not call `digitalWrite`, `analogRead`, DHT protocol methods, or LCD library methods directly from the control algorithm. Instead, the low-level operations are hidden behind wrappers such as `DhtSensor`, `AnalogSetpointInput`, `Relay`, `KeypadInput`, and `LcdDisplay`. This keeps the control task focused on the question ``what should the actuator do?'' and leaves the driver modules responsible for the question ``how is the hardware accessed?''
+
+The task design also follows the extra automatic-control requirements from the laboratory guide. Acquisition, control, actuation, display, and input are separated into dedicated modules. The shared variables are protected by a FreeRTOS mutex, and the control path is coordinated through binary semaphores so a new control decision is produced only after a fresh acquisition cycle. The keypad module uses the Keypad library debounce mechanism, while the control algorithm itself uses hysteresis to suppress relay oscillations around the setpoint.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    mod/.style={draw, rectangle, rounded corners, minimum width=2.25cm,
+                minimum height=0.85cm, align=center, fill=blue!10},
+    mainmod/.style={draw, rectangle, rounded corners, minimum width=3.4cm,
+                    minimum height=0.85cm, align=center, fill=blue!10},
+    statebox/.style={draw, rectangle, rounded corners, minimum width=4.2cm,
+                     minimum height=0.85cm, align=center, fill=blue!10},
+    lib/.style={draw, rectangle, rounded corners, minimum width=5.2cm,
+                minimum height=0.85cm, align=center, fill=green!10},
+    bus/.style={thick},
+    arrow/.style={thick,->,>=Stealth}
+]
+    \node[mainmod] (main) at (0,0) {lab5\_1\_main\\task creation};
+    \node[mod] (input) at (-5.2,-1.9) {Input task\\keypad};
+    \node[mod] (acq) at (-2.6,-1.9) {Acquisition\\DHT22 + A0};
+    \node[mod] (control) at (0,-1.9) {Control\\hysteresis};
+    \node[mod] (act) at (2.6,-1.9) {Actuation\\relay};
+    \node[mod] (display) at (5.2,-1.9) {Display\\LCD + plotter};
+    \node[statebox] (state) at (0,-4.2) {shared\_state\\mutex + semaphores};
+    \node[lib] (drivers) at (0,-5.9) {Reusable libraries\\DHT, ADC, relay, LCD, keypad};
+
+    \draw[arrow] (main.south) -- (0,-0.95);
+    \draw[bus] (-5.2,-0.95) -- (5.2,-0.95);
+    \foreach \x/\a in {-5.2/input,-2.6/acq,0/control,2.6/act,5.2/display}
+        \draw[arrow] (\x,-0.95) -- (\a.north);
+
+    \draw[bus] (-5.2,-3.05) -- (5.2,-3.05);
+    \foreach \x/\a in {-5.2/input,-2.6/acq,0/control,2.6/act,5.2/display}
+        \draw[arrow] (\a.south) -- (\x,-3.05);
+    \draw[arrow] (0,-3.05) -- (state.north);
+    \draw[arrow] (state) -- (drivers);
+\end{tikzpicture}
+\caption{Module responsibility map for the Lab 5.1 implementation}
+\label{fig:module_responsibility_map}
+\end{figure}
+
 \subsubsection{Application Layer: Lab Entry Point}
 
-The lab entry point initializes STDIO, creates synchronization primitives, prints a startup banner, and spawns the five FreeRTOS tasks.
+The lab entry point is intentionally small. It initializes the STDIO serial bridge at 9600 baud, prints a startup banner that documents the keypad commands and pin mapping, initializes the shared state, and creates the five tasks. After setup completes, `lab5\_1Loop()` remains empty because the Arduino FreeRTOS integration transfers execution to the scheduler. This preserves the repository rule that the lab-specific entry point orchestrates the application but does not contain low-level driver logic.
 
 \begin{lstlisting}[language=C++, caption=Lab 5.1 setup entry point, label=lst:lab5_setup]
 void lab5_1Setup() {
@@ -284,9 +365,30 @@ void lab5_1Setup() {
 }
 \end{lstlisting}
 
+\subsubsection{Shared State and Synchronization}
+
+The shared state module is the communication contract between tasks. It stores the most recent measured temperature, measured humidity, potentiometer raw value, potentiometer setpoint, manual setpoint, active setpoint source, hysteresis band, computed thresholds, desired relay command, actual relay state, and diagnostic counters. A mutex, `xLab5StateMutex`, protects this structure so that multi-field updates are seen consistently by the display and control tasks.
+
+Two semaphores express the event order of the control chain. The new-sample semaphore is given by the acquisition task after it writes a sample. The control task waits on this semaphore, so the hysteresis calculation cannot run on stale data in a tight loop. After calculating the new command, the control task gives the actuator semaphore, which wakes the actuation task. This separation is useful on real hardware because the relay driver remains centralized in one task, while the control task remains pure decision logic.
+
+\begin{lstlisting}[language=C++, caption=Shared state fields used by the control path, label=lst:shared_state_fields]
+struct Lab5ControlState {
+    float measuredTempC;
+    float activeSetpointC;
+    float hysteresisBandC;
+    float lowerThresholdC;
+    float upperThresholdC;
+    bool sensorValid;
+    bool controlCommandOn;
+    bool actuatorOn;
+};
+\end{lstlisting}
+
 \subsubsection{Service Layer: Hysteresis Controller}
 
-The `OnOffHysteresisController` module implements the control law. It is independent of Arduino pin operations, so it can be reused for other binary actuators.
+The `OnOffHysteresisController` module implements the core control law. It stores the selected setpoint, the full hysteresis band, and the previous output state. The previous output state is important: if the measured temperature is inside the hysteresis band, the controller must not compute a new command from scratch. It must preserve its last command, otherwise the relay would still chatter around the reference.
+
+For a heating-style actuator, the lower threshold represents the point where heat is needed, and the upper threshold represents the point where the actuator can stop. In this lab, the relay is turned ON when the measured temperature is less than or equal to the lower threshold and turned OFF when the measured temperature is greater than or equal to the upper threshold. If the sensor read is invalid, the control task calls `forceOutput(false)` before updating the shared command, which makes the relay fail safe.
 
 \begin{lstlisting}[language=C++, caption=ON-OFF hysteresis controller interface, label=lst:hysteresis_header]
 class OnOffHysteresisController {
@@ -302,9 +404,24 @@ public:
 };
 \end{lstlisting}
 
+\begin{lstlisting}[language=C++, caption=Hysteresis state update, label=lst:hysteresis_update]
+bool OnOffHysteresisController::update(float measuredValue) {
+    if (_state == HYSTERESIS_OUTPUT_OFF &&
+        measuredValue <= getLowerThreshold()) {
+        _state = HYSTERESIS_OUTPUT_ON;
+    } else if (_state == HYSTERESIS_OUTPUT_ON &&
+               measuredValue >= getUpperThreshold()) {
+        _state = HYSTERESIS_OUTPUT_OFF;
+    }
+    return isOutputOn();
+}
+\end{lstlisting}
+
 \subsubsection{ECAL Layer: Acquisition Wrappers}
 
-The `DhtSensor` wrapper owns DHT22 protocol access and validity checking. The `AnalogSetpointInput` wrapper owns ADC acquisition and maps the potentiometer reading to the 15--35 degrees Celsius setpoint range.
+The `DhtSensor` wrapper owns DHT22 protocol access and validity checking. It calls the Adafruit DHT library, rejects `NaN` readings, and exposes the last valid temperature and humidity through simple getters. This means the acquisition task does not need to know the details of the DHT timing protocol or library error values.
+
+The `AnalogSetpointInput` wrapper owns ADC acquisition and maps the potentiometer reading to the 15--35 degrees Celsius setpoint range. The conversion is linear: ADC value 0 maps to the minimum setpoint and ADC value 1023 maps to the maximum setpoint. This wrapper makes the setpoint range easy to change from configuration without touching the task logic.
 
 \begin{lstlisting}[language=C++, caption=Acquisition task sequence, label=lst:acquisition_task]
 bool sensorOk = s_dht.read();
@@ -324,9 +441,86 @@ state->activeSetpointC =
 lab5StateUnlock();
 \end{lstlisting}
 
-\subsubsection{Application Tasks}
+\subsubsection{Input Task}
 
-The input task translates keypad events into state changes. The acquisition task samples DHT22 and the potentiometer. The control task evaluates hysteresis after each new sample. The actuation task applies the relay command. The display task writes LCD lines and prints Serial Plotter fields.
+The input task scans the keypad every 50 ms. The `KeypadInput` wrapper configures a 20 ms debounce interval, so the task receives stable key events rather than raw electrical transitions. Key `A` toggles between potentiometer and manual setpoint modes. Keys `B` and `C` decrement and increment the manual setpoint by 0.5 degrees Celsius. Key `D` cycles the hysteresis band from 0.5 to 5.0 degrees Celsius. Digit keys start numeric setpoint entry, `\#` confirms the typed value, and `*` cancels the edit.
+
+The task writes only user-intent fields in shared state. It does not calculate thresholds, access the relay, or write to the LCD. That keeps interaction policy independent from control and display policy.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+    \node (start) [startstop] at (0, 0.0) {Scan keypad};
+    \node (key)   [decision]  at (0,-2.4) {Key pressed?};
+    \node (none)  [process]   at (-4.8,-4.8) {Wait next period};
+    \node (class) [decision]  at (1.8,-4.8) {Command key?};
+    \node (cmd)   [process, text width=3.0cm, align=center]   at (4.6,-7.1) {Toggle source, step SP, or cycle H};
+    \node (digit) [process, text width=3.0cm, align=center]   at (-2.6,-7.1) {Edit numeric setpoint buffer};
+    \node (write) [process]   at (0,-9.2) {Write shared input state};
+    \node (stop)  [startstop] at (0,-11.0) {Delay 50 ms};
+
+    \draw[arrow] (start) -- (key);
+    \draw[arrow] (key) -- node[anchor=south]{No} (none);
+    \draw[arrow] (none.south) -- (-4.8,-11.0) -- (stop.west);
+    \draw[arrow] (key) -- node[anchor=west]{Yes} (class);
+    \draw[arrow] (class) -- node[anchor=south]{Yes} (cmd);
+    \draw[arrow] (cmd.south) -- (4.6,-9.2) -- (write.east);
+    \draw[arrow] (class) -- node[anchor=east]{No} (digit);
+    \draw[arrow] (digit) -- (write);
+    \draw[arrow] (write) -- (stop);
+\end{tikzpicture}
+\caption{Flowchart of keypad input processing}
+\label{fig:keypad_input_flowchart}
+\end{figure}
+
+\subsubsection{Acquisition Task}
+
+The acquisition task runs every 2000 ms, matching the practical sampling rate of the DHT22. Each cycle reads both sensor values and the potentiometer setpoint before taking the mutex. This is deliberate: slow I/O is performed outside the critical section, and the mutex is held only while copying values into shared state. If the selected setpoint source is the potentiometer, the active setpoint is updated from A0. If the selected source is manual, the active setpoint is copied from `manualSetpointC` instead.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+    \node (start) [startstop] at (0, 0.0) {Acquire cycle};
+    \node (dht)   [process]   at (0,-1.8) {Read DHT22 temperature and humidity};
+    \node (pot)   [process]   at (0,-3.6) {Read A0 and map to 15--35 C};
+    \node (src)   [decision]  at (0,-6.1) {Source = POT?};
+    \node (usepot)[process]   at (-4.6,-8.4) {Use potentiometer setpoint};
+    \node (useman)[process]   at (4.6,-8.4) {Use manual setpoint};
+    \node (write) [process]   at (0,-10.8) {Write shared sample under mutex};
+    \node (sem)   [process]   at (0,-12.6) {Give new-sample semaphore};
+
+    \draw[arrow] (start) -- (dht);
+    \draw[arrow] (dht) -- (pot);
+    \draw[arrow] (pot) -- (src);
+    \draw[arrow] (src) -- node[anchor=south]{Yes} (usepot);
+    \draw[arrow] (src) -- node[anchor=south]{No} (useman);
+    \draw[arrow] (usepot.south) -- (-4.6,-10.8) -- (write.west);
+    \draw[arrow] (useman.south) -- (4.6,-10.8) -- (write.east);
+    \draw[arrow] (write) -- (sem);
+\end{tikzpicture}
+\caption{Flowchart of the acquisition task}
+\label{fig:acquisition_flowchart}
+\end{figure}
+
+\subsubsection{Control and Actuation Tasks}
+
+The control task is event-driven. It waits for a new sample, copies the current temperature, active setpoint, and hysteresis band, then updates the hysteresis controller outside the mutex. Once the command is calculated, it writes the command, controller state, lower threshold, upper threshold, and diagnostic counter back into shared state. It then gives the actuator semaphore.
+
+The actuation task owns the `Relay` instance. This is a small but important design choice because relay writes are centralized in exactly one task. The task wakes only when the control task gives the actuator semaphore, reads the desired command, applies it through the relay wrapper, and writes back the actual relay state. It also increments `actuatorSwitches` whenever the physical output changes, which can later be used to evaluate relay wear or controller aggressiveness.
+
+\begin{lstlisting}[language=C++, caption=Control-to-actuation handoff, label=lst:control_actuation_handoff]
+state->controlCommandOn = commandOn;
+state->lowerThresholdC = s_controller.getLowerThreshold();
+state->upperThresholdC = s_controller.getUpperThreshold();
+state->controlCycles++;
+xSemaphoreGive(xLab5ActuatorSemaphore);
+\end{lstlisting}
+
+\subsubsection{Display and Serial Plotter Task}
+
+The display task runs every 500 ms. It copies the shared state while holding the mutex briefly, then formats the LCD and serial output outside the critical section. This prevents slow display operations from blocking acquisition or control. The LCD alternates between two pages: a primary page with measured temperature, setpoint, relay state, and sensor status; and a diagnostics page with hysteresis band, humidity, setpoint source, and lower/upper thresholds. During numeric setpoint entry, the LCD switches to an edit page so the typed digits are visible before confirmation.
+
+The Serial Plotter output is intentionally compact and stable. Each line uses named fields: `SetPoint`, `Value`, `Output`, `Low`, `High`, and `Valid`. Arduino Serial Plotter can display these named channels over time, which directly satisfies the requirement to transmit SetPoint, Value, and Output for real-time analysis.
 
 \begin{lstlisting}[language=C++, caption=Serial Plotter report format, label=lst:plotter_output]
 printf("SetPoint:%s Value:%s Output:%u Low:%s High:%s Valid:%u\r\n",
@@ -337,3 +531,28 @@ printf("SetPoint:%s Value:%s Output:%u Low:%s High:%s Valid:%u\r\n",
        plotHigh,
        snapshot.sensorValid ? 1U : 0U);
 \end{lstlisting}
+
+\subsubsection{Timing Configuration and Justification}
+
+The selected recurrences are chosen around the hardware limitations and human interface needs. The keypad scan period is 50 ms because human button presses are slow compared with MCU execution and because the wrapper already debounces key transitions. The DHT22 acquisition period is 2000 ms to avoid invalid reads caused by excessive polling. The display period is 500 ms, fast enough to feel responsive during keypad entry but slow enough to avoid unnecessary I2C traffic. Control and actuation are event-driven rather than periodic, so the relay decision follows the newest sample without wasting CPU time between samples.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|p{3.2cm}|p{3.0cm}|p{7.0cm}|}
+\hline
+\textbf{Task} & \textbf{Trigger} & \textbf{Responsibility} \\
+\hline
+Input & 50 ms period & Scan debounced keypad events and update setpoint/hysteresis commands. \\
+\hline
+Acquisition & 2000 ms period & Read DHT22 temperature/humidity and potentiometer setpoint. \\
+\hline
+Control & New-sample semaphore & Apply ON-OFF hysteresis and publish relay command. \\
+\hline
+Actuation & Actuator semaphore & Apply relay command and report actual relay state. \\
+\hline
+Display & 500 ms period & Update LCD pages and print Serial Plotter channels. \\
+\hline
+\end{tabular}
+\caption{FreeRTOS task timing and responsibility summary}
+\label{tab:task_timing}
+\end{table}

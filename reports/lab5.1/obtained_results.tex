@@ -36,6 +36,29 @@ The laboratory is intended to be validated on real hardware. The physical setup 
 
 \subsection{Validation Scenarios}
 
+The validation scenarios are organized around the requirements defined in the Domain Analysis section. Because the final execution is on a physical Arduino setup, each scenario includes a placeholder for the real evidence that must be captured after flashing and running the board. The expected serial data format is also known before the physical run, because it is produced by the display task in every 500 ms cycle.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|p{3.3cm}|p{5.0cm}|p{5.3cm}|}
+\hline
+\textbf{Scenario} & \textbf{Action} & \textbf{Expected Evidence} \\
+\hline
+Normal operation & Power the board and wait for DHT22 acquisition. & LCD shows temperature, setpoint, relay state; Serial Plotter receives named channels. \\
+\hline
+Lower threshold crossing & Lower the setpoint above the current temperature or cool the sensor. & Output changes to 1 and relay/load branch indicates ON. \\
+\hline
+Upper threshold crossing & Warm the sensor above the upper threshold. & Output changes to 0 and relay/load branch indicates OFF. \\
+\hline
+Inside hysteresis band & Keep temperature between lower and upper thresholds. & Output remains at its previous state, proving relay chatter suppression. \\
+\hline
+Manual setpoint entry & Press digits on keypad and confirm with `\#`. & LCD edit page appears, then Serial Plotter SetPoint changes after confirmation. \\
+\hline
+\end{tabular}
+\caption{Hardware validation scenario matrix}
+\label{tab:validation_scenarios}
+\end{table}
+
 \subsubsection{Normal Measurement and Display}
 
 After startup, the LCD should alternate between temperature/setpoint status and hysteresis diagnostics. The Serial Plotter line should include `SetPoint`, `Value`, `Output`, `Low`, and `High`.
