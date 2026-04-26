@@ -1,0 +1,21 @@
+\section{Conclusion}
+
+\subsection{Achievement of Objectives}
+
+The laboratory objective was achieved by implementing a modular ON-OFF temperature-control application with hysteresis. The system acquires temperature from a DHT22 sensor, obtains a configurable setpoint from either a potentiometer or keypad input, computes lower and upper hysteresis thresholds, drives a relay actuator, and reports runtime values through LCD and Serial Plotter output.
+
+\subsection{Performance Analysis and System Limitations}
+
+The system is appropriate for slow thermal processes. The 2000 ms acquisition period protects the DHT22 from over-polling and is sufficient for ambient-temperature experiments. The hysteresis band reduces relay chatter and protects the mechanical actuator from frequent switching. A limitation is that the relay provides only binary actuation, so the controller cannot regulate power smoothly. Another limitation is that the DHT22 response time and measurement resolution limit how quickly the controller can react to sudden environmental changes.
+
+\subsection{Proposed Improvements}
+
+Future versions could add EEPROM persistence for the selected setpoint and hysteresis band, a menu page for selecting relay active level, a physical heater or fan instead of LED load indicators, and timestamped logging to a computer. For more precise thermal control, the second part of the automatic-control laboratory could replace the relay logic with a PID controller and a PWM-capable actuator.
+
+\subsection{Reflections on the Learning Experience}
+
+This laboratory demonstrates why hysteresis is essential when binary actuators are controlled from noisy or slowly changing measurements. It also reinforces the value of modular embedded design: sensor acquisition, interaction, control, actuation, and reporting can evolve independently when their responsibilities are kept separate.
+
+\subsection{Impact of Technology in Real-World Applications}
+
+The same architecture can be found in thermostats, incubators, greenhouse controllers, HVAC systems, and industrial threshold controllers. These applications often prefer simple ON-OFF control because it is robust, explainable, and inexpensive, while hysteresis provides the stability needed for mechanical actuators and real sensors.

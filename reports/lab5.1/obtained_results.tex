@@ -1,0 +1,140 @@
+\section{Obtained Results}
+
+\subsection{Build Process}
+
+The PlatformIO environment `lab5\_1` was compiled successfully for the Arduino Mega 2560 target. The successful build produced the firmware files used by the real board and by the optional Wokwi wiring reference. The build reported approximately 2056 bytes of RAM usage from 8192 bytes and 25868 bytes of flash usage from 253952 bytes.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/build_results.png}{%
+    \includegraphics[width=0.85\textwidth]{resources/ObtainedResults/build_results.png}%
+}{%
+    \fbox{\parbox{0.83\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save successful PlatformIO build output to\\
+        resources/ObtainedResults/build\_results.png]}}%
+}
+\caption{Successful PlatformIO build output for `lab5\_1`}
+\label{fig:build_results}
+\end{figure}
+
+\subsection{Physical Hardware Setup}
+
+The laboratory is intended to be validated on real hardware. The physical setup should show the Arduino Mega, DHT22, potentiometer, keypad, LCD, relay module, breadboard, external battery, and LED load branch connected according to the pin map documented in the Design section.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/hardware_setup.png}{%
+    \includegraphics[width=0.85\textwidth]{resources/ObtainedResults/hardware_setup.png}%
+}{%
+    \fbox{\parbox{0.83\textwidth}{\centering\color{gray}\small
+        [Photo pending --- save the complete real Arduino setup to\\
+        resources/ObtainedResults/hardware\_setup.png]}}%
+}
+\caption{Physical Arduino setup prepared for real-hardware validation}
+\label{fig:hardware_setup}
+\end{figure}
+
+\subsection{Validation Scenarios}
+
+\subsubsection{Normal Measurement and Display}
+
+After startup, the LCD should alternate between temperature/setpoint status and hysteresis diagnostics. The Serial Plotter line should include `SetPoint`, `Value`, `Output`, `Low`, and `High`.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/test_normal_operation.png}{%
+    \includegraphics[width=0.75\textwidth]{resources/ObtainedResults/test_normal_operation.png}%
+}{%
+    \fbox{\parbox{0.73\textwidth}{\centering\color{gray}\small
+        [Screenshot/photo pending --- save normal LCD/Serial operation to\\
+        resources/ObtainedResults/test\_normal\_operation.png]}}%
+}
+\caption{Normal operation with temperature, setpoint, and relay state visible}
+\label{fig:test_normal_operation}
+\end{figure}
+
+\subsubsection{Relay Turns ON Below the Lower Threshold}
+
+When the measured temperature falls below the lower threshold, the controller output must become 1 and the relay must energize. The physical load branch should indicate the switched state.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/test_relay_on.png}{%
+    \includegraphics[width=0.75\textwidth]{resources/ObtainedResults/test_relay_on.png}%
+}{%
+    \fbox{\parbox{0.73\textwidth}{\centering\color{gray}\small
+        [Photo/screenshot pending --- save relay ON validation to\\
+        resources/ObtainedResults/test\_relay\_on.png]}}%
+}
+\caption{Relay activation after temperature drops below the lower threshold}
+\label{fig:test_relay_on}
+\end{figure}
+
+\subsubsection{Relay Turns OFF Above the Upper Threshold}
+
+When the measured temperature rises above the upper threshold, the controller output must return to 0 and the relay must de-energize. Values inside the hysteresis band should not change the relay state.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/test_relay_off.png}{%
+    \includegraphics[width=0.75\textwidth]{resources/ObtainedResults/test_relay_off.png}%
+}{%
+    \fbox{\parbox{0.73\textwidth}{\centering\color{gray}\small
+        [Photo/screenshot pending --- save relay OFF validation to\\
+        resources/ObtainedResults/test\_relay\_off.png]}}%
+}
+\caption{Relay deactivation after temperature rises above the upper threshold}
+\label{fig:test_relay_off}
+\end{figure}
+
+\subsubsection{Manual Setpoint Entry}
+
+The keypad supports switching from potentiometer setpoint mode to manual mode. Digits start numeric entry, `\#` confirms the requested setpoint, and `*` cancels the entry.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/test_manual_setpoint.png}{%
+    \includegraphics[width=0.75\textwidth]{resources/ObtainedResults/test_manual_setpoint.png}%
+}{%
+    \fbox{\parbox{0.73\textwidth}{\centering\color{gray}\small
+        [Photo/screenshot pending --- save keypad setpoint test to\\
+        resources/ObtainedResults/test\_manual\_setpoint.png]}}%
+}
+\caption{Manual setpoint entry through the 4x4 keypad}
+\label{fig:test_manual_setpoint}
+\end{figure}
+
+\subsubsection{Serial Plotter Hysteresis Trace}
+
+The Serial Plotter should show the setpoint, measured value, lower and upper thresholds, and binary output over time. The expected trace has a rectangular output signal that changes only at threshold crossings.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/serial_plotter_hysteresis.png}{%
+    \includegraphics[width=0.85\textwidth]{resources/ObtainedResults/serial_plotter_hysteresis.png}%
+}{%
+    \fbox{\parbox{0.83\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save Arduino Serial Plotter trace to\\
+        resources/ObtainedResults/serial\_plotter\_hysteresis.png]}}%
+}
+\caption{Arduino Serial Plotter trace of ON-OFF control with hysteresis}
+\label{fig:serial_plotter_hysteresis}
+\end{figure}
+
+\subsection{System Observations}
+
+The implementation uses a 2000 ms acquisition period because the DHT22 should not be polled aggressively. This period is acceptable for room-temperature control, where thermal changes are slow compared with MCU execution time. The relay output is fail-safe: invalid sensor reads force the actuator OFF. The potentiometer provides fast analog setpoint adjustment, while the keypad gives repeatable manual values and hysteresis-band control.
+
+The Wokwi project is retained as a wiring reference, but the missing battery in the simulator does not affect firmware behavior because the MCU only controls the relay coil input. The switched load branch is electrically separate from the logic branch and must be validated on the physical setup.
+
+\subsection{Verification Summary}
+
+\begin{itemize}
+    \item \textbf{Compilation:} `lab5\_1` builds successfully for Arduino Mega 2560.
+    \item \textbf{Acquisition:} DHT22 temperature and humidity are sampled in a dedicated task.
+    \item \textbf{Setpoint:} A0 potentiometer input is mapped to 15--35 degrees Celsius, with keypad override.
+    \item \textbf{Control:} Hysteresis logic preserves relay state inside the dead band.
+    \item \textbf{Actuation:} Relay command is applied from a separate task.
+    \item \textbf{Display:} LCD and Serial Plotter output expose setpoint, value, thresholds, output, and validity.
+    \item \textbf{Validation evidence:} Hardware photos and Serial Plotter screenshots must be added after running the real Arduino setup.
+\end{itemize}

@@ -1,0 +1,62 @@
+\section{Appendix}
+
+The complete source code is organized below by architectural layer. All source files are available in the project GitHub repository.
+
+\textbf{GitHub Repository:} \url{https://github.com/mcittkmims/es-labs}
+
+\subsection{PlatformIO Environment}
+
+\begin{lstlisting}[caption=PlatformIO Lab 5.1 environment, label=lst:appendix_platformio]
+[env:lab5_1]
+platform = atmelavr
+board = megaatmega2560
+framework = arduino
+monitor_speed = 9600
+build_src_filter = +<*> +<../lab/lab5_1/*>
+build_flags = -I lab/lab5_1 -DLAB5_1
+lib_deps =
+    feilipu/FreeRTOS
+    marcoschwartz/LiquidCrystal_I2C@^1.1.4
+    chris--a/Keypad@^3.1.1
+    adafruit/DHT sensor library@^1.4.6
+\end{lstlisting}
+
+\subsection{Application Layer}
+
+\lstinputlisting[language=C++, caption=Lab 5.1 main header, label=lst:appendix_main_h]{../../labs/lab/lab5_1/lab5_1_main.h}
+
+\lstinputlisting[language=C++, caption=Lab 5.1 main implementation, label=lst:appendix_main_cpp]{../../labs/lab/lab5_1/lab5_1_main.cpp}
+
+\lstinputlisting[language=C++, caption=Lab 5.1 configuration header, label=lst:appendix_config_h]{../../labs/lab/lab5_1/lab5_1_config.h}
+
+\lstinputlisting[language=C++, caption=Lab 5.1 configuration implementation, label=lst:appendix_config_cpp]{../../labs/lab/lab5_1/lab5_1_config.cpp}
+
+\subsection{Shared State and Tasks}
+
+\lstinputlisting[language=C++, caption=Shared state header, label=lst:appendix_state_h]{../../labs/lab/lab5_1/shared_state.h}
+
+\lstinputlisting[language=C++, caption=Shared state implementation, label=lst:appendix_state_cpp]{../../labs/lab/lab5_1/shared_state.cpp}
+
+\lstinputlisting[language=C++, caption=Keypad input task, label=lst:appendix_input_cpp]{../../labs/lab/lab5_1/task_input.cpp}
+
+\lstinputlisting[language=C++, caption=Acquisition task, label=lst:appendix_acq_cpp]{../../labs/lab/lab5_1/task_acquisition.cpp}
+
+\lstinputlisting[language=C++, caption=Control task, label=lst:appendix_control_cpp]{../../labs/lab/lab5_1/task_control.cpp}
+
+\lstinputlisting[language=C++, caption=Actuation task, label=lst:appendix_act_cpp]{../../labs/lab/lab5_1/task_actuation.cpp}
+
+\lstinputlisting[language=C++, caption=Display and reporting task, label=lst:appendix_display_cpp]{../../labs/lab/lab5_1/task_display.cpp}
+
+\subsection{Reusable Libraries Added for Lab 5.1}
+
+\lstinputlisting[language=C++, caption=DHT sensor wrapper header, label=lst:appendix_dht_h]{../../labs/lib/DhtSensor/DhtSensor.h}
+
+\lstinputlisting[language=C++, caption=DHT sensor wrapper implementation, label=lst:appendix_dht_cpp]{../../labs/lib/DhtSensor/DhtSensor.cpp}
+
+\lstinputlisting[language=C++, caption=Analog setpoint input header, label=lst:appendix_pot_h]{../../labs/lib/AnalogSetpointInput/AnalogSetpointInput.h}
+
+\lstinputlisting[language=C++, caption=Analog setpoint input implementation, label=lst:appendix_pot_cpp]{../../labs/lib/AnalogSetpointInput/AnalogSetpointInput.cpp}
+
+\lstinputlisting[language=C++, caption=ON-OFF hysteresis controller header, label=lst:appendix_hyst_h]{../../labs/lib/OnOffHysteresisController/OnOffHysteresisController.h}
+
+\lstinputlisting[language=C++, caption=ON-OFF hysteresis controller implementation, label=lst:appendix_hyst_cpp]{../../labs/lib/OnOffHysteresisController/OnOffHysteresisController.cpp}

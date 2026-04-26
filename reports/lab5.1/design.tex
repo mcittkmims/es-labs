@@ -1,0 +1,339 @@
+\section{Design}
+
+\subsection{System Architecture Diagrams}
+
+\subsubsection{Component-Level Architecture}
+
+The component-level architecture is centered on the Arduino Mega 2560. The DHT22 and potentiometer provide measured and reference inputs, the keypad provides manual interaction, the LCD and Serial Plotter expose runtime state, and the relay module applies the ON-OFF actuator output.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    comp/.style={draw, rectangle, rounded corners, minimum width=3.0cm,
+                 minimum height=0.85cm, text centered, align=center, fill=blue!10},
+    arrow/.style={thick,->,>=Stealth}
+]
+    \node[comp] (mcu)    at (0, 0)       {Arduino Mega\\2560};
+    \node[comp] (dht)    at (-5.1, 2.0)  {DHT22\\Temperature};
+    \node[comp] (pot)    at (-5.1, 0.4)  {Potentiometer\\Setpoint};
+    \node[comp] (keypad) at (-5.1,-1.2)  {4x4 Keypad\\Manual Input};
+    \node[comp] (lcd)    at (5.1, 2.0)   {LCD 1602\\I2C};
+    \node[comp] (serial) at (5.1, 0.4)   {Serial Plotter\\STDIO};
+    \node[comp] (relay)  at (5.1,-1.2)   {Relay Module\\Actuator};
+    \node[comp] (load)   at (5.1,-2.8)   {External Load\\LED/Battery};
+
+    \draw[arrow] (dht.east) -- node[above, font=\tiny]{D2 data} (mcu.west);
+    \draw[arrow] (pot.east) -- node[above, font=\tiny]{A0 ADC} (mcu.west);
+    \draw[arrow] (keypad.east) -- node[below, font=\tiny]{D4--D11} (mcu.west);
+    \draw[arrow] (mcu.east) -- node[above, font=\tiny]{SDA/SCL} (lcd.west);
+    \draw[arrow] (mcu.east) -- node[above, font=\tiny]{UART} (serial.west);
+    \draw[arrow] (mcu.east) -- node[above, font=\tiny]{D12} (relay.west);
+    \draw[arrow] (relay.south) -- node[right, font=\tiny]{contacts} (load.north);
+\end{tikzpicture}
+\caption{System structural diagram of Lab 5.1}
+\label{fig:system_structural_diagram}
+\end{figure}
+
+\subsubsection{Layered System Architecture}
+
+The lab follows the repository's layered style. The application layer creates tasks and defines behavior. The service layer owns shared state and the hysteresis algorithm. ECAL wrappers expose clean interfaces for DHT22, setpoint input, LCD, keypad, relay, and STDIO. MCAL/library code performs the actual Arduino pin and protocol operations.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    box/.style={draw, rectangle, minimum width=11cm, minimum height=0.8cm,
+                text centered, align=center, fill=blue!10},
+    arrow/.style={thick,->,>=Stealth}
+]
+    \node[box] (app)  at (0, 0.0)  {Application Layer: FreeRTOS tasks and lab5\_1 entry point};
+    \node[box] (srv)  at (0,-1.1)  {Service Layer: shared state, setpoint selection, ON-OFF hysteresis};
+    \node[box] (ecal) at (0,-2.2)  {ECAL Wrappers: DhtSensor, AnalogSetpointInput, LcdDisplay, KeypadInput, Relay};
+    \node[box] (mcal) at (0,-3.3)  {MCAL and Libraries: Arduino GPIO/ADC/I2C/UART, DHT, Keypad, LiquidCrystal\_I2C};
+    \node[box] (hw)   at (0,-4.4)  {Hardware: Arduino Mega, DHT22, potentiometer, keypad, LCD, relay, load};
+    \foreach \a/\b in {app/srv, srv/ecal, ecal/mcal, mcal/hw}
+        \draw[arrow] (\a) -- (\b);
+\end{tikzpicture}
+\caption{Layered architecture of the ON-OFF control application}
+\label{fig:layered_architecture}
+\end{figure}
+
+\subsection{Block Diagrams}
+
+\subsubsection{Runtime Data Flow}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    proc/.style={draw, rectangle, rounded corners, minimum width=3.4cm,
+                 minimum height=0.85cm, text centered, align=center, fill=blue!10},
+    store/.style={draw, cylinder, shape border rotate=90, aspect=0.25,
+                  minimum width=2.0cm, minimum height=1.1cm, align=center, fill=gray!15},
+    arrow/.style={thick,->,>=Stealth}
+]
+    \node[proc]  (input)   at (-4.6, 1.8) {Input Task\\Keypad};
+    \node[proc]  (acq)     at (-4.6, 0.0) {Acquisition Task\\DHT22 + A0};
+    \node[store] (state)   at (0.0, 0.8)  {Shared\\State};
+    \node[proc]  (control) at (4.6, 0.0)  {Control Task\\Hysteresis};
+    \node[proc]  (act)     at (4.6,-1.8)  {Actuation Task\\Relay};
+    \node[proc]  (disp)    at (0.0,-2.8)  {Display Task\\LCD + Plotter};
+
+    \draw[arrow] (input.east) -- (state.west);
+    \draw[arrow] (acq.east) -- (state.west);
+    \draw[arrow] (state.east) -- (control.west);
+    \draw[arrow] (control.south) -- (act.north);
+    \draw[arrow] (state.south) -- (disp.north);
+    \draw[arrow] (control.west) -- (state.east);
+    \draw[arrow] (act.west) -- (state.east);
+\end{tikzpicture}
+\caption{FreeRTOS task data flow}
+\label{fig:task_data_flow}
+\end{figure}
+
+\subsubsection{Control Algorithm Flowchart}
+
+\tikzset{
+    startstop/.style={rectangle, rounded corners, minimum width=2.8cm,
+        minimum height=0.7cm, text centered, align=center, draw=black, fill=gray!15},
+    process/.style={rectangle, minimum width=3.2cm,
+        minimum height=0.75cm, text centered, align=center, draw=black, fill=blue!10},
+    decision/.style={diamond, aspect=2.5, minimum width=2.4cm,
+        minimum height=0.8cm, text centered, align=center, draw=black, fill=orange!15},
+    arrow/.style={thick,->,>=Stealth}
+}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+    \node (start) [startstop] at (0, 0.0) {New sample};
+    \node (read)  [process]   at (0,-1.8) {Read temperature, setpoint, hysteresis};
+    \node (valid) [decision]  at (0,-4.1) {Sensor valid?};
+    \node (safe)  [process]   at (-4.0,-6.4) {Force output OFF};
+    \node (low)   [decision]  at (2.3,-6.4) {$T \leq T_{low}$?};
+    \node (on)    [process]   at (5.7,-8.7) {Set output ON};
+    \node (high)  [decision]  at (0,-8.7) {$T \geq T_{high}$?};
+    \node (off)   [process]   at (-4.0,-11.0) {Set output OFF};
+    \node (hold)  [process]   at (1.6,-11.0) {Keep previous output};
+    \node (done)  [startstop] at (0,-13.0) {Update shared command};
+
+    \draw[arrow] (start) -- (read);
+    \draw[arrow] (read) -- (valid);
+    \draw[arrow] (valid) -- node[anchor=south]{No} (safe);
+    \draw[arrow] (safe) |- (done);
+    \draw[arrow] (valid) -- node[anchor=west]{Yes} (low);
+    \draw[arrow] (low) -- node[anchor=south]{Yes} (on);
+    \draw[arrow] (on) |- (done);
+    \draw[arrow] (low) -- node[anchor=east]{No} (high);
+    \draw[arrow] (high) -- node[anchor=south]{Yes} (off);
+    \draw[arrow] (off) |- (done);
+    \draw[arrow] (high) -- node[anchor=west]{No} (hold);
+    \draw[arrow] (hold) -- (done);
+\end{tikzpicture}
+\caption{Flowchart of the ON-OFF control algorithm with hysteresis}
+\label{fig:control_flowchart}
+\end{figure}
+
+\subsubsection{Controller State Diagram}
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[>=Stealth, auto,
+    every state/.style={draw, rectangle, rounded corners, minimum width=2.2cm,
+                        minimum height=0.9cm, align=center}]
+    \node[state, initial] (off) at (-3.0,0) {Relay OFF};
+    \node[state, accepting] (on) at (3.0,0) {Relay ON};
+    \path[->]
+        (off) edge[bend left] node[above] {$T \leq T_{low}$} (on)
+        (on) edge[bend left] node[below] {$T \geq T_{high}$} (off)
+        (off) edge[loop above] node {$T > T_{low}$} (off)
+        (on) edge[loop above] node {$T < T_{high}$} (on);
+\end{tikzpicture}
+\caption{Hysteresis controller state diagram}
+\label{fig:hysteresis_state_diagram}
+\end{figure}
+
+\subsection{Electrical Schematics}
+
+\subsubsection{Circuit Schematic}
+
+\begin{figure}[H]
+\centering
+\begin{circuitikz}[scale=0.9, transform shape]
+    \node[draw, rectangle, minimum width=3.0cm, minimum height=4.0cm, align=center] (mega) at (0,0) {Arduino\\Mega 2560};
+
+    \draw (-5.2,1.8) node[draw, rectangle, minimum width=2.0cm, minimum height=1.0cm, align=center] (dht) {DHT22};
+    \draw (dht.east) -- ++(1.0,0) node[anchor=south]{DATA} -- (-1.5,1.2) node[anchor=east]{D2};
+    \draw (-5.2,2.8) node[vcc]{5 V} to[R,l=1\,\si{k\ohm}] (-5.2,1.8);
+    \draw (-5.9,1.2) node[ground]{};
+    \draw (-5.9,1.2) -- (-5.9,1.55);
+
+    \draw (-5.4,-0.3) node[vcc]{5 V}
+        to[R,l=Pot] (-5.4,-2.1) node[ground]{};
+    \draw (-5.4,-1.2) node[circ]{} -- (-1.5,-0.8) node[anchor=east]{A0};
+
+    \draw (1.5,1.4) node[anchor=west]{SDA/SCL} -- (4.5,1.4)
+        node[draw, rectangle, minimum width=2.4cm, minimum height=0.9cm, align=center, anchor=west] {LCD 1602\\I2C};
+
+    \draw (-4.6,-3.1) node[draw, rectangle, minimum width=2.7cm, minimum height=1.0cm, align=center] (keypad) {4x4\\Keypad};
+    \draw (keypad.east) -- (-1.5,-2.2) node[anchor=east]{D4--D11};
+
+    \draw (1.5,-1.0) node[anchor=west]{D12} -- (4.1,-1.0)
+        node[draw, rectangle, minimum width=2.2cm, minimum height=1.0cm, align=center, anchor=west] (relay) {Relay\\Module};
+    \draw (4.8,-2.0) to[normal open switch, l=NO] (7.2,-2.0)
+        to[leD*, color=red, l=Load LED] (9.0,-2.0)
+        to[R,l=220\,\si{\ohm}] (10.5,-2.0)
+        node[ground]{};
+    \draw (4.8,-3.1) to[battery1,l=9 V] (7.2,-3.1);
+\end{circuitikz}
+\caption{Electrical schematic of the temperature control circuit}
+\label{fig:circuit_schematic}
+\end{figure}
+
+\subsubsection{Component Specification}
+
+\begin{itemize}
+    \item Arduino Mega 2560: ATmega2560, 5 V logic, 16 MHz.
+    \item DHT22: digital temperature and humidity sensor connected to D2.
+    \item Potentiometer: analog setpoint source connected to A0.
+    \item Keypad: 4x4 matrix, rows on D11--D8 and columns on D7--D4.
+    \item LCD 1602 I2C: address \(0x27\), connected through SDA/SCL.
+    \item Relay module: logic input on D12, active-high in the provided wiring reference.
+    \item External load branch: 9 V battery, relay contacts, LEDs, and 220 \(\Omega\) resistors.
+\end{itemize}
+
+\subsubsection{Circuit Connections}
+
+The DHT22 VCC and GND pins are connected to the Arduino 5 V and GND rails, and its data line is wired to D2. The potentiometer is wired as a voltage divider from 5 V to GND with its wiper on A0. The keypad row pins are D11, D10, D9, and D8, while the column pins are D7, D6, D5, and D4. The LCD I2C backpack uses the Mega SDA and SCL pins. The relay module logic side is powered from 5 V and controlled by D12. The relay contacts switch the external LED load branch, which is powered separately.
+
+\subsubsection{Hardware Configuration}
+
+\begin{lstlisting}[language=json, caption=Essential Wokwi wiring reference for Lab 5.1, label=lst:wokwi_reference]
+{
+  "board": "wokwi-arduino-mega",
+  "sensor": { "type": "wokwi-dht22", "data": "D2" },
+  "potentiometer": { "signal": "A0", "vcc": "5V", "gnd": "GND" },
+  "relay": { "in": "D12", "vcc": "5V", "gnd": "GND" },
+  "lcd1602": { "pins": "i2c", "sda": "SDA", "scl": "SCL" },
+  "keypad": {
+    "rows": ["D11", "D10", "D9", "D8"],
+    "cols": ["D7", "D6", "D5", "D4"]
+  }
+}
+\end{lstlisting}
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/Design/ElectricalSchematics/wokwi_circuit.png}{%
+    \includegraphics[width=0.85\textwidth]{resources/Design/ElectricalSchematics/wokwi_circuit.png}%
+}{%
+    \fbox{\parbox{0.83\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save the wiring-reference circuit to\\
+        resources/Design/ElectricalSchematics/wokwi\_circuit.png]}}%
+}
+\caption{Wokwi wiring reference for the Lab 5.1 circuit}
+\label{fig:wokwi_circuit}
+\end{figure}
+
+\subsection{Project Structure}
+
+\begin{lstlisting}[caption=Lab 5.1 project structure, label=lst:project_structure]
+labs/
+|-- platformio.ini
+|-- src/main.cpp
+|-- lab/lab5_1/
+|   |-- lab5_1_main.h/.cpp
+|   |-- lab5_1_config.h/.cpp
+|   |-- shared_state.h/.cpp
+|   |-- task_input.h/.cpp
+|   |-- task_acquisition.h/.cpp
+|   |-- task_control.h/.cpp
+|   |-- task_actuation.h/.cpp
+|   `-- task_display.h/.cpp
+|-- lib/
+|   |-- DhtSensor/
+|   |-- AnalogSetpointInput/
+|   |-- OnOffHysteresisController/
+|   |-- LcdDisplay/
+|   |-- KeypadInput/
+|   |-- Relay/
+|   `-- StdioSerial/
+`-- wokwi/lab5.1/
+    |-- diagram.json
+    `-- wokwi.toml
+\end{lstlisting}
+
+\subsection{Modular Implementation}
+
+\subsubsection{Application Layer: Lab Entry Point}
+
+The lab entry point initializes STDIO, creates synchronization primitives, prints a startup banner, and spawns the five FreeRTOS tasks.
+
+\begin{lstlisting}[language=C++, caption=Lab 5.1 setup entry point, label=lst:lab5_setup]
+void lab5_1Setup() {
+    stdioSerialInit(9600);
+    lab5StateInit();
+    xTaskCreate(vTaskLab5Input, "Input", TASK_INPUT_STACK,
+                NULL, TASK_INPUT_PRIORITY, NULL);
+    xTaskCreate(vTaskLab5Acquisition, "Acquire", TASK_ACQUISITION_STACK,
+                NULL, TASK_ACQUISITION_PRIORITY, NULL);
+    xTaskCreate(vTaskLab5Control, "Control", TASK_CONTROL_STACK,
+                NULL, TASK_CONTROL_PRIORITY, NULL);
+    xTaskCreate(vTaskLab5Actuation, "Actuate", TASK_ACTUATION_STACK,
+                NULL, TASK_ACTUATION_PRIORITY, NULL);
+    xTaskCreate(vTaskLab5Display, "Display", TASK_DISPLAY_STACK,
+                NULL, TASK_DISPLAY_PRIORITY, NULL);
+}
+\end{lstlisting}
+
+\subsubsection{Service Layer: Hysteresis Controller}
+
+The `OnOffHysteresisController` module implements the control law. It is independent of Arduino pin operations, so it can be reused for other binary actuators.
+
+\begin{lstlisting}[language=C++, caption=ON-OFF hysteresis controller interface, label=lst:hysteresis_header]
+class OnOffHysteresisController {
+public:
+    OnOffHysteresisController(float setpoint, float hysteresisBand);
+    void init();
+    void setConfig(float setpoint, float hysteresisBand);
+    bool update(float measuredValue);
+    void forceOutput(bool outputOn);
+    bool isOutputOn() const;
+    float getLowerThreshold() const;
+    float getUpperThreshold() const;
+};
+\end{lstlisting}
+
+\subsubsection{ECAL Layer: Acquisition Wrappers}
+
+The `DhtSensor` wrapper owns DHT22 protocol access and validity checking. The `AnalogSetpointInput` wrapper owns ADC acquisition and maps the potentiometer reading to the 15--35 degrees Celsius setpoint range.
+
+\begin{lstlisting}[language=C++, caption=Acquisition task sequence, label=lst:acquisition_task]
+bool sensorOk = s_dht.read();
+float temperature = s_dht.getTemperatureC();
+float humidity = s_dht.getHumidityPercent();
+float potSetpoint = s_setpointPot.readValue();
+
+lab5StateLock();
+state->sensorValid = sensorOk;
+state->measuredTempC = temperature;
+state->measuredHumidityPercent = humidity;
+state->potSetpointC = potSetpoint;
+state->activeSetpointC =
+    state->setpointSource == SETPOINT_SOURCE_POT
+        ? potSetpoint
+        : state->manualSetpointC;
+lab5StateUnlock();
+\end{lstlisting}
+
+\subsubsection{Application Tasks}
+
+The input task translates keypad events into state changes. The acquisition task samples DHT22 and the potentiometer. The control task evaluates hysteresis after each new sample. The actuation task applies the relay command. The display task writes LCD lines and prints Serial Plotter fields.
+
+\begin{lstlisting}[language=C++, caption=Serial Plotter report format, label=lst:plotter_output]
+printf("SetPoint:%s Value:%s Output:%u Low:%s High:%s Valid:%u\r\n",
+       plotSetpoint,
+       plotValue,
+       snapshot.actuatorOn ? 1U : 0U,
+       plotLow,
+       plotHigh,
+       snapshot.sensorValid ? 1U : 0U);
+\end{lstlisting}
