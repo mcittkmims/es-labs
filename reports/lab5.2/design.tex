@@ -11,26 +11,66 @@ The system is organized as a closed feedback loop. The DHT22 sensor provides the
 \begin{tikzpicture}[
     comp/.style={draw, rectangle, rounded corners, minimum width=3.1cm,
                  minimum height=0.9cm, text centered, align=center, fill=blue!10},
+    pin/.style={font=\scriptsize, fill=white, inner sep=1.2pt},
     arrow/.style={thick,->,>=Stealth}]
-    \node[comp] (mcu)    at (0.0, 0.0) {Arduino Mega 2560\\FreeRTOS firmware};
-    \node[comp] (dht)    at (-5.4, 1.8) {DHT22\\temperature feedback};
-    \node[comp] (pot)    at (-5.4, 0.2) {Potentiometer\\setpoint source};
-    \node[comp] (keypad) at (-5.4,-1.4) {4x4 Keypad\\manual setpoint + PID preset};
-    \node[comp] (lcd)    at (5.4, 1.8) {LCD 1602 I2C\\local diagnostics};
-    \node[comp] (plot)   at (5.4, 0.2) {Serial Plotter\\PID channels};
-    \node[comp] (driver) at (5.4,-1.4) {L293D/L298 Driver\\PWM fan power stage};
-    \node[comp] (fan)    at (5.4,-3.0) {DC Fan\\9 V load};
+    \node[comp, minimum width=3.5cm, minimum height=1.2cm] (mcu) at (0.0, 0.0)
+        {Arduino Mega 2560\\FreeRTOS firmware};
+    \node[comp] (dht)    at (-6.0, 2.1) {DHT22\\temperature feedback};
+    \node[comp] (pot)    at (-6.0, 0.3) {Potentiometer\\setpoint source};
+    \node[comp] (keypad) at (-6.0,-1.7) {4x4 Keypad\\manual setpoint\\PID preset};
+    \node[comp] (lcd)    at (6.0, 2.1) {LCD 1602 I2C\\local diagnostics};
+    \node[comp] (plot)   at (6.0, 0.3) {Serial Plotter\\PID channels};
+    \node[comp] (driver) at (6.0,-1.7) {L293D/L298 Driver\\PWM fan power stage};
+    \node[comp] (fan)    at (6.0,-3.4) {DC Fan\\9 V load};
 
-    \draw[arrow] (dht.east) -- node[above, font=\scriptsize]{D2} (mcu.west);
-    \draw[arrow] (pot.east) -- node[above, font=\scriptsize]{A0} (mcu.west);
-    \draw[arrow] (keypad.east) -- node[below, font=\scriptsize]{D4--D11} (mcu.west);
-    \draw[arrow] (mcu.east) -- node[above, font=\scriptsize]{SDA/SCL} (lcd.west);
-    \draw[arrow] (mcu.east) -- node[above, font=\scriptsize]{STDIO} (plot.west);
-    \draw[arrow] (mcu.east) -- node[below, font=\scriptsize]{D13, D16, D17} (driver.west);
+    \draw[arrow] (dht.east) -- node[pin, above, pos=0.50]{D2} (mcu.west);
+    \draw[arrow] (pot.east) -- node[pin, above, pos=0.50]{A0} (mcu.west);
+    \draw[arrow] (keypad.east) -- node[pin, below, pos=0.52]{D4--D11} (mcu.west);
+    \draw[arrow] (mcu.east) -- node[pin, above, pos=0.54]{SDA/SCL} (lcd.west);
+    \draw[arrow] (mcu.east) -- node[pin, above, pos=0.54]{STDIO} (plot.west);
+    \draw[arrow] (mcu.east) -- node[pin, below, pos=0.50]{D13, D16, D17} (driver.west);
     \draw[arrow] (driver.south) -- node[right, font=\scriptsize]{motor outputs} (fan.north);
 \end{tikzpicture}
 \caption{System structural diagram for PID temperature regulation}
 \label{fig:system_structural_diagram}
+\end{figure}
+
+\subsubsection{Closed-Loop Control Structure}
+
+The structural diagram shows the hardware connections, but the control loop itself is better understood as a signal chain. The setpoint and measured temperature meet at the error calculation, the PID controller converts the error into a normalized command, and the actuator conditioning block translates the command into a fan duty cycle that can actually be applied to the motor. The DHT22 closes the loop by measuring the temperature after the fan has affected the air around the sensor.
+
+\begin{figure}[H]
+\centering
+\resizebox{0.96\textwidth}{!}{%
+\begin{tikzpicture}[
+    block/.style={draw, rectangle, rounded corners, minimum width=2.8cm,
+                  minimum height=0.85cm, align=center, fill=blue!10},
+    smallblock/.style={draw, rectangle, rounded corners, minimum width=2.2cm,
+                       minimum height=0.75cm, align=center, fill=gray!12},
+    sum/.style={draw, circle, minimum size=0.75cm, align=center, fill=orange!15},
+    arrow/.style={thick,->,>=Stealth},
+    note/.style={font=\scriptsize, fill=white, inner sep=1pt}]
+    \node[smallblock] (sp) at (-8.6,0.0) {Setpoint\\A0/keypad};
+    \node[sum] (sum) at (-5.2,0.0) {$\Sigma$};
+    \node[block] (pid) at (-1.7,0.0) {PID Controller\\P + I + D};
+    \node[block] (sat) at (2.2,0.0) {Clamp\\0--100\%};
+    \node[block] (map) at (6.0,0.0) {Fan Duty\\mapping};
+    \node[block] (plant) at (9.8,0.0) {Fan + Air\\thermal process};
+    \node[smallblock] (sensor) at (6.0,-2.2) {DHT22\\measurement};
+
+    \draw[arrow] (sp) -- node[note, above] {$SP$} (sum);
+    \draw[arrow] (sum) -- node[note, above] {$e=T-SP$} (pid);
+    \draw[arrow] (pid) -- node[note, above] {$u$} (sat);
+    \draw[arrow] (sat) -- node[note, above] {PID out} (map);
+    \draw[arrow] (map) -- node[note, above] {duty} (plant);
+    \draw[arrow] (plant.south) -- (9.8,-2.2) -- (sensor.east);
+    \draw[arrow] (sensor.west) -- (-5.2,-2.2) -- node[note, left] {$T$} (sum.south);
+    \node[note] at (-5.55,0.32) {$+$};
+    \node[note] at (-4.85,-0.35) {$-$};
+\end{tikzpicture}%
+}
+\caption{Closed-loop PID signal structure}
+\label{fig:closed_loop_pid_structure}
 \end{figure}
 
 \subsubsection{Layered System Architecture}
@@ -95,6 +135,41 @@ The control task runs only after the acquisition task publishes a fresh sample. 
 \label{fig:pid_control_flowchart}
 \end{figure}
 
+\subsubsection{PID Term Decomposition}
+
+The PID controller is implemented as three explicit contributions. The proportional part reacts immediately to the current error, the integral part stores accumulated error over time, and the derivative part estimates the error trend from the previous sample. Keeping these terms visible in the design is useful during tuning because an unstable response can usually be traced to one dominant term: excessive proportional gain causes aggressive reaction, excessive integral gain causes slow windup, and excessive derivative gain amplifies noisy measurements.
+
+\begin{figure}[H]
+\centering
+\resizebox{0.94\textwidth}{!}{%
+\begin{tikzpicture}[
+    block/.style={draw, rectangle, rounded corners, minimum width=2.6cm,
+                  minimum height=0.85cm, align=center, fill=blue!10},
+    sum/.style={draw, circle, minimum size=0.75cm, align=center, fill=orange!15},
+    arrow/.style={thick,->,>=Stealth},
+    note/.style={font=\scriptsize, fill=white, inner sep=1pt}]
+    \node[block] (err) at (-6.0,0.0) {Error\\$e=T-SP$};
+    \node[block] (p) at (-2.8,1.5) {P term\\$K_p e$};
+    \node[block] (i) at (-2.8,0.0) {I term\\$I+K_i e\Delta t$};
+    \node[block] (d) at (-2.8,-1.5) {D term\\$K_d \Delta e/\Delta t$};
+    \node[sum] (sum) at (0.6,0.0) {$+$};
+    \node[block] (clamp) at (3.6,0.0) {Clamp\\0--100\%};
+    \node[block] (out) at (6.4,0.0) {PID output\\fan demand};
+
+    \draw[arrow] (err.east) -- (-4.5,0.0) -- (-4.5,1.5) -- (p.west);
+    \draw[arrow] (err.east) -- (i.west);
+    \draw[arrow] (err.east) -- (-4.5,0.0) -- (-4.5,-1.5) -- (d.west);
+    \draw[arrow] (p.east) -- (sum.north west);
+    \draw[arrow] (i.east) -- (sum.west);
+    \draw[arrow] (d.east) -- (sum.south west);
+    \draw[arrow] (sum) -- node[note, above] {raw command} (clamp);
+    \draw[arrow] (clamp) -- (out);
+\end{tikzpicture}%
+}
+\caption{PID proportional, integral, and derivative term decomposition}
+\label{fig:pid_term_decomposition}
+\end{figure}
+
 \subsubsection{FreeRTOS Data Flow}
 
 The shared state is the only communication contract between tasks. The acquisition task produces process measurements, the input task produces user settings, the control task produces a bounded control output, and the actuation task applies the PWM command to the fan driver.
@@ -125,6 +200,38 @@ The shared state is the only communication contract between tasks. The acquisiti
 \label{fig:task_data_flow}
 \end{figure}
 
+\subsubsection{Synchronization Sequence}
+
+The control chain is intentionally event-driven. The acquisition task is the only task that gives the new-sample semaphore. The control task blocks until this happens, computes exactly one PID output for the fresh sample, and then wakes the actuation task. This prevents the fan command from being recalculated repeatedly from stale sensor data and makes the timing relationship easy to verify in the report and on the Serial Plotter.
+
+\begin{figure}[H]
+\centering
+\resizebox{0.96\textwidth}{!}{%
+\begin{tikzpicture}[
+    lane/.style={draw, rectangle, minimum width=2.6cm, minimum height=0.8cm,
+                 align=center, fill=gray!15},
+    msg/.style={thick,->,>=Stealth},
+    lifeline/.style={densely dashed, line width=0.4pt}]
+    \node[lane] (acq) at (-5.4,0) {Acquisition\\Task};
+    \node[lane] (state) at (-1.8,0) {Shared\\State};
+    \node[lane] (ctrl) at (1.8,0) {Control\\Task};
+    \node[lane] (act) at (5.4,0) {Actuation\\Task};
+
+    \foreach \x in {-5.4,-1.8,1.8,5.4}
+        \draw[lifeline] (\x,-0.6) -- (\x,-6.2);
+
+    \draw[msg] (-5.4,-1.2) -- node[above, font=\scriptsize]{write sample} (-1.8,-1.2);
+    \draw[msg] (-5.4,-2.1) -- node[above, font=\scriptsize]{give new-sample semaphore} (1.8,-2.1);
+    \draw[msg] (1.8,-3.0) -- node[above, font=\scriptsize]{copy SP, T, gains} (-1.8,-3.0);
+    \draw[msg] (1.8,-4.0) -- node[above, font=\scriptsize]{write PID output} (-1.8,-4.0);
+    \draw[msg] (1.8,-5.0) -- node[above, font=\scriptsize]{give actuator semaphore} (5.4,-5.0);
+    \draw[msg] (5.4,-5.8) -- node[above, font=\scriptsize]{write actual duty} (-1.8,-5.8);
+\end{tikzpicture}%
+}
+\caption{FreeRTOS synchronization sequence for the PID control chain}
+\label{fig:pid_synchronization_sequence}
+\end{figure}
+
 \subsubsection{Keypad Interaction States}
 
 The keypad has two major operating states: normal command mode and numeric setpoint editing. This prevents accidental numeric input from immediately changing the setpoint before confirmation.
@@ -137,10 +244,9 @@ The keypad has two major operating states: normal command mode and numeric setpo
     \node[state, initial] (normal) at (-4.2,0) {Normal\\commands};
     \node[state] (editing) at (4.2,0) {Editing\\numeric SP};
     \path[->]
-        (normal) edge[bend left] node[above] {digit} (editing)
-        (editing) edge[bend left] node[below] {\# confirm} (normal)
+        (normal) edge[bend left=18] node[above] {digit} (editing)
+        (editing) edge[bend left=18] node[below] {\# confirm or * cancel} (normal)
         (editing) edge[loop above] node {digit} (editing)
-        (editing) edge[bend right=45] node[above] {*} (normal)
         (normal) edge[loop above] node {A/B/C/D} (normal);
 \end{tikzpicture}
 \caption{Keypad input state diagram}
@@ -304,9 +410,52 @@ labs/
     `-- wokwi.toml
 \end{lstlisting}
 
+\subsubsection{Module Responsibility Map}
+
+The implementation is split by responsibility rather than by peripheral alone. The task files describe when work happens, the shared-state module describes what data crosses task boundaries, and the reusable libraries describe how each hardware or control service is accessed. This organization keeps the PID calculation testable because it does not call \texttt{analogWrite}, \texttt{digitalWrite}, LCD methods, or DHT methods directly.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+    mainmod/.style={draw, rectangle, rounded corners, minimum width=3.2cm,
+                    minimum height=0.9cm, align=center, fill=green!10},
+    mod/.style={draw, rectangle, rounded corners, minimum width=2.4cm,
+                minimum height=0.85cm, align=center, fill=blue!10},
+    statebox/.style={draw, rectangle, rounded corners, minimum width=4.0cm,
+                     minimum height=0.9cm, align=center, fill=orange!15},
+    lib/.style={draw, rectangle, rounded corners, minimum width=7.0cm,
+                minimum height=0.9cm, align=center, fill=gray!15},
+    bus/.style={line width=0.5pt},
+    arrow/.style={thick,->,>=Stealth}]
+    \node[mainmod] (main) at (0,0) {lab5\_2\_main\\task creation};
+    \node[mod] (input) at (-5.2,-1.9) {Input\\keypad};
+    \node[mod] (acq) at (-2.6,-1.9) {Acquisition\\DHT + A0};
+    \node[mod] (control) at (0,-1.9) {Control\\PID};
+    \node[mod] (act) at (2.6,-1.9) {Actuation\\fan PWM};
+    \node[mod] (display) at (5.2,-1.9) {Display\\LCD + plotter};
+    \node[statebox] (state) at (0,-4.1) {shared\_state\\mutex + semaphores};
+    \node[lib] (drivers) at (0,-5.8) {Reusable libraries: PID, H-bridge, DHT, ADC, keypad, LCD, STDIO};
+
+    \draw[arrow] (main.south) -- (0,-0.95);
+    \draw[bus] (-5.2,-0.95) -- (5.2,-0.95);
+    \foreach \x/\a in {-5.2/input,-2.6/acq,0/control,2.6/act,5.2/display}
+        \draw[arrow] (\x,-0.95) -- (\a.north);
+
+    \draw[bus] (-5.2,-3.0) -- (5.2,-3.0);
+    \foreach \x/\a in {-5.2/input,-2.6/acq,0/control,2.6/act,5.2/display}
+        \draw[arrow] (\a.south) -- (\x,-3.0);
+    \draw[arrow] (0,-3.0) -- (state.north);
+    \draw[arrow] (state) -- (drivers);
+\end{tikzpicture}
+\caption{Module responsibility map for the Lab 5.2 implementation}
+\label{fig:module_responsibility_map}
+\end{figure}
+
 \subsubsection{Application Entry Point}
 
-The lab entry point initializes STDIO serial output, prints the physical pin map and keypad commands, initializes the shared state, and creates the five FreeRTOS tasks. The Arduino `loop()` delegate remains empty because FreeRTOS tasks own the runtime behavior.
+The lab entry point initializes STDIO serial output, prints the physical pin map and keypad commands, initializes the shared state, and creates the five FreeRTOS tasks. It also checks the return value of each \texttt{xTaskCreate} call, so stack or memory problems are visible in the serial log during hardware bring-up. The Arduino \texttt{loop()} delegate remains empty because FreeRTOS tasks own the runtime behavior after setup.
+
+This entry point deliberately contains no PID arithmetic and no direct peripheral access. Its job is orchestration: set up the application context, create tasks with priorities and stack sizes from \texttt{lab5\_2\_config.h}, and leave the periodic behavior to the scheduler. That keeps the active-lab selector in \texttt{src/main.cpp} simple and preserves the repository convention that each lab is isolated behind its own setup and loop functions.
 
 \begin{lstlisting}[language=C++, caption=Lab 5.2 task creation, label=lst:task_creation]
 lab5PidStateInit();
@@ -326,6 +475,8 @@ xTaskCreate(vTaskLab5PidDisplay, "Display", TASK_DISPLAY_STACK,
 
 The shared state stores the measured temperature and humidity, sensor validity, potentiometer setpoint, manual setpoint, active setpoint source, PID gains, PID output, applied fan duty, and diagnostic counters. The mutex protects multi-field updates, while the new-sample and actuator semaphores enforce the control chain order.
 
+The state is copied by value in the display task before formatting LCD and serial strings. That choice matters because LCD and serial output are relatively slow compared with memory access; keeping those operations outside the mutex prevents display refreshes from delaying acquisition or control. The control task also copies only the fields it needs, releases the mutex, runs the PID calculation, and then reacquires the mutex to publish the result. This keeps the critical section short and predictable.
+
 \begin{lstlisting}[language=C++, caption=Shared PID fields, label=lst:shared_state_fields]
 struct Lab5PidState {
     float measuredTempC;
@@ -339,9 +490,42 @@ struct Lab5PidState {
 };
 \end{lstlisting}
 
+\subsubsection{Input and Acquisition Tasks}
+
+The input task owns all keypad interpretation. Key \texttt{A} toggles between potentiometer and manual setpoint mode, keys \texttt{B} and \texttt{C} adjust the manual setpoint in 0.5\textdegree C steps, key \texttt{D} cycles the PID gain preset, numeric keys fill a small edit buffer, \texttt{\#} confirms the typed setpoint, and \texttt{*} cancels the edit. The keypad wrapper handles debounce, while the task itself updates only user-intent fields in shared state. It does not calculate PID output, actuate the fan, or write to the display.
+
+The acquisition task owns the sensor and analog setpoint reads. It performs DHT22 and ADC operations before locking the shared state so slow I/O does not hold the mutex. After the sample is written, it gives the new-sample semaphore. This event is the only trigger for the PID control task, which means the controller runs at the real sensor update rate instead of spinning in a tight loop.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+    \node (start) [startstop] at (0, 0.0) {Acquire cycle};
+    \node (dht)   [process]   at (0,-1.8) {Read DHT22 temperature and humidity};
+    \node (pot)   [process]   at (0,-3.6) {Read A0 and map to setpoint range};
+    \node (src)   [decision]  at (0,-6.1) {Source = POT?};
+    \node (usepot)[process]   at (-4.6,-8.4) {Use potentiometer setpoint};
+    \node (useman)[process]   at (4.6,-8.4) {Use manual setpoint};
+    \node (write) [process]   at (0,-10.8) {Write sample under mutex};
+    \node (sem)   [process]   at (0,-12.6) {Give new-sample semaphore};
+
+    \draw[arrow] (start) -- (dht);
+    \draw[arrow] (dht) -- (pot);
+    \draw[arrow] (pot) -- (src);
+    \draw[arrow] (src) -- node[anchor=south]{Yes} (usepot);
+    \draw[arrow] (src) -- node[anchor=south]{No} (useman);
+    \draw[arrow] (usepot.south) -- (-4.6,-10.8) -- (write.west);
+    \draw[arrow] (useman.south) -- (4.6,-10.8) -- (write.east);
+    \draw[arrow] (write) -- (sem);
+\end{tikzpicture}
+\caption{Flowchart of acquisition and active setpoint selection}
+\label{fig:acquisition_flowchart}
+\end{figure}
+
 \subsubsection{PID Controller Module}
 
-The reusable `PidController` accepts gains, output limits, and a direction mode. In reverse mode it calculates error as measured value minus setpoint, which is appropriate for a cooling fan. The integral term is clamped to the output limits to reduce windup when the actuator saturates.
+The reusable \texttt{PidController} accepts gains, output limits, and a direction mode. In reverse mode it calculates error as measured value minus setpoint, which is appropriate for a cooling fan. The integral term is clamped to the output limits to reduce windup when the actuator saturates.
+
+Every call to \texttt{update} receives the measured value, the setpoint, and the elapsed time in seconds. The elapsed time is derived from FreeRTOS ticks, with the 2000 ms acquisition period used as a fallback for the first cycle. The controller stores the previous error internally, so the derivative term is not active until at least two samples have been seen. When the DHT22 sample is invalid, the control task resets the PID state and publishes a zero output; this prevents stale integral memory from restarting the fan at a nonzero duty after a sensor fault.
 
 \begin{lstlisting}[language=C++, caption=PID update interface, label=lst:pid_update]
 float output = s_pid.update(setpoint, temperature, dtSeconds);
@@ -353,7 +537,35 @@ state->pidDerivative = s_pid.getDerivative();
 
 \subsubsection{H-Bridge Fan Driver}
 
-The `HBridgeMotor` wrapper combines a PWM actuator with two direction pins. The fan is commanded forward only, but the wrapper is bidirectional so the same module can be reused for rotor-position or motor-speed variants.
+The \texttt{HBridgeMotor} wrapper combines a PWM actuator with two direction pins. The fan is commanded forward only, but the wrapper is bidirectional so the same module can be reused for rotor-position or motor-speed variants.
+
+The actuation task does not apply the PID output directly as raw PWM. A small conditioning step first maps the 0--100\% PID demand into a physical duty cycle. Very low PID values are treated as stop commands, and nonzero commands are lifted to a minimum running duty so the real fan can overcome static friction. This distinction is important on physical hardware because a motor may not start at 5\% or 10\% duty even though the PWM signal is technically present.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+    \node (start) [startstop] at (0, 0.0) {Actuator semaphore};
+    \node (copy)  [process]   at (0,-1.8) {Copy PID output and sensor validity};
+    \node (valid) [decision]  at (0,-4.0) {Sensor valid?};
+    \node (stop1) [process]   at (4.6,-6.2) {Stop fan};
+    \node (small) [decision]  at (-4.6,-6.2) {Output near 0?};
+    \node (stop2) [process]   at (-4.6,-8.7) {Apply 0\% duty};
+    \node (map)   [process]   at (1.0,-8.7) {Map to minimum running duty};
+    \node (drive) [process]   at (0,-10.9) {Set IN1/IN2 and PWM};
+
+    \draw[arrow] (start) -- (copy);
+    \draw[arrow] (copy) -- (valid);
+    \draw[arrow] (valid) -- node[anchor=south]{No} (stop1);
+    \draw[arrow] (valid) -- node[anchor=south]{Yes} (small);
+    \draw[arrow] (small) -- node[anchor=east]{Yes} (stop2);
+    \draw[arrow] (small.east) -- ++(1.35,0) node[anchor=south, pos=0.55]{No} |- (map.north);
+    \draw[arrow] (stop1.south) -- (4.6,-10.9) -- (drive.east);
+    \draw[arrow] (stop2.south) -- (-4.6,-10.9) -- (drive.west);
+    \draw[arrow] (map) -- (drive);
+\end{tikzpicture}
+\caption{Flowchart of fan duty conditioning and H-bridge actuation}
+\label{fig:fan_actuation_flowchart}
+\end{figure}
 
 \begin{lstlisting}[language=C++, caption=Fan actuation logic, label=lst:fan_actuation]
 float dutyPercent = sensorValid ? mapPidOutputToFanDuty(outputPercent) : 0.0f;
@@ -363,6 +575,10 @@ if (dutyPercent > 0.0f) {
     s_fan.stop();
 }
 \end{lstlisting}
+
+\subsubsection{Display and Serial Reporting}
+
+The display task periodically snapshots the shared state and formats three LCD pages: the main temperature/setpoint page, the PID error/output page, and the gain/duty page. During numeric setpoint entry, the LCD switches to an edit page so the user can see the typed digits before confirmation. The Serial Plotter line uses stable field names: \texttt{SetPoint}, \texttt{Value}, \texttt{Output}, \texttt{Duty}, \texttt{Error}, \texttt{Kp}, \texttt{Ki}, \texttt{Kd}, and \texttt{Valid}. This makes the real hardware run observable without adding a separate debugging protocol.
 
 \subsubsection{Timing Configuration}
 
