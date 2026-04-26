@@ -191,35 +191,66 @@ The acquisition, control, and actuation tasks are connected through binary semap
 
 \begin{figure}[H]
 \centering
-\begin{circuitikz}[scale=0.75, transform shape]
-    \node[draw, rectangle, minimum width=3.0cm, minimum height=4.0cm, align=center] (mega) at (0,0) {Arduino\\Mega 2560};
+\begin{circuitikz}[scale=0.70, transform shape, every node/.style={font=\small}]
+    \node[draw, rectangle, minimum width=3.1cm, minimum height=4.7cm, align=center] (mega) at (0,0)
+        {Arduino\\Mega 2560};
 
-    \draw (-6.0,2.4) node[draw, rectangle, minimum width=2.0cm, minimum height=1.0cm, align=center] (dht) {DHT22};
-    \draw (dht.east) -- (-3.0,2.4) node[circ]{} -- (-1.5,1.2) node[anchor=east]{D2};
-    \draw (-3.0,3.4) node[vcc]{5 V} to[R,l=1\,\si{k\ohm}] (-3.0,2.4);
-    \draw (-6.7,1.7) node[ground]{};
-    \draw (-6.7,1.7) -- (-6.7,2.05);
-    \draw (-3.9,2.65) node[anchor=south]{DATA};
+    \coordinate (d2) at (-1.55,1.65);
+    \coordinate (a0) at (-1.55,0.25);
+    \coordinate (keypins) at (-1.55,-1.25);
+    \coordinate (i2c) at (1.55,1.35);
+    \coordinate (d12) at (1.55,-0.55);
 
-    \draw (-6.0,-0.2) node[vcc]{5 V}
-        to[R] (-6.0,-2.2) node[ground]{};
-    \draw (-6.95,-1.2) node[anchor=east]{Potentiometer};
-    \draw (-6.0,-1.2) node[circ]{} -- (-1.5,-0.8) node[anchor=east]{A0};
+    \node[anchor=east] at (d2) {\scriptsize D2};
+    \node[anchor=east] at (a0) {\scriptsize A0};
+    \node[anchor=east] at (keypins) {\scriptsize D4--D11};
+    \node[anchor=west] at (i2c) {\scriptsize SDA/SCL};
+    \node[anchor=west] at (d12) {\scriptsize D12};
 
-    \draw (1.5,1.4) node[anchor=west]{SDA/SCL} -- (4.5,1.4)
-        node[draw, rectangle, minimum width=2.4cm, minimum height=0.9cm, align=center, anchor=west] {LCD 1602\\I2C};
+    \node[draw, rectangle, minimum width=1.9cm, minimum height=0.9cm, align=center] (dht) at (-6.4,2.15)
+        {DHT22};
+    \coordinate (dhtdata) at (-4.95,2.15);
+    \draw (dht.east) -- (dhtdata) node[circ]{}
+        -- (-3.3,2.15) -- (-3.3,1.65) -- (d2);
+    \draw (dhtdata) -- (-4.95,2.85) to[R,l=1\,\si{k\ohm}] (-4.95,3.65) node[vcc]{5 V};
+    \draw (dht.north) -- ++(0,0.65) node[vcc]{5 V};
+    \draw (dht.south) -- ++(0,-0.65) node[ground]{};
 
-    \draw (-5.2,-3.3) node[draw, rectangle, minimum width=2.7cm, minimum height=1.0cm, align=center] (keypad) {4x4\\Keypad};
-    \draw (keypad.east) -- (-1.5,-2.2) node[anchor=east]{D4--D11};
+    \draw (-6.35,0.70) node[vcc]{5 V}
+        to[R] (-6.35,-1.15) node[ground]{};
+    \node[anchor=east] at (-6.65,-0.20) {Potentiometer};
+    \coordinate (potwiper) at (-6.35,-0.20);
+    \draw (potwiper) node[circ]{} -- (-3.25,-0.20) -- (-3.25,0.25) -- (a0);
 
-    \draw (1.5,-1.0) node[anchor=west]{D12} -- (4.1,-1.0)
-        node[draw, rectangle, minimum width=2.2cm, minimum height=1.0cm, align=center, anchor=west] (relay) {Relay\\Module};
-    \draw (relay.east) -- (6.8,-1.0) -- (6.8,-2.1);
-    \draw (6.8,-2.1) to[normal open switch, l^=NO] (8.8,-2.1)
-        to[leD*, color=red, l=Load LED] (10.2,-2.1)
-        to[R,l=220\,\si{\ohm}] (11.7,-2.1)
-        node[ground]{};
-    \draw (6.8,-3.3) to[battery1,l=9 V] (8.8,-3.3);
+    \node[draw, rectangle, minimum width=2.5cm, minimum height=0.9cm, align=center] (keypad) at (-6.1,-2.55)
+        {4x4\\Keypad};
+    \draw (keypad.east) -- (-3.25,-2.55) -- (-3.25,-1.25) -- (keypins);
+
+    \node[draw, rectangle, minimum width=2.4cm, minimum height=0.95cm, align=center] (lcd) at (5.4,1.35)
+        {LCD 1602\\I2C};
+    \draw (i2c) -- (lcd.west);
+    \draw (lcd.east) ++(0,0.22) -- ++(0.75,0) node[vcc]{5 V};
+    \draw (lcd.east) ++(0,-0.22) -- ++(0.75,0) node[ground]{};
+
+    \node[draw, rectangle, minimum width=2.35cm, minimum height=1.05cm, align=center] (relay) at (5.2,-0.55)
+        {Relay\\Module};
+    \draw (d12) -- (relay.west);
+    \draw (relay.east) ++(0,0.25) -- ++(0.75,0) node[vcc]{5 V};
+    \draw (relay.east) ++(0,-0.25) -- ++(0.75,0) node[ground]{};
+
+    \coordinate (com) at (3.8,-3.50);
+    \coordinate (no) at (5.9,-3.50);
+    \coordinate (ret) at (9.4,-3.50);
+    \coordinate (bpos) at (3.8,-4.35);
+    \coordinate (bneg) at (9.4,-4.35);
+    \draw (bpos) to[battery1] (bneg);
+    \node[anchor=north] at (6.6,-4.45) {\scriptsize 9 V};
+    \draw (bpos) -- (com);
+    \node[anchor=south] at (com) {\scriptsize COM};
+    \node[anchor=south] at (no) {\scriptsize NO};
+    \draw (com) to[normal open switch] (no)
+        to[leD*, color=red,l=Load LED] (7.2,-3.50)
+        to[R,l=220\,\si{\ohm}] (ret) -- (bneg);
 \end{circuitikz}
 \caption{Electrical schematic of the temperature control circuit}
 \label{fig:circuit_schematic}
