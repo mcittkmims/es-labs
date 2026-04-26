@@ -46,6 +46,13 @@
       "attrs": { "color": "white", "label": "Relay Load" }
     },
     {
+      "type": "wokwi-dc-motor",
+      "id": "motor_relay",
+      "top": 420,
+      "left": -450,
+      "attrs": { "label": "Relay Motor" }
+    },
+    {
       "type": "wokwi-led",
       "id": "led_pwm",
       "top": -200,
@@ -59,6 +66,13 @@
       "left": -130,
       "rotate": 90,
       "attrs": { "resistance": "220" }
+    },
+    {
+      "type": "wokwi-dc-motor",
+      "id": "motor_pwm",
+      "top": -200,
+      "left": -420,
+      "attrs": { "label": "PWM Motor" }
     },
     {
       "type": "wokwi-led",
@@ -109,13 +123,17 @@
     ["relay1:VCC", "mega:5V", "red", ["v-40", "h200"]],
     ["relay1:GND", "mega:GND.2", "black", ["v-20", "h200"]],
     ["relay1:IN", "mega:7", "orange", ["v-60", "h250"]],
-    ["relay1:NC", "mega:5V", "red", ["h60", "v-100"]],
+    ["relay1:NO", "mega:5V", "red", ["h60", "v-100"]],
     ["relay1:COM", "led_relay:A", "yellow", ["v40"]],
+    ["relay1:COM", "motor_relay:1", "yellow", ["v40", "h-120"]],
     ["led_relay:C", "mega:GND.3", "black", ["v20", "h200"]],
+    ["motor_relay:2", "mega:GND.3", "black", ["v40", "h350"]],
 
     ["mega:3", "r_pwm:1", "blue", ["v-80", "h-200"]],
     ["r_pwm:2", "led_pwm:A", "blue", ["v0"]],
     ["led_pwm:C", "mega:GND.4", "black", ["v20", "h200"]],
+    ["mega:3", "motor_pwm:1", "blue", ["v-120", "h-380"]],
+    ["motor_pwm:2", "mega:GND.4", "black", ["v40", "h570"]],
 
     ["mega:8", "r_green:1", "green", ["v-80", "h-100"]],
     ["r_green:2", "led_green:A", "green", ["v0"]],
