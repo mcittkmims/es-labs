@@ -1,6 +1,6 @@
 /**
  * @file task_acquisition.cpp
- * @brief Lab 5.1 DHT22 and potentiometer acquisition task.
+ * @brief Lab 5.1 DHT11 and potentiometer acquisition task.
  */
 
 #include "task_acquisition.h"
@@ -13,7 +13,7 @@
 #include <Arduino_FreeRTOS.h>
 #include <DHT.h>
 
-static DhtSensor s_dht(PIN_DHT22, DHT22);
+static DhtSensor s_dht(PIN_DHT22, DHT11);
 static AnalogSetpointInput s_setpointPot(
     PIN_SETPOINT_POT,
     SETPOINT_MIN_C,

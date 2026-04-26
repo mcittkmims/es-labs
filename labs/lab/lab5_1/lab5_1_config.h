@@ -21,10 +21,8 @@ static const uint8_t LCD_I2C_ADDRESS = 0x27;
 static const uint8_t LCD_COLS = 16;
 static const uint8_t LCD_ROWS = 2;
 
-// Many real relay modules are active-low. The supplied Wokwi relay module
-// expects active-high control; change this constant if the physical relay
-// used during the lab energizes on LOW.
-static const bool RELAY_ACTIVE_HIGH = true;
+// Relay configuration for active-low modules: ON=LOW, OFF=HIGH.
+static const bool RELAY_ACTIVE_HIGH = false;
 
 // Control parameters.
 static const float SETPOINT_MIN_C = 15.0f;
@@ -45,11 +43,12 @@ static const uint16_t TASK_ACQUISITION_PERIOD_MS = 2000;
 static const uint16_t TASK_DISPLAY_PERIOD_MS = 500;
 
 // FreeRTOS task stack sizes and priorities.
-static const configSTACK_DEPTH_TYPE TASK_INPUT_STACK = 256;
-static const configSTACK_DEPTH_TYPE TASK_ACQUISITION_STACK = 384;
-static const configSTACK_DEPTH_TYPE TASK_CONTROL_STACK = 320;
-static const configSTACK_DEPTH_TYPE TASK_ACTUATION_STACK = 256;
-static const configSTACK_DEPTH_TYPE TASK_DISPLAY_STACK = 640;
+// Increased for AVR stability with printf/sensor/keypad workloads.
+static const configSTACK_DEPTH_TYPE TASK_INPUT_STACK = 320;
+static const configSTACK_DEPTH_TYPE TASK_ACQUISITION_STACK = 448;
+static const configSTACK_DEPTH_TYPE TASK_CONTROL_STACK = 384;
+static const configSTACK_DEPTH_TYPE TASK_ACTUATION_STACK = 320;
+static const configSTACK_DEPTH_TYPE TASK_DISPLAY_STACK = 896;
 
 static const UBaseType_t TASK_INPUT_PRIORITY = 3;
 static const UBaseType_t TASK_ACQUISITION_PRIORITY = 3;
