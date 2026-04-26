@@ -2,7 +2,7 @@
 
 \subsection{Objective of the Laboratory Work}
 
-The objective of this laboratory work is to implement an embedded PID control system for a physical process. The selected application is temperature regulation by forced ventilation: a DHT22 sensor measures the ambient temperature, the user selects the desired temperature setpoint, and a DC fan driven through an H-bridge receives a PWM command computed by a proportional-integral-derivative controller.
+The objective of this laboratory work is to implement an embedded PID control system for a physical process. The selected application is temperature regulation by forced ventilation: a DHT11 sensor measures the ambient temperature, the user selects the desired temperature setpoint, and a DC fan driven through an H-bridge receives a PWM command computed by a proportional-integral-derivative controller.
 
 The work is prepared primarily for a real Arduino Mega 2560 setup. Wokwi is kept as a reproducible wiring and firmware reference for the supported logic-side components, but the L293D/L298-style motor driver, external 9 V supply, and fan branch must be validated on the physical circuit. This choice follows the provided hardware image, where the fan is powered separately from the Arduino logic rail and receives only control signals from the MCU.
 
@@ -13,7 +13,7 @@ The work is prepared primarily for a real Arduino Mega 2560 setup. Wokwi is kept
 ``Să se proiecteze și să se implementeze o aplicație modulară pentru microcontroler (MCU) care realizează controlul PID asupra unui parametru fizic. Sistemul va achiziționa periodic valoarea parametrului de la un senzor adecvat, va compara cu valoarea de referință configurabilă și va calcula acțiunea de control utilizând algoritmul PID. Parametrii PID vor fi configurabili din cod sau din interfață, iar valorile parametrului măsurat, ale Set Point-ului, ale semnalului de control și starea actuatorului vor fi afișate pe LCD și/sau prin interfața serială.''
 \end{quote}
 
-The implemented system uses the DHT22 temperature as the measured process value and the fan speed as the manipulated output. Because the fan cools the environment, the controller is configured in reverse action: the error used by the PID algorithm increases when the measured temperature rises above the setpoint. The resulting control signal is limited to the range 0--100\%, then converted to a PWM duty cycle for the fan driver.
+The implemented system uses the DHT11 temperature as the measured process value and the fan speed as the manipulated output. Because the fan cools the environment, the controller is configured in reverse action: the error used by the PID algorithm increases when the measured temperature rises above the setpoint. The resulting control signal is limited to the range 0--100\%, then converted to a PWM duty cycle for the fan driver.
 
 The setpoint is configurable through two mechanisms. The potentiometer on A0 provides the default continuous setpoint over the 18--35\textdegree C range. The 4x4 keypad can switch to manual mode, increment or decrement the manual setpoint, or confirm a numeric setpoint entry. The PID coefficients are configured in code and can also be changed at runtime through keypad-selected presets named SOFT, NORM, and FAST.
 
@@ -25,7 +25,7 @@ The setpoint is configurable through two mechanisms. The potentiometer on A0 pro
 \hline
 \textbf{ID} & \textbf{Requirement} & \textbf{Validation Criterion} \\
 \hline
-R1 & Acquire temperature and humidity from the DHT22 without blocking unrelated application logic. & LCD and serial channels update after each acquisition cycle; invalid samples set `Valid:0`. \\
+R1 & Acquire temperature and humidity from the DHT11 without blocking unrelated application logic. & LCD and serial channels update after each acquisition cycle; invalid samples set `Valid:0`. \\
 \hline
 R2 & Provide a configurable temperature setpoint through potentiometer and keypad input. & A0 changes `SetPoint`; keypad manual entry overrides the potentiometer after confirmation. \\
 \hline
@@ -92,13 +92,13 @@ The LCD 1602 display uses an I2C backpack, so it requires only SDA, SCL, 5 V, an
 
 \subsubsection{FreeRTOS Task Scheduling}
 
-FreeRTOS is used to separate periodic and event-driven responsibilities. The input task scans the keypad every 50 ms, the acquisition task samples the DHT22 and potentiometer every 2000 ms, the control task waits for a new sample, the actuation task waits for a fresh control command, and the display task updates the LCD and Serial Plotter every 500 ms. A mutex protects shared state and binary semaphores express the order acquisition \(\rightarrow\) control \(\rightarrow\) actuation.
+FreeRTOS is used to separate periodic and event-driven responsibilities. The input task scans the keypad every 50 ms, the acquisition task samples the DHT11 and potentiometer every 2000 ms, the control task waits for a new sample, the actuation task waits for a fresh control command, and the display task updates the LCD and Serial Plotter every 500 ms. A mutex protects shared state and binary semaphores express the order acquisition \(\rightarrow\) control \(\rightarrow\) actuation.
 
 \subsection{Hardware Components}
 
 \subsubsection{Arduino Mega 2560}
 
-The Arduino Mega 2560 provides enough GPIO for the keypad matrix, DHT22 data line, I2C LCD, potentiometer input, and H-bridge motor driver. Its PWM-capable D13 pin is used as the fan enable command, while D16 and D17 provide the fan direction signals.
+The Arduino Mega 2560 provides enough GPIO for the keypad matrix, DHT11 data line, I2C LCD, potentiometer input, and H-bridge motor driver. Its PWM-capable D3 pin is used as the fan enable command, while D16 and D17 provide the fan direction signals.
 
 \begin{figure}[H]
 \centering
@@ -112,20 +112,20 @@ The Arduino Mega 2560 provides enough GPIO for the keypad matrix, DHT22 data lin
 \label{fig:arduino_mega_2560}
 \end{figure}
 
-\subsubsection{DHT22 Temperature and Humidity Sensor}
+\subsubsection{DHT11 Temperature and Humidity Sensor}
 
-The DHT22 sensor measures the process temperature and reports humidity as a diagnostic value. Its data line is connected to D2. A pull-up resistor is shown in the wiring reference because the data bus must return to logic HIGH between sensor transactions.
+The DHT11 sensor measures the process temperature and reports humidity as a diagnostic value. Its data line is connected to D2. A pull-up resistor is shown in the wiring reference because the data bus must return to logic HIGH between sensor transactions.
 
 \begin{figure}[H]
 \centering
-\IfFileExists{resources/DomainAnalysis/HardwareComponents/dht22.png}{%
-    \includegraphics[width=0.45\textwidth]{resources/DomainAnalysis/HardwareComponents/dht22.png}%
+\IfFileExists{resources/DomainAnalysis/HardwareComponents/DHT11.jpg}{%
+    \includegraphics[width=0.45\textwidth]{resources/DomainAnalysis/HardwareComponents/DHT11.jpg}%
 }{%
     \fbox{\parbox{0.43\textwidth}{\centering\color{gray}\small
-        [Photo pending --- save to resources/DomainAnalysis/HardwareComponents/dht22.png]}}%
+        [Photo pending --- save to resources/DomainAnalysis/HardwareComponents/DHT11.jpg]}}%
 }
-\caption{DHT22 temperature and humidity sensor}
-\label{fig:dht22_sensor}
+\caption{DHT11 temperature and humidity sensor}
+\label{fig:dht11_sensor}
 \end{figure}
 
 \subsubsection{Potentiometer}
@@ -178,7 +178,7 @@ The LCD gives direct feedback during physical testing. It alternates between pro
 
 \subsubsection{L293D/L298-Style H-Bridge Driver}
 
-The motor driver isolates the Arduino logic pins from the higher-current fan load. The enable input receives PWM from D13, while D16 and D17 select the fan direction. The physical branch uses an external 9 V supply, so the Arduino GND and driver logic GND must share a reference.
+The motor driver isolates the Arduino logic pins from the higher-current fan load. The enable input receives PWM from D3, while D16 and D17 select the fan direction. The physical branch uses an external 9 V supply, so the Arduino GND and driver logic GND must share a reference.
 
 \begin{figure}[H]
 \centering

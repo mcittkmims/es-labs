@@ -34,7 +34,7 @@
       "id": "pwm_led",
       "top": 377,
       "left": -95,
-      "attrs": { "color": "blue", "label": "D13 PWM" }
+      "attrs": { "color": "blue", "label": "D3 PWM" }
     },
     {
       "type": "wokwi-resistor",
@@ -70,9 +70,9 @@
     [ "pot1:VCC", "mega:5V", "red", [ "v48", "h217.7" ] ],
     [ "pot1:SIG", "mega:A0", "green", [ "v28.8", "h268.4" ] ],
 
-    [ "mega:13", "fan1:1", "yellow", [ "v205", "h-420" ] ],
+    [ "mega:3", "fan1:1", "yellow", [ "v205", "h-420" ] ],
     [ "fan1:2", "mega:GND.3", "black", [ "v60", "h650" ] ],
-    [ "mega:13", "pwm_led:A", "cyan", [ "v150", "h-250" ] ],
+    [ "mega:3", "pwm_led:A", "cyan", [ "v150", "h-250" ] ],
     [ "pwm_led:C", "r_pwm:1", "blue", [ "v0" ] ],
     [ "r_pwm:2", "mega:GND.3", "black", [ "v70", "h420" ] ]
   ],

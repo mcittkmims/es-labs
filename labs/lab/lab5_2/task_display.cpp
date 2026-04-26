@@ -35,7 +35,7 @@ void vTaskLab5PidDisplay(void *pvParameters) {
 
     s_lcd.init();
     s_lcd.backlight(true);
-    s_lcd.showTwoLines("Lab 5.2 PID", "DHT22 + Fan");
+    s_lcd.showTwoLines("Lab 5.2 PID", "DHT11 + Fan");
 
     TickType_t lastWake = xTaskGetTickCount();
     const TickType_t period = pdMS_TO_TICKS(TASK_DISPLAY_PERIOD_MS);

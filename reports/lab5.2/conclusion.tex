@@ -2,13 +2,13 @@
 
 \subsection{Achievement of Objectives}
 
-The laboratory work implements a complete PID-based embedded control application for temperature regulation. The system periodically acquires DHT22 temperature data, compares it with a configurable setpoint, computes a reverse-action PID output, and applies the resulting command to a PWM fan actuator through an H-bridge driver. The implementation follows the requested modular structure by separating input, acquisition, control, actuation, display, shared state, and reusable driver modules.
+The laboratory work implements a complete PID-based embedded control application for temperature regulation. The system periodically acquires DHT11 temperature data, compares it with a configurable setpoint, computes a reverse-action PID output, and applies the resulting command to a PWM fan actuator through an H-bridge driver. The implementation follows the requested modular structure by separating input, acquisition, control, actuation, display, shared state, and reusable driver modules.
 
 \subsection{Performance Analysis and System Limitations}
 
-The selected timing model is appropriate for the physical components. The DHT22 is sampled every 2000 ms to respect its practical update rate, while the keypad and LCD are refreshed faster for usability. The control loop is event-driven by the acquisition task, so each PID decision is based on a fresh sample rather than on repeated stale values.
+The selected timing model is appropriate for the physical components. The DHT11 is sampled every 2000 ms to respect its practical update rate, while the keypad and LCD are refreshed faster for usability. The control loop is event-driven by the acquisition task, so each PID decision is based on a fresh sample rather than on repeated stale values.
 
-The main limitation is the slow thermal response of the sensor-fan setup. The fan can change speed immediately, but the DHT22 temperature changes gradually and may be affected by airflow placement, room temperature, and sensor self-heating. As a result, PID tuning must be performed carefully on the real circuit. The FAST preset should be used only after the SOFT and NORM presets are verified.
+The main limitation is the slow thermal response of the sensor-fan setup. The fan can change speed immediately, but the DHT11 temperature changes gradually and may be affected by airflow placement, room temperature, and sensor self-heating. As a result, PID tuning must be performed carefully on the real circuit. The FAST preset should be used only after the SOFT and NORM presets are verified.
 
 \subsection{Proposed Improvements}
 

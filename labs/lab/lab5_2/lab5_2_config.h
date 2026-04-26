@@ -8,12 +8,14 @@
 
 #include <Arduino.h>
 #include <Arduino_FreeRTOS.h>
+#include <DHT.h>
 
-static const uint8_t PIN_DHT22 = 2;
+static const uint8_t PIN_DHT_SENSOR = 2;
+static const uint8_t DHT_SENSOR_TYPE = DHT11;
 static const uint8_t PIN_SETPOINT_POT = A0;
 
-// Physical fan branch from the provided image: L293D/L298-style H-bridge.
-static const uint8_t PIN_FAN_PWM = 13;
+// Reference physical fan branch: L293D/L298-style H-bridge.
+static const uint8_t PIN_FAN_PWM = 3;
 static const uint8_t PIN_FAN_IN1 = 16;
 static const uint8_t PIN_FAN_IN2 = 17;
 

@@ -2,7 +2,7 @@
 
 \subsection{Build Process}
 
-The PlatformIO environment `lab5\_2` compiles successfully for the Arduino Mega 2560 target before the firmware is flashed to the board. The successful build reports approximately 2237 bytes of RAM usage from 8192 bytes and 28664 bytes of flash usage from 253952 bytes, confirming that the PID controller, H-bridge driver, DHT22 wrapper, keypad, LCD, and FreeRTOS task modules are linked correctly.
+The PlatformIO environment `lab5\_2` compiles successfully for the Arduino Mega 2560 target before the firmware is flashed to the board. The successful build reports approximately 2237 bytes of RAM usage from 8192 bytes and 28662 bytes of flash usage from 253952 bytes, confirming that the PID controller, H-bridge driver, DHT11 wrapper, keypad, LCD, and FreeRTOS task modules are linked correctly.
 
 \begin{figure}[H]
 \centering
@@ -19,7 +19,7 @@ The PlatformIO environment `lab5\_2` compiles successfully for the Arduino Mega 
 
 \subsection{Physical Hardware Setup}
 
-The final validation is intended for the physical circuit shown by the provided wiring image. The setup must show the Arduino Mega, DHT22, potentiometer, keypad, LCD, L293D/L298-style driver, DC fan, shared ground, and external 9 V motor supply. The Wokwi file is useful for checking firmware startup and logic-side pins, but the fan driver and battery branch must be verified on hardware.
+The final validation is intended for the physical circuit shown by the provided wiring image. The setup must show the Arduino Mega, DHT11, potentiometer, keypad, LCD, L293D/L298-style driver, DC fan, shared ground, and external 9 V motor supply. The Wokwi file is useful for checking firmware startup and logic-side pins, but the fan driver and battery branch must be verified on hardware.
 
 \begin{figure}[H]
 \centering
@@ -36,7 +36,7 @@ The final validation is intended for the physical circuit shown by the provided 
 
 \subsection{Wokwi Reference Startup}
 
-The Wokwi project should be started from `labs/wokwi/lab5.2/wokwi.toml`. It is expected to show the LCD, keypad, potentiometer, DHT22, and the D13 PWM proxy. The real H-bridge and 9 V fan branch are represented in the report schematic rather than fully simulated.
+The Wokwi project should be started from `labs/wokwi/lab5.2/wokwi.toml`. It is expected to show the LCD, keypad, potentiometer, a DHT-family wiring placeholder, and the D3 PWM proxy. The physical reference run uses a DHT11 on D2; the real H-bridge and 9 V fan branch are represented in the report schematic rather than fully simulated.
 
 \begin{figure}[H]
 \centering
@@ -61,17 +61,17 @@ The validation scenarios are derived from the requirements table. Each scenario 
 \hline
 \textbf{Scenario} & \textbf{Action} & \textbf{Expected Evidence} \\
 \hline
-Normal operation & Power the board and wait for DHT22 acquisition. & LCD shows temperature, setpoint, fan duty, and sensor status. \\
+Normal operation & Power the board and wait for DHT11 acquisition. & LCD shows temperature, setpoint, fan duty, and sensor status. \\
 \hline
 Setpoint change & Rotate the potentiometer or enter a manual keypad setpoint. & `SetPoint` changes and the PID error changes sign/magnitude accordingly. \\
 \hline
-Cooling demand & Warm the DHT22 above the setpoint. & `Output` and `Duty` increase, and the fan starts or speeds up. \\
+Cooling demand & Warm the DHT11 above the setpoint. & `Output` and `Duty` increase, and the fan starts or speeds up. \\
 \hline
 Near setpoint & Let temperature approach the setpoint. & PID output decreases smoothly rather than switching abruptly. \\
 \hline
 PID preset change & Press D to cycle SOFT/NORM/FAST. & LCD and Serial Plotter show changed Kp, Ki, and Kd values. \\
 \hline
-Sensor failure behavior & Disconnect or force an invalid DHT22 read during controlled testing. & `Valid:0` appears and fan duty goes to 0\%. \\
+Sensor failure behavior & Disconnect or force an invalid DHT11 read during controlled testing. & `Valid:0` appears and fan duty goes to 0\%. \\
 \hline
 \end{tabular}
 \caption{Hardware validation scenario matrix}
@@ -97,7 +97,7 @@ The LCD should alternate between the primary process page, the error/output page
 
 \subsubsection{PID Response to Heating}
 
-When the DHT22 temperature is raised above the setpoint, the reverse-action PID error becomes positive. The controller should increase its output, and the fan duty should rise after the actuator task converts the PID output to a physical PWM duty.
+When the DHT11 temperature is raised above the setpoint, the reverse-action PID error becomes positive. The controller should increase its output, and the fan duty should rise after the actuator task converts the PID output to a physical PWM duty.
 
 \begin{figure}[H]
 \centering
@@ -165,15 +165,15 @@ The Serial Plotter should show a continuous control trace rather than the binary
 
 \subsection{System Observations}
 
-The acquisition period is 2000 ms because the DHT22 should not be polled aggressively. The controller therefore updates at the same rate as the sensor data, while the LCD and Serial Plotter refresh faster so user edits remain visible. The fan duty is mapped from the PID output with a minimum running duty, because small PWM values may not overcome motor friction on real hardware.
+The acquisition period is 2000 ms because the DHT11 should not be polled aggressively. The controller therefore updates at the same rate as the sensor data, while the LCD and Serial Plotter refresh faster so user edits remain visible. The fan duty is mapped from the PID output with a minimum running duty, because small PWM values may not overcome motor friction on real hardware.
 
-The most important limitation is that the DHT22 measures air temperature slowly compared with the electrical response of the fan. Because of that, aggressive PID gains can produce oscillation if the fan cools the sensor area with delay. The preset mechanism supports practical tuning: SOFT is safer for first hardware runs, NORM is the default, and FAST is useful only when the physical setup responds quickly.
+The most important limitation is that the DHT11 measures air temperature slowly compared with the electrical response of the fan. Because of that, aggressive PID gains can produce oscillation if the fan cools the sensor area with delay. The preset mechanism supports practical tuning: SOFT is safer for first hardware runs, NORM is the default, and FAST is useful only when the physical setup responds quickly.
 
 \subsection{Verification Summary}
 
 \begin{itemize}
     \item \textbf{Compilation:} `lab5\_2` builds for Arduino Mega 2560.
-    \item \textbf{Acquisition:} DHT22 temperature and humidity are sampled in a dedicated task.
+    \item \textbf{Acquisition:} DHT11 temperature and humidity are sampled in a dedicated task.
     \item \textbf{Setpoint:} A0 potentiometer and keypad manual mode both update the active setpoint.
     \item \textbf{Control:} Reverse-action PID produces a bounded 0--100\% output.
     \item \textbf{Actuation:} H-bridge motor driver receives PWM and direction signals from a separate task.

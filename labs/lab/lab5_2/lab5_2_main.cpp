@@ -24,7 +24,7 @@ void lab5_2Setup() {
     printf("\r\n");
     printf("================================================\r\n");
     printf("  Lab 5.2 - PID Control\r\n");
-    printf("  Variant: DHT22 temperature + PWM fan via L293D\r\n");
+    printf("  Variant: DHT11 temperature + PWM fan via L293D\r\n");
     printf("  Arduino Mega | FreeRTOS | LCD | Keypad\r\n");
     printf("================================================\r\n");
     printf("KEYPAD:\r\n");
@@ -34,7 +34,7 @@ void lab5_2Setup() {
     printf("  digits + # = enter integer manual setpoint\r\n");
     printf("  * = cancel numeric entry\r\n");
     printf("PINS:\r\n");
-    printf("  DHT22 data: D%u\r\n", (unsigned)PIN_DHT22);
+    printf("  DHT11 data: D%u\r\n", (unsigned)PIN_DHT_SENSOR);
     printf("  Fan EN/PWM: D%u\r\n", (unsigned)PIN_FAN_PWM);
     printf("  Fan IN1:    D%u\r\n", (unsigned)PIN_FAN_IN1);
     printf("  Fan IN2:    D%u\r\n", (unsigned)PIN_FAN_IN2);

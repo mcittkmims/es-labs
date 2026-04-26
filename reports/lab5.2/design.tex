@@ -4,7 +4,7 @@
 
 \subsubsection{Component-Level Architecture}
 
-The system is organized as a closed feedback loop. The DHT22 sensor provides the measured temperature, the potentiometer and keypad provide the desired setpoint and tuning choices, the PID controller computes a continuous command, and the H-bridge applies the command to the fan through PWM. The LCD and Serial Plotter expose the same internal state so that the physical behavior can be checked while the board is running.
+The system is organized as a closed feedback loop. The DHT11 sensor provides the measured temperature, the potentiometer and keypad provide the desired setpoint and tuning choices, the PID controller computes a continuous command, and the H-bridge applies the command to the fan through PWM. The LCD and Serial Plotter expose the same internal state so that the physical behavior can be checked while the board is running.
 
 \begin{figure}[H]
 \centering
@@ -15,7 +15,7 @@ The system is organized as a closed feedback loop. The DHT22 sensor provides the
     arrow/.style={thick,->,>=Stealth}]
     \node[comp, minimum width=3.5cm, minimum height=1.2cm] (mcu) at (0.0, 0.0)
         {Arduino Mega 2560\\FreeRTOS firmware};
-    \node[comp] (dht)    at (-6.0, 2.1) {DHT22\\temperature feedback};
+    \node[comp] (dht)    at (-6.0, 2.1) {DHT11\\temperature feedback};
     \node[comp] (pot)    at (-6.0, 0.3) {Potentiometer\\setpoint source};
     \node[comp] (keypad) at (-6.0,-1.7) {4x4 Keypad\\manual setpoint\\PID preset};
     \node[comp] (lcd)    at (6.0, 2.1) {LCD 1602 I2C\\local diagnostics};
@@ -28,7 +28,7 @@ The system is organized as a closed feedback loop. The DHT22 sensor provides the
     \draw[arrow] (keypad.east) -- node[pin, below, pos=0.52]{D4--D11} (mcu.west);
     \draw[arrow] (mcu.east) -- node[pin, above, pos=0.54]{SDA/SCL} (lcd.west);
     \draw[arrow] (mcu.east) -- node[pin, above, pos=0.54]{STDIO} (plot.west);
-    \draw[arrow] (mcu.east) -- node[pin, below, pos=0.50]{D13, D16, D17} (driver.west);
+    \draw[arrow] (mcu.east) -- node[pin, below, pos=0.50]{D3, D16, D17} (driver.west);
     \draw[arrow] (driver.south) -- node[right, font=\scriptsize]{motor outputs} (fan.north);
 \end{tikzpicture}
 \caption{System structural diagram for PID temperature regulation}
@@ -37,7 +37,7 @@ The system is organized as a closed feedback loop. The DHT22 sensor provides the
 
 \subsubsection{Closed-Loop Control Structure}
 
-The structural diagram shows the hardware connections, but the control loop itself is better understood as a signal chain. The setpoint and measured temperature meet at the error calculation, the PID controller converts the error into a normalized command, and the actuator conditioning block translates the command into a fan duty cycle that can actually be applied to the motor. The DHT22 closes the loop by measuring the temperature after the fan has affected the air around the sensor.
+The structural diagram shows the hardware connections, but the control loop itself is better understood as a signal chain. The setpoint and measured temperature meet at the error calculation, the PID controller converts the error into a normalized command, and the actuator conditioning block translates the command into a fan duty cycle that can actually be applied to the motor. The DHT11 closes the loop by measuring the temperature after the fan has affected the air around the sensor.
 
 \begin{figure}[H]
 \centering
@@ -56,7 +56,7 @@ The structural diagram shows the hardware connections, but the control loop itse
     \node[block] (sat) at (2.2,0.0) {Clamp\\0--100\%};
     \node[block] (map) at (6.0,0.0) {Fan Duty\\mapping};
     \node[block] (plant) at (9.8,0.0) {Fan + Air\\thermal process};
-    \node[smallblock] (sensor) at (6.0,-2.2) {DHT22\\measurement};
+    \node[smallblock] (sensor) at (6.0,-2.2) {DHT11\\measurement};
 
     \draw[arrow] (sp) -- node[note, above] {$SP$} (sum);
     \draw[arrow] (sum) -- node[note, above] {$e=T-SP$} (pid);
@@ -75,7 +75,7 @@ The structural diagram shows the hardware connections, but the control loop itse
 
 \subsubsection{Layered System Architecture}
 
-The layered architecture keeps the control algorithm separate from hardware access. The application layer creates tasks and defines the runtime sequence. The service layer contains shared state and the PID controller. The ECAL layer contains reusable wrappers for DHT22, analog setpoint input, LCD, keypad, PWM, and H-bridge motor control. The hardware layer contains the actual Arduino pins and external driver circuit.
+The layered architecture keeps the control algorithm separate from hardware access. The application layer creates tasks and defines the runtime sequence. The service layer contains shared state and the PID controller. The ECAL layer contains reusable wrappers for DHT11, analog setpoint input, LCD, keypad, PWM, and H-bridge motor control. The hardware layer contains the actual Arduino pins and external driver circuit.
 
 \begin{figure}[H]
 \centering
@@ -87,7 +87,7 @@ The layered architecture keeps the control algorithm separate from hardware acce
     \node[box] (srv)  at (0,-1.2)  {Service Layer: shared PID state, setpoint policy, PID control law};
     \node[box] (ecal) at (0,-2.4)  {ECAL Layer: DhtSensor, AnalogSetpointInput, KeypadInput, LcdDisplay, HBridgeMotor};
     \node[box] (mcal) at (0,-3.6)  {MCAL/Arduino Layer: digitalWrite, analogWrite, I2C, DHT library, STDIO serial};
-    \node[box] (hw)   at (0,-4.8)  {Hardware: Mega 2560, DHT22, potentiometer, keypad, LCD, H-bridge, 9 V fan branch};
+    \node[box] (hw)   at (0,-4.8)  {Hardware: Mega 2560, DHT11, potentiometer, keypad, LCD, H-bridge, 9 V fan branch};
 
     \foreach \a/\b in {app/srv, srv/ecal, ecal/mcal, mcal/hw}
         \draw[arrow] (\a) -- (\b);
@@ -257,7 +257,7 @@ The keypad has two major operating states: normal command mode and numeric setpo
 
 \subsubsection{Circuit Schematic}
 
-The physical circuit extends the Wokwi-supported logic-side wiring with an H-bridge fan branch. D13 is the PWM enable signal, D16 and D17 select direction, and the external 9 V source powers the fan side of the driver. The Arduino and driver grounds must be connected so the logic signals have a common reference.
+The physical circuit extends the Wokwi-supported logic-side wiring with an H-bridge fan branch. D3 is the PWM enable signal, D16 and D17 select direction, and the external 9 V source powers the fan side of the driver. The Arduino and driver grounds must be connected so the logic signals have a common reference.
 
 \begin{figure}[H]
 \centering
@@ -290,11 +290,11 @@ The physical circuit extends the Wokwi-supported logic-side wiring with an H-bri
     \node[pinlabel, anchor=east] at (-2.05,0.88) {A0};
     \node[pinlabel, anchor=east] at (-2.05,-0.52) {D4--D11};
     \node[pinlabel, anchor=west] at (2.05,1.98) {SDA/SCL};
-    \node[pinlabel, anchor=west] at (2.05,0.48) {D13 PWM};
+    \node[pinlabel, anchor=west] at (2.05,0.48) {D3 PWM};
     \node[pinlabel, anchor=west] at (2.05,-0.52) {D16};
     \node[pinlabel, anchor=west] at (2.05,-1.42) {D17};
 
-    \node[module] (dht) at (-6.9,2.05) {DHT22\\\scriptsize VCC=5 V, GND};
+    \node[module] (dht) at (-6.9,2.05) {DHT11\\\scriptsize VCC=5 V, GND};
     \draw[wire] (dht.east) -- ++(0.45,0) coordinate (dhtdata)
         -- node[note, above, pos=0.50] {DATA} (d2pin);
     \draw[wire] (dhtdata) node[circ]{}
@@ -343,17 +343,17 @@ The physical circuit extends the Wokwi-supported logic-side wiring with an H-bri
 
 \begin{itemize}
     \item Arduino Mega 2560: ATmega2560, 5 V logic, 16 MHz.
-    \item DHT22: digital temperature and humidity sensor connected to D2.
+    \item DHT11: digital temperature and humidity sensor connected to D2.
     \item Potentiometer: analog setpoint source connected to A0.
     \item Keypad: 4x4 matrix, rows on D11--D8 and columns on D7--D4.
     \item LCD 1602 I2C: address \(0x27\), connected through SDA/SCL.
-    \item H-bridge driver: PWM enable on D13, IN1 on D16, IN2 on D17.
+    \item H-bridge driver: PWM enable on D3, IN1 on D16, IN2 on D17.
     \item Fan branch: external 9 V supply and DC fan connected to the driver motor outputs.
 \end{itemize}
 
 \subsubsection{Wokwi Reference}
 
-The Wokwi project contains the Arduino Mega, DHT22, potentiometer, keypad, LCD, and a direct PWM motor/LED proxy. It intentionally does not model the complete physical L293D and 9 V fan branch; those are documented in the schematic and must be validated on the real board.
+The Wokwi project contains the Arduino Mega, keypad, LCD, potentiometer, and a direct PWM motor/LED proxy. Wokwi's available DHT-family visual component is kept only as a wiring placeholder; the physical reference schema and firmware use a DHT11 on D2. The complete L293D and 9 V fan branch are documented in the schematic and must be validated on the real board.
 
 \begin{figure}[H]
 \centering
@@ -370,14 +370,14 @@ The Wokwi project contains the Arduino Mega, DHT22, potentiometer, keypad, LCD, 
 
 \begin{lstlisting}[language=json, caption=Essential Lab 5.2 pin map, label=lst:pin_map]
 {
-  "dht22": { "data": "D2", "vcc": "5V", "gnd": "GND" },
+  "dht11": { "data": "D2", "vcc": "5V", "gnd": "GND" },
   "potentiometer": { "sig": "A0", "vcc": "5V", "gnd": "GND" },
   "keypad": {
     "rows": ["D11", "D10", "D9", "D8"],
     "cols": ["D7", "D6", "D5", "D4"]
   },
   "lcd_i2c": { "sda": "SDA", "scl": "SCL", "address": "0x27" },
-  "fan_driver": { "pwm": "D13", "in1": "D16", "in2": "D17" }
+  "fan_driver": { "pwm": "D3", "in1": "D16", "in2": "D17" }
 }
 \end{lstlisting}
 
@@ -494,13 +494,13 @@ struct Lab5PidState {
 
 The input task owns all keypad interpretation. Key \texttt{A} toggles between potentiometer and manual setpoint mode, keys \texttt{B} and \texttt{C} adjust the manual setpoint in 0.5\textdegree C steps, key \texttt{D} cycles the PID gain preset, numeric keys fill a small edit buffer, \texttt{\#} confirms the typed setpoint, and \texttt{*} cancels the edit. The keypad wrapper handles debounce, while the task itself updates only user-intent fields in shared state. It does not calculate PID output, actuate the fan, or write to the display.
 
-The acquisition task owns the sensor and analog setpoint reads. It performs DHT22 and ADC operations before locking the shared state so slow I/O does not hold the mutex. After the sample is written, it gives the new-sample semaphore. This event is the only trigger for the PID control task, which means the controller runs at the real sensor update rate instead of spinning in a tight loop.
+The acquisition task owns the sensor and analog setpoint reads. It performs DHT11 and ADC operations before locking the shared state so slow I/O does not hold the mutex. After the sample is written, it gives the new-sample semaphore. This event is the only trigger for the PID control task, which means the controller runs at the real sensor update rate instead of spinning in a tight loop.
 
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}
     \node (start) [startstop] at (0, 0.0) {Acquire cycle};
-    \node (dht)   [process]   at (0,-1.8) {Read DHT22 temperature and humidity};
+    \node (dht)   [process]   at (0,-1.8) {Read DHT11 temperature and humidity};
     \node (pot)   [process]   at (0,-3.6) {Read A0 and map to setpoint range};
     \node (src)   [decision]  at (0,-6.1) {Source = POT?};
     \node (usepot)[process]   at (-4.6,-8.4) {Use potentiometer setpoint};
@@ -525,7 +525,7 @@ The acquisition task owns the sensor and analog setpoint reads. It performs DHT2
 
 The reusable \texttt{PidController} accepts gains, output limits, and a direction mode. In reverse mode it calculates error as measured value minus setpoint, which is appropriate for a cooling fan. The integral term is clamped to the output limits to reduce windup when the actuator saturates.
 
-Every call to \texttt{update} receives the measured value, the setpoint, and the elapsed time in seconds. The elapsed time is derived from FreeRTOS ticks, with the 2000 ms acquisition period used as a fallback for the first cycle. The controller stores the previous error internally, so the derivative term is not active until at least two samples have been seen. When the DHT22 sample is invalid, the control task resets the PID state and publishes a zero output; this prevents stale integral memory from restarting the fan at a nonzero duty after a sensor fault.
+Every call to \texttt{update} receives the measured value, the setpoint, and the elapsed time in seconds. The elapsed time is derived from FreeRTOS ticks, with the 2000 ms acquisition period used as a fallback for the first cycle. The controller stores the previous error internally, so the derivative term is not active until at least two samples have been seen. When the DHT11 sample is invalid, the control task resets the PID state and publishes a zero output; this prevents stale integral memory from restarting the fan at a nonzero duty after a sensor fault.
 
 \begin{lstlisting}[language=C++, caption=PID update interface, label=lst:pid_update]
 float output = s_pid.update(setpoint, temperature, dtSeconds);
@@ -590,7 +590,7 @@ The display task periodically snapshots the shared state and formats three LCD p
 \hline
 Input & 50 ms period & Scan debounced keypad events and update setpoint or PID preset. \\
 \hline
-Acquisition & 2000 ms period & Read DHT22 temperature/humidity and potentiometer setpoint. \\
+Acquisition & 2000 ms period & Read DHT11 temperature/humidity and potentiometer setpoint. \\
 \hline
 Control & New-sample semaphore & Apply reverse-action PID and publish bounded output. \\
 \hline
