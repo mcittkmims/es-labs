@@ -16,6 +16,21 @@
 #include <Arduino_FreeRTOS.h>
 #include <stdio.h>
 
+extern "C" void vApplicationStackOverflowHook(TaskHandle_t xTask,
+                                                 char *pcTaskName) {
+    (void)xTask;
+    printf("[FATAL] Stack overflow in task: %s\r\n",
+           pcTaskName != NULL ? pcTaskName : "<unknown>");
+    taskDISABLE_INTERRUPTS();
+    for (;;) {}
+}
+
+extern "C" void vApplicationMallocFailedHook(void) {
+    printf("[FATAL] FreeRTOS malloc failed\r\n");
+    taskDISABLE_INTERRUPTS();
+    for (;;) {}
+}
+
 #include "StdioSerial.h"
 
 void lab5_1Setup() {
@@ -24,7 +39,7 @@ void lab5_1Setup() {
     printf("\r\n");
     printf("================================================\r\n");
     printf("  Lab 5.1 - ON-OFF Control with Hysteresis\r\n");
-    printf("  Variant A: DHT22 temperature + relay actuator\r\n");
+    printf("  Variant A: DHT11 temperature + relay actuator\r\n");
     printf("  Arduino Mega | FreeRTOS | LCD | Keypad\r\n");
     printf("================================================\r\n");
     printf("KEYPAD:\r\n");
@@ -34,7 +49,7 @@ void lab5_1Setup() {
     printf("  digits + # = enter integer manual setpoint\r\n");
     printf("  * = cancel numeric entry\r\n");
     printf("PINS:\r\n");
-    printf("  DHT22 data: D%u\r\n", (unsigned)PIN_DHT22);
+    printf("  DHT11 data: D%u\r\n", (unsigned)PIN_DHT22);
     printf("  Relay IN:   D%u\r\n", (unsigned)PIN_RELAY);
     printf("  Pot SIG:    A0\r\n");
     printf("  LCD:        SDA/SCL\r\n");

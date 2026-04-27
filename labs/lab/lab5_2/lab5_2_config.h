@@ -55,11 +55,12 @@ static const uint16_t TASK_INPUT_PERIOD_MS = 50;
 static const uint16_t TASK_ACQUISITION_PERIOD_MS = 2000;
 static const uint16_t TASK_DISPLAY_PERIOD_MS = 500;
 
-static const configSTACK_DEPTH_TYPE TASK_INPUT_STACK = 256;
-static const configSTACK_DEPTH_TYPE TASK_ACQUISITION_STACK = 384;
-static const configSTACK_DEPTH_TYPE TASK_CONTROL_STACK = 384;
-static const configSTACK_DEPTH_TYPE TASK_ACTUATION_STACK = 256;
-static const configSTACK_DEPTH_TYPE TASK_DISPLAY_STACK = 704;
+// Increased stack headroom for AVR + FreeRTOS + LCD/serial formatting paths.
+static const configSTACK_DEPTH_TYPE TASK_INPUT_STACK = 384;
+static const configSTACK_DEPTH_TYPE TASK_ACQUISITION_STACK = 512;
+static const configSTACK_DEPTH_TYPE TASK_CONTROL_STACK = 512;
+static const configSTACK_DEPTH_TYPE TASK_ACTUATION_STACK = 320;
+static const configSTACK_DEPTH_TYPE TASK_DISPLAY_STACK = 1024;
 
 static const UBaseType_t TASK_INPUT_PRIORITY = 3;
 static const UBaseType_t TASK_ACQUISITION_PRIORITY = 3;

@@ -35,7 +35,7 @@ void vTaskLab5Display(void *pvParameters) {
 
     s_lcd.init();
     s_lcd.backlight(true);
-    s_lcd.showTwoLines("Lab 5.1 ONOFF", "DHT22 + Relay");
+    s_lcd.showTwoLines("Lab 5.1 ONOFF", "DHT11 + Relay");
 
     TickType_t lastWake = xTaskGetTickCount();
     const TickType_t period = pdMS_TO_TICKS(TASK_DISPLAY_PERIOD_MS);

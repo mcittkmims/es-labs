@@ -16,6 +16,21 @@
 #include <Arduino_FreeRTOS.h>
 #include <stdio.h>
 
+extern "C" void vApplicationStackOverflowHook(TaskHandle_t xTask,
+                                                 char *pcTaskName) {
+    (void)xTask;
+    printf("[FATAL] Stack overflow in task: %s\r\n",
+           pcTaskName != NULL ? pcTaskName : "<unknown>");
+    taskDISABLE_INTERRUPTS();
+    for (;;) {}
+}
+
+extern "C" void vApplicationMallocFailedHook(void) {
+    printf("[FATAL] FreeRTOS malloc failed\r\n");
+    taskDISABLE_INTERRUPTS();
+    for (;;) {}
+}
+
 #include "StdioSerial.h"
 
 void lab5_2Setup() {
