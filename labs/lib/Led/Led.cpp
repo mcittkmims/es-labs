@@ -34,6 +34,14 @@ void Led::toggle() {
     }
 }
 
+void Led::set(bool on) {
+    if (on) {
+        turnOn();
+    } else {
+        turnOff();
+    }
+}
+
 bool Led::isOn() const {
     return state;
 }

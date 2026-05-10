@@ -50,6 +50,17 @@ public:
     void toggle();
 
     /**
+     * @brief Drive the LED to a specific logical state.
+     *
+     * Convenience method that maps a boolean input directly onto
+     * @ref turnOn() / @ref turnOff(), useful when applying the output
+     * of a finite-state machine or any boolean controller.
+     *
+     * @param on true to turn the LED ON, false to turn it OFF.
+     */
+    void set(bool on);
+
+    /**
      * @brief Check whether the LED is currently ON.
      * @return true if the LED is ON, false otherwise.
      */
