@@ -1,0 +1,399 @@
+\section{Appendix}
+
+The complete source code for Lab 6.1 is organised below by architectural layer. Every module is reproduced here in full so that the report can be read as a self-contained reference; the latest version always lives in the project repository.
+
+\textbf{GitHub Repository:} \url{https://github.com/mcittkmims/es-labs}
+
+\subsection{Application Layer}
+
+\subsubsection{Lab Selector --- src/main.cpp}
+
+The central entry point delegates \texttt{setup()} and \texttt{loop()} to the active lab through preprocessor flags set in \texttt{platformio.ini}; only the Lab 6.1 branch is shown here for brevity.
+
+\begin{lstlisting}[language=C++, caption=src/main.cpp --- Lab selector (excerpt for Lab 6.1), label=lst:appendix_main]
+#include <Arduino.h>
+
+#if defined(LAB6_1)
+    #include "lab6_1_main.h"
+#endif
+
+void setup() {
+#if defined(LAB6_1)
+    lab6_1Setup();
+#endif
+}
+
+void loop() {
+#if defined(LAB6_1)
+    lab6_1Loop();
+#endif
+}
+\end{lstlisting}
+
+\subsubsection{Lab 6.1 Entry Point}
+
+\begin{lstlisting}[language=C++, caption=lab/lab6\_1/lab6\_1\_main.h --- public interface, label=lst:appendix_lab6_1_h]
+#ifndef LAB6_1_MAIN_H
+#define LAB6_1_MAIN_H
+
+void lab6_1Setup();
+void lab6_1Loop();
+
+#endif // LAB6_1_MAIN_H
+\end{lstlisting}
+
+\begin{lstlisting}[language=C++, caption=lab/lab6\_1/lab6\_1\_main.cpp --- application orchestration, label=lst:appendix_lab6_1_cpp]
+#include "lab6_1_main.h"
+#include <Arduino.h>
+#include <stdio.h>
+
+#include "Button.h"
+#include "ButtonLedFsm.h"
+#include "Led.h"
+#include "StdioSerial.h"
+
+static const uint8_t       PIN_BUTTON         = 7;
+static const uint8_t       PIN_LED            = 8;
+static const unsigned long BAUD_RATE          = 9600;
+static const uint16_t      BUTTON_DEBOUNCE_MS = 30;
+static const uint16_t      LOOP_TICK_MS       = 5;
+
+static Button       button(PIN_BUTTON, /*activeLow=*/true, BUTTON_DEBOUNCE_MS);
+static Led          led(PIN_LED);
+static ButtonLedFsm fsm;
+
+static void printFsmTable() {
+    printf("FSM state table (Moore, 2 states):\r\n");
+    printf("  Num | Name    | Out | In=0    | In=1    \r\n");
+    printf("  ----+---------+-----+---------+---------\r\n");
+    printf("  0   | LED_OFF |  0  | LED_OFF | LED_ON  \r\n");
+    printf("  1   | LED_ON  |  1  | LED_ON  | LED_OFF \r\n");
+}
+
+void lab6_1Setup() {
+    stdioSerialInit(BAUD_RATE);
+    button.init();
+    led.init();
+    fsm.init();
+    led.set(fsm.getOutput() != 0);
+
+    printf("\r\n========================================\r\n");
+    printf("  Lab 6.1: Button-LED Finite State        \r\n");
+    printf("           Machine (Moore, 2 states)     \r\n");
+    printf("  MCU: Arduino Mega 2560                  \r\n");
+    printf("========================================\r\n");
+    printf("Wiring:\r\n");
+    printf("  Button -> D%u (active-LOW, INPUT_PULLUP)\r\n", PIN_BUTTON);
+    printf("  LED    -> D%u (220 Ohm to GND)\r\n",            PIN_LED);
+    printf("Debounce window: %u ms\r\n", (unsigned)BUTTON_DEBOUNCE_MS);
+    printFsmTable();
+    printf("[FSM] Initial state: %s\r\n", fsm.getStateName());
+    printf("Press the button to toggle the LED state.\r\n\r\n");
+    fsm.clearChanged();
+}
+
+void lab6_1Loop() {
+    button.update();
+    if (button.wasPressed()) {
+        fsm.processEvent();
+    }
+    if (fsm.changed()) {
+        led.set(fsm.getOutput() != 0);
+        printf("[FSM] State -> %s (LED %s)\r\n",
+               fsm.getStateName(),
+               led.isOn() ? "ON" : "OFF");
+        fsm.clearChanged();
+    }
+    delay(LOOP_TICK_MS);
+}
+\end{lstlisting}
+
+\subsection{Service Layer}
+
+\subsubsection{ButtonLedFsm Module}
+
+\begin{lstlisting}[language=C++, caption=lib/ButtonLedFsm/ButtonLedFsm.h --- two-state Moore FSM interface, label=lst:appendix_fsm_h]
+#ifndef BUTTON_LED_FSM_H
+#define BUTTON_LED_FSM_H
+
+#include <stdint.h>
+
+enum ButtonLedState {
+    LED_OFF_STATE = 0,
+    LED_ON_STATE  = 1,
+    BUTTON_LED_STATE_COUNT
+};
+
+class ButtonLedFsm {
+public:
+    ButtonLedFsm();
+    void           init();
+    void           processEvent();
+    ButtonLedState getState() const;
+    uint8_t        getOutput() const;
+    const char    *getStateName() const;
+    bool           changed() const;
+    void           clearChanged();
+private:
+    struct StateRow {
+        uint8_t        output;
+        ButtonLedState next[2];
+    };
+    static const StateRow _table[BUTTON_LED_STATE_COUNT];
+    ButtonLedState _state;
+    bool           _changed;
+};
+
+#endif // BUTTON_LED_FSM_H
+\end{lstlisting}
+
+\begin{lstlisting}[language=C++, caption=lib/ButtonLedFsm/ButtonLedFsm.cpp --- FSM implementation, label=lst:appendix_fsm_cpp]
+#include "ButtonLedFsm.h"
+
+const ButtonLedFsm::StateRow ButtonLedFsm::_table[BUTTON_LED_STATE_COUNT] = {
+    { 0, { LED_OFF_STATE, LED_ON_STATE  } },
+    { 1, { LED_ON_STATE,  LED_OFF_STATE } }
+};
+
+ButtonLedFsm::ButtonLedFsm()
+    : _state(LED_OFF_STATE), _changed(true) {}
+
+void ButtonLedFsm::init() {
+    _state   = LED_OFF_STATE;
+    _changed = true;
+}
+
+void ButtonLedFsm::processEvent() {
+    ButtonLedState next = _table[_state].next[1];
+    if (next != _state) {
+        _state   = next;
+        _changed = true;
+    }
+}
+
+ButtonLedState ButtonLedFsm::getState() const {
+    return _state;
+}
+
+uint8_t ButtonLedFsm::getOutput() const {
+    return _table[_state].output;
+}
+
+const char *ButtonLedFsm::getStateName() const {
+    return (_state == LED_ON_STATE) ? "ON" : "OFF";
+}
+
+bool ButtonLedFsm::changed() const  { return _changed; }
+void ButtonLedFsm::clearChanged()   { _changed = false; }
+\end{lstlisting}
+
+\subsection{ECAL Layer}
+
+\subsubsection{StdioSerial Module}
+
+\begin{lstlisting}[language=C++, caption=lib/StdioSerial/StdioSerial.h --- printf-to-UART bridge, label=lst:appendix_stdio_h]
+#ifndef STDIO_SERIAL_H
+#define STDIO_SERIAL_H
+
+#include <Arduino.h>
+#include <stdio.h>
+
+void stdioSerialInit(unsigned long baudRate);
+
+#endif // STDIO_SERIAL_H
+\end{lstlisting}
+
+\begin{lstlisting}[language=C++, caption=lib/StdioSerial/StdioSerial.cpp --- bridge implementation, label=lst:appendix_stdio_cpp]
+#include "StdioSerial.h"
+
+static int serialPutChar(char c, FILE *stream) {
+    Serial.write(c);
+    return 0;
+}
+
+static int serialGetChar(FILE *stream) {
+    while (!Serial.available()) { }
+    char c = Serial.read();
+    if (c == '\r') {
+        Serial.write('\r');
+        Serial.write('\n');
+        return '\n';
+    }
+    if (c == '\b' || c == 127) {
+        Serial.write('\b');
+        Serial.write(' ');
+        Serial.write('\b');
+        return c;
+    }
+    Serial.write(c);
+    return c;
+}
+
+static FILE serialStream;
+
+void stdioSerialInit(unsigned long baudRate) {
+    Serial.begin(baudRate);
+    while (!Serial) { ; }
+    fdev_setup_stream(&serialStream,
+        serialPutChar, serialGetChar, _FDEV_SETUP_RW);
+    stdout = &serialStream;
+    stdin  = &serialStream;
+}
+\end{lstlisting}
+
+\subsection{MCAL Layer}
+
+\subsubsection{Button Driver}
+
+\begin{lstlisting}[language=C++, caption=lib/Button/Button.h --- debounced push-button driver interface, label=lst:appendix_button_h]
+#ifndef BUTTON_H
+#define BUTTON_H
+
+#include <Arduino.h>
+
+class Button {
+public:
+    Button(uint8_t pin, bool activeLow = true, uint16_t debounceMs = 30);
+    void init();
+    void update();
+    bool isPressed() const;
+    bool wasPressed();
+    bool wasReleased();
+private:
+    uint8_t  _pin;
+    bool     _activeLow;
+    uint16_t _debounceMs;
+    bool     _stableState;
+    bool     _lastRawState;
+    uint32_t _lastChangeMs;
+    bool     _pressedFlag;
+    bool     _releasedFlag;
+    bool     readLogical() const;
+};
+
+#endif // BUTTON_H
+\end{lstlisting}
+
+\begin{lstlisting}[language=C++, caption=lib/Button/Button.cpp --- driver implementation, label=lst:appendix_button_cpp]
+#include "Button.h"
+
+Button::Button(uint8_t pin, bool activeLow, uint16_t debounceMs)
+    : _pin(pin), _activeLow(activeLow), _debounceMs(debounceMs),
+      _stableState(false), _lastRawState(false),
+      _lastChangeMs(0), _pressedFlag(false), _releasedFlag(false) {}
+
+void Button::init() {
+    if (_activeLow) {
+        pinMode(_pin, INPUT_PULLUP);
+    } else {
+        pinMode(_pin, INPUT);
+    }
+    _lastRawState = readLogical();
+    _stableState  = _lastRawState;
+    _lastChangeMs = millis();
+    _pressedFlag  = false;
+    _releasedFlag = false;
+}
+
+void Button::update() {
+    bool raw = readLogical();
+    uint32_t now = millis();
+    if (raw != _lastRawState) {
+        _lastRawState = raw;
+        _lastChangeMs = now;
+        return;
+    }
+    if (raw != _stableState && (now - _lastChangeMs) >= _debounceMs) {
+        _stableState = raw;
+        if (_stableState) _pressedFlag  = true;
+        else              _releasedFlag = true;
+    }
+}
+
+bool Button::isPressed() const  { return _stableState; }
+bool Button::wasPressed()       {
+    bool flag = _pressedFlag;  _pressedFlag = false;  return flag; }
+bool Button::wasReleased()      {
+    bool flag = _releasedFlag; _releasedFlag = false; return flag; }
+
+bool Button::readLogical() const {
+    int level = digitalRead(_pin);
+    return _activeLow ? (level == LOW) : (level == HIGH);
+}
+\end{lstlisting}
+
+\subsubsection{LED Driver}
+
+\begin{lstlisting}[language=C++, caption=lib/Led/Led.h --- LED driver interface, label=lst:appendix_led_h]
+#ifndef LED_H
+#define LED_H
+
+#include <Arduino.h>
+
+class Led {
+public:
+    Led(uint8_t pin);
+    void init();
+    void turnOn();
+    void turnOff();
+    void toggle();
+    void set(bool on);
+    bool isOn() const;
+private:
+    uint8_t ledPin;
+    bool    state;
+};
+
+#endif // LED_H
+\end{lstlisting}
+
+\begin{lstlisting}[language=C++, caption=lib/Led/Led.cpp --- LED driver implementation, label=lst:appendix_led_cpp]
+#include "Led.h"
+
+Led::Led(uint8_t pin) : ledPin(pin), state(false) {}
+
+void Led::init() {
+    pinMode(ledPin, OUTPUT);
+    digitalWrite(ledPin, LOW);
+    state = false;
+}
+
+void Led::turnOn() {
+    digitalWrite(ledPin, HIGH);
+    state = true;
+}
+
+void Led::turnOff() {
+    digitalWrite(ledPin, LOW);
+    state = false;
+}
+
+void Led::toggle() {
+    if (state) turnOff(); else turnOn();
+}
+
+void Led::set(bool on) {
+    if (on) turnOn(); else turnOff();
+}
+
+bool Led::isOn() const { return state; }
+\end{lstlisting}
+
+\subsection{Build and Simulation Configuration}
+
+\begin{lstlisting}[caption=labs/platformio.ini --- Lab 6.1 environment, label=lst:appendix_pio_ini]
+[env:lab6_1]
+platform     = atmelavr
+board        = megaatmega2560
+framework    = arduino
+monitor_speed = 9600
+build_src_filter = +<*> +<../lab/lab6_1/*>
+build_flags  = -I lab/lab6_1 -DLAB6_1
+\end{lstlisting}
+
+\begin{lstlisting}[caption=labs/wokwi/lab6.1/wokwi.toml --- simulator firmware path, label=lst:appendix_wokwi_toml]
+[wokwi]
+version  = 1
+firmware = "../../.pio/build/lab6_1/firmware.hex"
+elf      = "../../.pio/build/lab6_1/firmware.elf"
+\end{lstlisting}

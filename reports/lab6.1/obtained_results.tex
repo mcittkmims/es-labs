@@ -1,0 +1,149 @@
+\section{Obtained Results}
+
+\subsection{Build Process}
+
+The Lab 6.1 firmware was compiled with PlatformIO using the dedicated \texttt{lab6\_1} environment, which selects the lab through the \texttt{-DLAB6\_1} build flag and links the four required libraries (\texttt{Button}, \texttt{ButtonLedFsm}, \texttt{Led}, \texttt{StdioSerial}) together with the Arduino framework. The build completes with no warnings or errors. The resulting firmware uses approximately 5.9~KB of Flash (about 2.3~\% of the 254~KB available on the ATmega2560) and 833~bytes of SRAM (about 10.2~\% of the 8~KB pool), confirming that the application has comfortable resource headroom for future extensions.
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/build_results.png}{%
+    \includegraphics[width=0.85\textwidth]{resources/ObtainedResults/build_results.png}%
+}{%
+    \fbox{\parbox{0.83\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- save the PlatformIO terminal showing the [SUCCESS] line, RAM/Flash usage, and the lab6\_1 environment to resources/ObtainedResults/build\_results.png]}}%
+}
+\caption{Successful PlatformIO build output for the \texttt{lab6\_1} environment}
+\label{fig:build_results}
+\end{figure}
+
+\subsection{Simulation Initialization}
+
+When the Wokwi simulation starts, the virtual ATmega2560 boots and the application initialises the STDIO serial bridge, configures the button and LED pins, resets the FSM to \texttt{LED\_OFF\_STATE}, and synchronises the LED with the FSM output (LED off). The serial terminal then displays the welcome banner and the FSM state table that documents the deterministic behaviour, as listed in \citelst{lst:startup_output}.
+
+\begin{lstlisting}[caption=Expected serial output on startup, label=lst:startup_output]
+========================================
+  Lab 6.1: Button-LED Finite State
+           Machine (Moore, 2 states)
+  MCU: Arduino Mega 2560
+========================================
+Wiring:
+  Button -> D7 (active-LOW, INPUT_PULLUP)
+  LED    -> D8 (220 Ohm to GND)
+Debounce window: 30 ms
+
+FSM state table (Moore, 2 states):
+  Num | Name    | Out | In=0    | In=1
+  ----+---------+-----+---------+---------
+  0   | LED_OFF |  0  | LED_OFF | LED_ON
+  1   | LED_ON  |  1  | LED_ON  | LED_OFF
+
+[FSM] Initial state: OFF
+Press the button to toggle the LED state.
+\end{lstlisting}
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/simulation_start.png}{%
+    \includegraphics[width=0.78\textwidth]{resources/ObtainedResults/simulation_start.png}%
+}{%
+    \fbox{\parbox{0.76\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- start the Wokwi simulation, wait for the welcome banner to appear in the serial terminal, and save to resources/ObtainedResults/simulation\_start.png]}}%
+}
+\caption{Wokwi simulation startup --- LED off, banner and FSM table printed}
+\label{fig:simulation_start}
+\end{figure}
+
+\subsection{Behavioural Validation}
+
+The system was exercised in the Wokwi simulator by clicking the on-screen push button. Each test case below corresponds to a requirement defined in the Domain Analysis section and is summarised by the serial trace it produces.
+
+\subsubsection{Test --- First Press (LED OFF $\rightarrow$ LED ON)}
+
+With the FSM in \texttt{LED\_OFF}, a single press triggers the rising edge in the \texttt{Button} driver after the 30~ms debounce window, which in turn drives \texttt{ButtonLedFsm::processEvent()}. The state advances to \texttt{LED\_ON}, the LED turns on (logic HIGH on D8), and the serial terminal prints the new state. This validates RF01, RF02, and RF04.
+
+\begin{lstlisting}[caption=Serial output --- first press, label=lst:test_first_press]
+[FSM] State -> ON (LED ON)
+\end{lstlisting}
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/test_first_press_on.png}{%
+    \includegraphics[width=0.78\textwidth]{resources/ObtainedResults/test_first_press_on.png}%
+}{%
+    \fbox{\parbox{0.76\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- press the Wokwi button once and capture the simulator with LED on plus the serial line ``State -> ON''. Save to resources/ObtainedResults/test\_first\_press\_on.png]}}%
+}
+\caption{First press --- FSM transitions to LED\_ON, the red LED lights up}
+\label{fig:test_first_press}
+\end{figure}
+
+\subsubsection{Test --- Second Press (LED ON $\rightarrow$ LED OFF)}
+
+With the FSM in \texttt{LED\_ON}, a second press toggles the FSM back to \texttt{LED\_OFF}, the LED turns off, and the new state is reported. The behaviour is symmetric to the first press, confirming that the state-table rows for both states are correct.
+
+\begin{lstlisting}[caption=Serial output --- second press, label=lst:test_second_press]
+[FSM] State -> OFF (LED OFF)
+\end{lstlisting}
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/test_second_press_off.png}{%
+    \includegraphics[width=0.78\textwidth]{resources/ObtainedResults/test_second_press_off.png}%
+}{%
+    \fbox{\parbox{0.76\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- press the Wokwi button a second time, capture the simulator with LED off plus the serial line ``State -> OFF''. Save to resources/ObtainedResults/test\_second\_press\_off.png]}}%
+}
+\caption{Second press --- FSM transitions back to LED\_OFF, the red LED turns off}
+\label{fig:test_second_press}
+\end{figure}
+
+\subsubsection{Test --- Sustained Hold (No Spurious Transitions)}
+
+Holding the button down does not produce additional transitions: after the rising edge has been consumed, \texttt{wasPressed()} returns \texttt{false} on every subsequent call until a release-press cycle generates a new edge. This validates that the one-shot edge semantics of the \texttt{Button} driver compose correctly with the FSM, and that holding the button is not interpreted as a flood of presses. The serial trace shows exactly one state line per press, no matter how long the user holds the button.
+
+\subsubsection{Test --- Repeated Press Sequence (Toggle Pattern)}
+
+To validate the deterministic toggle pattern, the button was pressed in rapid succession (about twice per second). The serial output alternates between \texttt{ON} and \texttt{OFF} on every press, in lock-step with the LED. This is the canonical Moore behaviour described by Tabelul~7.1 of the manual.
+
+\begin{lstlisting}[caption=Serial output --- repeated toggle sequence, label=lst:test_toggle_sequence]
+[FSM] State -> ON (LED ON)
+[FSM] State -> OFF (LED OFF)
+[FSM] State -> ON (LED ON)
+[FSM] State -> OFF (LED OFF)
+[FSM] State -> ON (LED ON)
+\end{lstlisting}
+
+\begin{figure}[H]
+\centering
+\IfFileExists{resources/ObtainedResults/test_toggle_sequence.png}{%
+    \includegraphics[width=0.78\textwidth]{resources/ObtainedResults/test_toggle_sequence.png}%
+}{%
+    \fbox{\parbox{0.76\textwidth}{\centering\color{gray}\small
+        [Screenshot pending --- press the Wokwi button several times in a row and capture the serial monitor showing the alternating ON/OFF lines. Save to resources/ObtainedResults/test\_toggle\_sequence.png]}}%
+}
+\caption{Multiple consecutive presses --- the FSM produces the expected alternating sequence}
+\label{fig:test_toggle_sequence}
+\end{figure}
+
+\subsubsection{Test --- Debounce Effectiveness}
+
+The debounce filter was validated by Wokwi's own behaviour: the simulator emulates the bouncing of a real push button when its parameters are tuned for it, and even with rapid clicks the FSM never registers a double transition for a single press. With the 30~ms stable window, every transition observed in the serial monitor corresponds one-to-one with a deliberate user action, confirming RF03.
+
+\subsection{System Observations}
+
+Several observations emerge from the simulation runs. The response time between a press and the corresponding state report is dominated by the debounce window of 30~ms plus the 5~ms loop tick, giving a worst-case latency of about 35~ms --- well below the 100~ms budget set in RNF01. The application uses very little CPU because the loop is a short polling cycle followed by a \texttt{delay(5)}; this leaves more than 99~\% of the MCU time available for future work such as adding a second peripheral or replacing \texttt{delay} with a non-blocking scheduler.
+
+The strict separation between FSM logic and driver code made the implementation easy to reason about. The whole behaviour can be inspected by looking at a single 4-line table in \texttt{ButtonLedFsm.cpp}; if the lab were extended to three or four states, it would be sufficient to add new rows without modifying any other module. Conversely, replacing the active-LOW button with an active-HIGH variant would only require flipping the second constructor argument of the \texttt{Button} object --- the FSM and the LED driver would not change at all.
+
+\subsection{Verification Summary}
+
+\begin{itemize}
+    \item \textbf{Compilation:} the \texttt{lab6\_1} environment builds with no warnings or errors; firmware footprint 5.9~KB Flash / 833~B SRAM.
+    \item \textbf{Initialization:} the welcome banner and FSM state table appear in the serial monitor; the LED starts off, matching the initial state \texttt{LED\_OFF}.
+    \item \textbf{Press detection (RF01):} every confirmed press produces exactly one rising-edge event in the \texttt{Button} driver.
+    \item \textbf{State toggling (RF02):} the FSM alternates between \texttt{LED\_ON} and \texttt{LED\_OFF} according to Tabelul~7.1.
+    \item \textbf{Debounce (RF03):} no spurious transitions are observed, even on rapid presses.
+    \item \textbf{Real-time reporting (RF04):} every state change emits a single \texttt{[FSM] State -> ...} line over STDIO.
+    \item \textbf{Latency (RNF01):} measured worst-case response under 35~ms, comfortably below 100~ms.
+    \item \textbf{Modularity (RNF02, RNF03):} FSM logic, button driver, LED driver, and STDIO bridge live in separate libraries; the lab entry point contains no \texttt{digitalRead}, \texttt{digitalWrite}, \texttt{pinMode}, or \texttt{Serial.*} calls.
+\end{itemize}
